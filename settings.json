@@ -133,11 +133,7 @@
       "Bash(mkfs.* *)"
     ],
     "ask": [
-      "Bash(rm *)",
-      "Bash(chmod *)",
-      "Bash(chown *)",
-      "Bash(git push *)",
-      "Bash(uv run python *)"
+      "Bash(rm *)"
     ],
     "disableBypassPermissionsMode": "disable",
     "defaultMode": "acceptEdits"

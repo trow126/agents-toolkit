@@ -6,6 +6,9 @@
 # プロジェクト学習事項と品質ゲート
 @LEARNINGS.md
 
+# PR 作成後レビュー規約
+@rules/pr-review.md
+
 # セッション初期化 (SessionStart hook で自動実行)
 
 SessionStart hook が git 情報を systemMessage で自動注入:
