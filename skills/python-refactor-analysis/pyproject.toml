@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "python-refactor-analysis"
+version = "0.1.0"
+description = "Analyze Python repositories and produce refactor-focused reports."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "radon>=6.0.1",
+  "rope>=1.13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+refactor-analyze = "refactor_analyze.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/refactor_analyze"]
+
+[tool.pytest.ini_options]
+markers = [
+    "cross_boundary: tests validating data crossing system boundaries",
+]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.mutmut]
+paths_to_mutate = "src/"
+tests_dir = "tests/"
