@@ -35,6 +35,7 @@ telemetry/
 usage-data/
 settings.json.bak.*
 hooks/*.original
+.last-cleanup
 
 # SuperClaude standard files (not customized, root directory only)
 /*.md
