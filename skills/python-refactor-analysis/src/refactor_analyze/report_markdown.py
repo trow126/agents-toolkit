@@ -148,14 +148,18 @@ def _focus(result: dict[str, Any]) -> list[str]:
 def _checks(checks: list[dict[str, Any]]) -> list[str]:
     output = []
     for check in checks:
-        if check.get("skipped"):
+        if check.get("unsupported"):
+            status = "unsupported"
+        elif check.get("skipped"):
             status = "skipped"
         elif check.get("timeout"):
             status = "timeout"
+        elif check.get("returncode") == 0:
+            status = "passed"
         else:
-            status = check.get("returncode")
+            status = f"failed ({check.get('returncode')})"
         output.append(f"- `{check.get('name')}`: {status}")
-        if check.get("stderr") and check.get("skipped"):
+        if check.get("stderr") and (check.get("skipped") or check.get("unsupported")):
             output.append(f"  - {check['stderr']}")
     return output
 

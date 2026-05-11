@@ -6,7 +6,7 @@
 - import graph and focus impact
 - symbols, dead-code candidates, and refactor probes
 - complexity, long-function, and large-file signals
-- optional project checks (`ruff`, `mypy`, `pytest`)
+- uv-only project checks (`ruff`, `mypy`, `pytest`)
 - a structure-first prompt for the next coding agent
 
 ## Run
@@ -14,6 +14,10 @@
 ```bash
 uv run --project . refactor-analyze /path/to/repo --out .analysis --diff --profile full
 ```
+
+Project checks run through `uv run --project /path/to/repo ...`. Repositories without
+`pyproject.toml` or `uv.lock` are reported as unsupported for checks; the tool does not
+fall back to system Python.
 
 For invocation as a Claude Code skill, see [`SKILL.md`](./SKILL.md).
 

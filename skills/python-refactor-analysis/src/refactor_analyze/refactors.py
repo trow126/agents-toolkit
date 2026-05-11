@@ -30,12 +30,18 @@ def analyze_refactor_probes(
         from rope.base.project import Project
         from rope.contrib.findit import find_occurrences
     except Exception as exc:
+        fallback_probes, fallback_errors = _fallback_occurrences(
+            root,
+            python_files,
+            symbol_data,
+            max_symbols,
+        )
         return {
             "status": "unavailable",
             "provider": "rope",
             "note": str(exc),
-            "probes": _fallback_occurrences(root, python_files, symbol_data, max_symbols),
-            "errors": [],
+            "probes": fallback_probes,
+            "errors": fallback_errors,
             "dead_code_candidates": find_dead_code_candidates(symbol_data),
         }
 
@@ -48,7 +54,13 @@ def analyze_refactor_probes(
             try:
                 resource = libutils.path_to_resource(project, str(path))
                 offset = symbol["offset"] if isinstance(symbol["offset"], int) else 0
-                occurrences = find_occurrences(project, resource, offset, unsure=True, resources=None)
+                occurrences = find_occurrences(
+                    project,
+                    resource,
+                    offset,
+                    unsure=True,
+                    resources=None,
+                )
                 probes.append(
                     {
                         "file": symbol["file"],
@@ -106,13 +118,14 @@ def _fallback_occurrences(
     python_files: list[Path],
     symbol_data: dict[str, Any],
     max_symbols: int,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     sources = []
+    errors = []
     for path in python_files:
         try:
             sources.append(path.read_text(encoding="utf-8"))
-        except (UnicodeDecodeError, OSError):
-            pass
+        except (UnicodeDecodeError, OSError) as exc:
+            errors.append(_file_error(root, path, exc))
     joined = "\n".join(sources)
     probes = []
     for symbol in symbol_data.get("symbols", [])[:max_symbols]:
@@ -126,7 +139,7 @@ def _fallback_occurrences(
                 "occurrences": joined.count(name),
             }
         )
-    return probes
+    return probes, errors
 
 
 def _line_starts(source: str) -> list[int]:
@@ -142,6 +155,14 @@ def _probe_error(symbol: dict[str, Any], exc: BaseException) -> dict[str, Any]:
     return {
         "file": symbol.get("file"),
         "name": symbol.get("name"),
+        "error": exc.__class__.__name__,
+        "message": str(exc),
+    }
+
+
+def _file_error(root: Path, path: Path, exc: BaseException) -> dict[str, Any]:
+    return {
+        "file": _rel(root, path),
         "error": exc.__class__.__name__,
         "message": str(exc),
     }

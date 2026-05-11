@@ -7,6 +7,5 @@ if command -v uv >/dev/null 2>&1; then
   exec uv run --project "$SKILL_DIR" refactor-analyze "$@"
 fi
 
-PYTHONPATH="$SKILL_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
-export PYTHONPATH
-exec python -m refactor_analyze.cli "$@"
+echo "refactor-analyze requires uv; install uv or run through a Claude Code environment with uv available." >&2
+exit 127

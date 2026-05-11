@@ -16,19 +16,23 @@ A structure-first survey: read generated reports first, then read the smallest s
 
 ## Invocation
 
-Prefer the bundled CLI through `uv` — no install, no PYTHONPATH:
+Use the bundled CLI through `uv`; this skill does not fall back to bare `python`:
 
 ```bash
-uv run --project ~/.claude/skills/python-refactor-analysis \
+uv run --project "${CLAUDE_SKILL_DIR}" \
   refactor-analyze <repo> --out .analysis --profile full
 ```
 
-Equivalent via the bundled wrapper:
+Equivalent via the bundled wrapper when this skill is installed under `~/.claude`:
 
 ```bash
 ~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
   <repo> --out .analysis --profile full
 ```
+
+Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are run as
+`uv run --project <repo> ...`. If the target repository has no `pyproject.toml` or
+`uv.lock`, checks are reported as `unsupported`; do not silently run system Python.
 
 ## Useful options
 
@@ -49,7 +53,7 @@ Equivalent via the bundled wrapper:
 | `structure_map.md` / `.json` | Package and file structure |
 | `structure_review.md` | Packages, cycles, call edges |
 | `findings.json` | Machine-readable findings |
-| `checks.md` | `ruff` / `mypy` / `pytest` results (or skipped) |
+| `checks.md` | uv project check results: passed, failed, skipped, timeout, or unsupported |
 | `hotspots.md` | Complexity, long functions, fan-in/out |
 | `import_graph.json` | Resolved import graph and cycles |
 | `refactor_prompt.md` | Suggested prompt for the next coding agent |

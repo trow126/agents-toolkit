@@ -10,7 +10,7 @@ SUPPORTED_PROFILES = ("full", "standard")
 
 
 class ConfigurationError(ValueError):
-    pass
+    """Raised when analysis configuration is invalid."""
 
 
 @dataclass(frozen=True)
@@ -41,16 +41,19 @@ CONFIG_FILES = (
 
 
 def load_config(root: Path, profile: str | None = None) -> AnalysisConfig:
-    data: dict[str, Any] = {}
+    tool_data: dict[str, Any] = {}
     for name in CONFIG_FILES:
         path = root / name
         if path.exists():
             data = _load_config_file(path)
-            break
+            candidate = _tool_config(data, path)
+            if candidate or path.name != "pyproject.toml":
+                tool_data = candidate
+                break
 
-    tool_data = _tool_config(data)
-    base = _profile_defaults("standard") | dict(tool_data.get("default", {}))
-    requested_profile = str(profile or tool_data.get("profile") or "standard")
+    base = _profile_defaults("standard")
+    base.update(_optional_mapping(tool_data, "default"))
+    requested_profile = _requested_profile(tool_data, profile)
     if requested_profile not in SUPPORTED_PROFILES:
         allowed = ", ".join(SUPPORTED_PROFILES)
         raise ConfigurationError(f"--profile must be one of: {allowed}")
@@ -63,21 +66,30 @@ def load_config(root: Path, profile: str | None = None) -> AnalysisConfig:
             if key not in {"default", "profile", "profiles"}
         }
     )
-    base.update(tool_data.get("profiles", {}).get(requested_profile, {}))
+    profiles = _optional_mapping(tool_data, "profiles")
+    if requested_profile in profiles:
+        base.update(_mapping_value(profiles[requested_profile], f"profiles.{requested_profile}"))
 
     config = AnalysisConfig(profile=requested_profile)
     return _merge(config, base)
 
 
-def _tool_config(data: dict[str, Any]) -> dict[str, Any]:
-    tool = data.get("tool", {})
-    if "refactor-analyze" in tool:
-        return tool["refactor-analyze"]
-    if "refactor_analyze" in tool:
-        return tool["refactor_analyze"]
+def _tool_config(data: dict[str, Any], path: Path) -> dict[str, Any]:
+    if path.name == "pyproject.toml":
+        if "tool" not in data:
+            return {}
+        tool = _mapping_value(data["tool"], "tool")
+        if "refactor-analyze" in tool:
+            return _mapping_value(tool["refactor-analyze"], "tool.refactor-analyze")
+        if "refactor_analyze" in tool:
+            return _mapping_value(tool["refactor_analyze"], "tool.refactor_analyze")
+        return {}
+
     if "refactor-analyze" in data:
-        return data["refactor-analyze"]
-    return data.get("refactor_analyze", data)
+        return _mapping_value(data["refactor-analyze"], "refactor-analyze")
+    if "refactor_analyze" in data:
+        return _mapping_value(data["refactor_analyze"], "refactor_analyze")
+    return _mapping_value(data, str(path))
 
 
 def _profile_defaults(profile: str) -> dict[str, Any]:
@@ -89,8 +101,33 @@ def _profile_defaults(profile: str) -> dict[str, Any]:
 def _load_config_file(path: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
+    except OSError as exc:
+        raise ConfigurationError(f"Failed to read config file {path}: {exc}") from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigurationError(f"Failed to parse config file {path}: {exc}") from exc
+
+
+def _requested_profile(tool_data: dict[str, Any], profile: str | None) -> str:
+    if profile is not None:
+        return profile
+    if "profile" not in tool_data:
+        return "standard"
+    value = tool_data["profile"]
+    if not isinstance(value, str):
+        raise ConfigurationError("Configuration key 'profile' must be a string.")
+    return value
+
+
+def _optional_mapping(values: dict[str, Any], key: str) -> dict[str, Any]:
+    if key not in values:
         return {}
+    return _mapping_value(values[key], key)
+
+
+def _mapping_value(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ConfigurationError(f"Configuration section '{label}' must be a table.")
+    return value
 
 
 def _merge(config: AnalysisConfig, values: dict[str, Any]) -> AnalysisConfig:
@@ -101,7 +138,7 @@ def _merge(config: AnalysisConfig, values: dict[str, Any]) -> AnalysisConfig:
         if key == "timeout":
             key = "check_timeout_seconds"
         if key not in valid:
-            continue
+            raise ConfigurationError(f"Unsupported configuration key: {key}")
         if key in {"exclude_dirs", "package_roots"} and isinstance(value, list):
             normalized[key] = tuple(str(item) for item in value)
         else:
