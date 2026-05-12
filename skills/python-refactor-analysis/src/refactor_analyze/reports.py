@@ -17,7 +17,9 @@ from refactor_analyze.report_markdown import (
 )
 
 
-def write_reports(result: dict[str, Any], output_dir: Path, config: AnalysisConfig) -> dict[str, Any]:
+def write_reports(
+    result: dict[str, Any], output_dir: Path, config: AnalysisConfig
+) -> dict[str, Any]:
     output_dir.mkdir(parents=True, exist_ok=True)
     files = {
         "summary": output_dir / "summary.md",

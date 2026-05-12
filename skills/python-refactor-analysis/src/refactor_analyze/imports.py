@@ -65,7 +65,9 @@ def build_import_analysis(
     }
 
 
-def impact_for_focus(import_graph: dict[str, Any], focus_files: set[Path], root: Path) -> dict[str, Any]:
+def impact_for_focus(
+    import_graph: dict[str, Any], focus_files: set[Path], root: Path
+) -> dict[str, Any]:
     reverse = import_graph.get("reverse_graph", {})
     focus = {_rel(root, path) for path in focus_files}
     impacted: set[str] = set()

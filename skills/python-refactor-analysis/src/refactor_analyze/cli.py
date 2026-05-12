@@ -17,7 +17,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--diff", action="store_true", help="Focus files changed in git diff.")
     parser.add_argument("--profile", help="Configuration profile from pyproject.toml.")
     parser.add_argument("--skip-checks", action="store_true", help="Do not run project checks.")
-    parser.add_argument("--skip-refactor-probes", action="store_true", help="Skip Rope occurrence probes.")
+    parser.add_argument(
+        "--skip-refactor-probes", action="store_true", help="Skip Rope occurrence probes."
+    )
     parser.add_argument("--timeout", type=int, help="Timeout seconds for checks.")
     parser.add_argument("--json", action="store_true", help="Print the result JSON to stdout.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

@@ -125,8 +125,7 @@ def render_refactor_prompt(result: dict[str, Any]) -> str:
         "Treat dead-code results as candidates only.",
         "Use structure, import, symbol, and check signals to decide what source "
         "files need close reading.",
-        "Produce a scoped plan identifying affected modules, tests, risks, and "
-        "rollback points.",
+        "Produce a scoped plan identifying affected modules, tests, risks, and rollback points.",
         "Implement only the smallest coherent change after plan acceptance.",
         "Rerun relevant checks.",
         "```",
@@ -247,9 +246,7 @@ def _cycles(architecture: dict[str, Any]) -> list[str]:
 def _call_edges(calls: dict[str, Any]) -> list[str]:
     output = []
     for edge in calls.get("edges", [])[:25]:
-        output.append(
-            f"- `{edge['file']}`:{edge['line']} `{edge['caller']}` -> `{edge['callee']}`"
-        )
+        output.append(f"- `{edge['file']}`:{edge['line']} `{edge['caller']}` -> `{edge['callee']}`")
     return output
 
 

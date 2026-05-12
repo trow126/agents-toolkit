@@ -224,7 +224,9 @@ def _collect_complexity(
         long_functions.extend(result["long_functions"])
 
     return {
-        "high_complexity": sorted(high_complexity, key=lambda item: item["complexity"], reverse=True),
+        "high_complexity": sorted(
+            high_complexity, key=lambda item: item["complexity"], reverse=True
+        ),
         "long_functions": sorted(long_functions, key=lambda item: item["length"], reverse=True),
         "largest_files": sorted(largest_files, key=lambda item: item["loc"], reverse=True)[:30],
         "parse_errors": parse_errors,
@@ -253,7 +255,9 @@ def _analyze_complexity_file(
     source = entry.source
     return {
         "largest_files": _raw_file_metrics(root, path, source, parse_errors),
-        "high_complexity": _complexity_blocks(root, path, source, parse_errors, config.max_complexity),
+        "high_complexity": _complexity_blocks(
+            root, path, source, parse_errors, config.max_complexity
+        ),
         "long_functions": _long_function_records(
             root, path, entry.tree, config.long_function_lines
         ),
@@ -267,7 +271,14 @@ def _raw_file_metrics(
     parse_errors: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     if raw_analyze is None:
-        return [{"file": _rel(root, path), "loc": len(source.splitlines()), "sloc": None, "comments": None}]
+        return [
+            {
+                "file": _rel(root, path),
+                "loc": len(source.splitlines()),
+                "sloc": None,
+                "comments": None,
+            }
+        ]
     try:
         raw = raw_analyze(source)
     except Exception as exc:
@@ -326,7 +337,9 @@ def _long_function_records(
             continue
         length = node.end_lineno - node.lineno + 1
         if length >= long_function_lines:
-            records.append({"file": _rel(root, path), "name": node.name, "line": node.lineno, "length": length})
+            records.append(
+                {"file": _rel(root, path), "name": node.name, "line": node.lineno, "length": length}
+            )
     return records
 
 
@@ -362,7 +375,9 @@ def _diff_focus(root: Path, python_files: list[Path]) -> tuple[dict[str, Any], s
     return {"enabled": True, "files": diff_files, "note": ""}, focus_files
 
 
-def _direct_dependencies(import_analysis: dict[str, Any], focus_files: set[Path], root: Path) -> list[str]:
+def _direct_dependencies(
+    import_analysis: dict[str, Any], focus_files: set[Path], root: Path
+) -> list[str]:
     graph = import_analysis.get("graph", {})
     dependencies: set[str] = set()
     focus = {_rel(root, path) for path in focus_files}
