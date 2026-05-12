@@ -6,10 +6,13 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any
 
+from refactor_analyze._ast_cache import AstCache
+
 
 def build_import_analysis(
     root: Path,
     python_files: list[Path],
+    cache: AstCache,
     package_roots: list[Path] | None = None,
     profile: str | None = None,
 ) -> dict[str, Any]:
@@ -22,13 +25,19 @@ def build_import_analysis(
 
     for path in python_files:
         file_key = _rel(root, path)
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError) as exc:
-            errors.append({"file": file_key, "error": exc.__class__.__name__, "message": str(exc)})
+        entry = cache.get(path)
+        if entry.tree is None:
+            assert entry.error is not None
+            errors.append(
+                {
+                    "file": file_key,
+                    "error": entry.error["error"],
+                    "message": entry.error["message"],
+                }
+            )
             continue
 
-        imported_modules = sorted(_imports(tree))
+        imported_modules = sorted(_imports(entry.tree))
         imports_by_file[file_key] = imported_modules
         local_edges: list[str] = []
         missing: list[str] = []

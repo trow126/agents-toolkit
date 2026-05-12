@@ -4,17 +4,19 @@ import ast
 from pathlib import Path
 from typing import Any
 
-from refactor_analyze.symbols import analyze_symbols, find_dead_code_candidates
+from refactor_analyze._ast_cache import AstCache
+from refactor_analyze.symbols import find_dead_code_candidates
 
 
 def analyze_refactor_probes(
     root: Path,
     python_files: list[Path],
+    symbol_data: dict[str, Any],
+    cache: AstCache,
     *,
     enabled: bool,
     max_symbols: int = 25,
 ) -> dict[str, Any]:
-    symbol_data = analyze_symbols(root, python_files)
     if not enabled:
         return {
             "status": "skipped",
@@ -49,7 +51,7 @@ def analyze_refactor_probes(
     probes: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     try:
-        for symbol in _definition_offsets(root, python_files)[:max_symbols]:
+        for symbol in _definition_offsets(root, python_files, cache)[:max_symbols]:
             path = root / str(symbol["file"])
             try:
                 resource = libutils.path_to_resource(project, str(path))
@@ -85,14 +87,18 @@ def analyze_refactor_probes(
     }
 
 
-def _definition_offsets(root: Path, python_files: list[Path]) -> list[dict[str, Any]]:
+def _definition_offsets(
+    root: Path,
+    python_files: list[Path],
+    cache: AstCache,
+) -> list[dict[str, Any]]:
     symbols: list[dict[str, Any]] = []
     for path in python_files:
-        try:
-            source = path.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError):
+        entry = cache.get(path)
+        if entry.tree is None or entry.source is None:
             continue
+        source = entry.source
+        tree = entry.tree
         line_starts = _line_starts(source)
         lines = source.splitlines()
         for node in ast.walk(tree):

@@ -4,22 +4,26 @@ import ast
 from pathlib import Path
 from typing import Any
 
+from refactor_analyze._ast_cache import AstCache, CacheEntry
 
-def analyze_symbols(root: Path, python_files: list[Path]) -> dict[str, Any]:
+
+def analyze_symbols(
+    root: Path,
+    python_files: list[Path],
+    cache: AstCache,
+) -> dict[str, Any]:
     symbols: list[dict[str, Any]] = []
     references: dict[str, list[dict[str, Any]]] = {}
     scopes: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
     for path in python_files:
-        try:
-            source = path.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError) as exc:
-            errors.append(_error(root, path, exc))
+        entry = cache.get(path)
+        if entry.tree is None:
+            errors.append(_entry_error(root, entry))
             continue
 
-        _SymbolVisitor(root, path, symbols, references, scopes).visit(tree)
+        _SymbolVisitor(root, path, symbols, references, scopes).visit(entry.tree)
 
     exported = [item for item in symbols if not item["name"].startswith("_")]
     return {
@@ -183,11 +187,12 @@ def _assignment_names(target: ast.AST) -> list[str]:
     return []
 
 
-def _error(root: Path, path: Path, exc: BaseException) -> dict[str, Any]:
+def _entry_error(root: Path, entry: CacheEntry) -> dict[str, Any]:
+    assert entry.error is not None
     return {
-        "file": _rel(root, path),
-        "error": exc.__class__.__name__,
-        "message": str(exc),
+        "file": _rel(root, entry.path),
+        "error": entry.error["error"],
+        "message": entry.error["message"],
     }
 
 

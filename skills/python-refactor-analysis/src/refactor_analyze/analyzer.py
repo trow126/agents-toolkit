@@ -14,6 +14,7 @@ except Exception:  # pragma: no cover - optional runtime fallback
     cc_visit = None
     raw_analyze = None
 
+from refactor_analyze._ast_cache import AstCache
 from refactor_analyze.architecture import analyze_architecture
 from refactor_analyze.checks import run_checks, skipped_checks
 from refactor_analyze.config import AnalysisConfig, load_config
@@ -21,7 +22,7 @@ from refactor_analyze.imports import build_import_analysis, impact_for_focus
 from refactor_analyze.refactors import analyze_refactor_probes
 from refactor_analyze.reports import write_reports
 from refactor_analyze.structure_map import build_structure_map
-from refactor_analyze.symbols import analyze_symbols, find_dead_code_candidates
+from refactor_analyze.symbols import analyze_symbols
 
 
 SCHEMA_VERSION = "3"
@@ -67,10 +68,12 @@ def analyze_project(
     )
 
     python_files = discover_python_files(root, extra_excluded_dirs=set(config.exclude_dirs))
+    cache = AstCache()
     repo = detect_repo(root, python_files, config)
     import_analysis = build_import_analysis(
         root,
         python_files,
+        cache,
         repo["package_roots"],
         profile=config.profile,
     )
@@ -81,17 +84,17 @@ def analyze_project(
         paths or [],
         diff,
     )
-    symbol_data = analyze_symbols(root, python_files)
+    symbol_data = analyze_symbols(root, python_files, cache)
     refactor_probes = analyze_refactor_probes(
         root,
         python_files,
+        symbol_data,
+        cache,
         enabled=not config.skip_refactor_probes,
         max_symbols=config.max_symbols,
     )
-    if "dead_code_candidates" not in refactor_probes:
-        refactor_probes["dead_code_candidates"] = find_dead_code_candidates(symbol_data)
 
-    complexity = _collect_complexity(root, python_files, config)
+    complexity = _collect_complexity(root, python_files, config, cache)
     checks = (
         run_checks(root, config, timeout_seconds=timeout_seconds)
         if run_project_checks
@@ -119,7 +122,7 @@ def analyze_project(
         "focus": focus_analysis,
         "symbols": symbol_data,
         "refactor_probes": refactor_probes,
-        "calls": {"edges": _collect_call_edges(root, python_files)},
+        "calls": {"edges": _collect_call_edges(root, python_files, cache)},
         "complexity": complexity,
         "checks": checks,
         "architecture": architecture,
@@ -203,14 +206,19 @@ def _prepare_analysis(
     return root, output_dir, config
 
 
-def _collect_complexity(root: Path, python_files: list[Path], config: AnalysisConfig) -> dict[str, Any]:
+def _collect_complexity(
+    root: Path,
+    python_files: list[Path],
+    config: AnalysisConfig,
+    cache: AstCache,
+) -> dict[str, Any]:
     parse_errors: list[dict[str, Any]] = []
     largest_files: list[dict[str, Any]] = []
     high_complexity: list[dict[str, Any]] = []
     long_functions: list[dict[str, Any]] = []
 
     for path in python_files:
-        result = _analyze_complexity_file(root, path, config, parse_errors)
+        result = _analyze_complexity_file(root, path, config, parse_errors, cache)
         largest_files.extend(result["largest_files"])
         high_complexity.extend(result["high_complexity"])
         long_functions.extend(result["long_functions"])
@@ -228,20 +236,27 @@ def _analyze_complexity_file(
     path: Path,
     config: AnalysisConfig,
     parse_errors: list[dict[str, Any]],
+    cache: AstCache,
 ) -> dict[str, list[dict[str, Any]]]:
-    try:
-        source = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        parse_errors.append(_error_record(root, path, exc))
-        return {"high_complexity": [], "long_functions": [], "largest_files": []}
-    except OSError as exc:
-        parse_errors.append(_error_record(root, path, exc))
+    entry = cache.get(path)
+    if entry.source is None:
+        assert entry.error is not None
+        parse_errors.append(
+            {
+                "file": _rel(root, path),
+                "error": entry.error["error"],
+                "message": entry.error["message"],
+            }
+        )
         return {"high_complexity": [], "long_functions": [], "largest_files": []}
 
+    source = entry.source
     return {
         "largest_files": _raw_file_metrics(root, path, source, parse_errors),
         "high_complexity": _complexity_blocks(root, path, source, parse_errors, config.max_complexity),
-        "long_functions": _long_function_records(root, path, source, parse_errors, config.long_function_lines),
+        "long_functions": _long_function_records(
+            root, path, entry.tree, config.long_function_lines
+        ),
     }
 
 
@@ -298,14 +313,10 @@ def _complexity_blocks(
 def _long_function_records(
     root: Path,
     path: Path,
-    source: str,
-    parse_errors: list[dict[str, Any]],
+    tree: ast.AST | None,
     long_function_lines: int,
 ) -> list[dict[str, Any]]:
-    try:
-        tree = ast.parse(source, filename=str(path))
-    except SyntaxError as exc:
-        parse_errors.append(_error_record(root, path, exc))
+    if tree is None:
         return []
     records = []
     for node in ast.walk(tree):
@@ -398,46 +409,53 @@ def _is_related_test(
     return any(stem in path.stem for stem in focus_stems)
 
 
-def _collect_call_edges(root: Path, python_files: list[Path]) -> list[dict[str, Any]]:
+def _collect_call_edges(
+    root: Path,
+    python_files: list[Path],
+    cache: AstCache,
+) -> list[dict[str, Any]]:
     edges: list[dict[str, Any]] = []
     for path in python_files:
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        except (SyntaxError, UnicodeDecodeError, OSError):
+        entry = cache.get(path)
+        if entry.tree is None:
             continue
-        stack: list[str] = []
-
-        class Visitor(ast.NodeVisitor):
-            def visit_ClassDef(self, node: ast.ClassDef) -> None:
-                stack.append(node.name)
-                self.generic_visit(node)
-                stack.pop()
-
-            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
-                stack.append(node.name)
-                self.generic_visit(node)
-                stack.pop()
-
-            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-                stack.append(node.name)
-                self.generic_visit(node)
-                stack.pop()
-
-            def visit_Call(self, node: ast.Call) -> None:
-                callee = _call_name(node.func)
-                if callee:
-                    edges.append(
-                        {
-                            "file": _rel(root, path),
-                            "caller": ".".join(stack) if stack else "<module>",
-                            "callee": callee,
-                            "line": node.lineno,
-                        }
-                    )
-                self.generic_visit(node)
-
-        Visitor().visit(tree)
+        _CallEdgeVisitor(edges, _rel(root, path)).visit(entry.tree)
     return edges
+
+
+class _CallEdgeVisitor(ast.NodeVisitor):
+    def __init__(self, edges: list[dict[str, Any]], file: str) -> None:
+        self._edges = edges
+        self._file = file
+        self._stack: list[str] = []
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._stack.append(node.name)
+        self.generic_visit(node)
+        self._stack.pop()
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._stack.append(node.name)
+        self.generic_visit(node)
+        self._stack.pop()
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._stack.append(node.name)
+        self.generic_visit(node)
+        self._stack.pop()
+
+    def visit_Call(self, node: ast.Call) -> None:
+        callee = _call_name(node.func)
+        if callee:
+            self._edges.append(
+                {
+                    "file": self._file,
+                    "caller": ".".join(self._stack) if self._stack else "<module>",
+                    "callee": callee,
+                    "line": node.lineno,
+                }
+            )
+        self.generic_visit(node)
 
 
 def _call_name(node: ast.AST) -> str | None:

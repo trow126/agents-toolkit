@@ -54,3 +54,4 @@ claudedocs/reviews/
 
 # Audit history (machine-local tracking data)
 skills/config-audit/audit-history.jsonl
+skills/python-refactor-analysis/.analysis/**

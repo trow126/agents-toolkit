@@ -57,5 +57,5 @@ Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are ru
 
 1. Read structure reports before implementation bodies.
 2. Treat dead-code results as candidates only — dynamic references (pytest classes, AST visitors, plugin entry points) are commonly missed.
-3. Start with the smallest coherent change; verify with the repo's tests.
+3. One session yields one PR. Bundle every coherent improvement discovered in the same analysis into the same session; split them across commits, not PRs. Each commit must be independently revertible and pass the repository's tests.
 4. If the repository changes during analysis, rerun the whole-repository full profile before relying on stale reports.
