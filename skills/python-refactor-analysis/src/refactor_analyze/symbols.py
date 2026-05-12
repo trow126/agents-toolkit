@@ -37,16 +37,38 @@ def analyze_symbols(
 
 def find_dead_code_candidates(symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
     references = symbol_data.get("references", {})
+    symbols = symbol_data.get("symbols", [])
+
+    class_ranges_by_file: dict[str, list[tuple[int, int]]] = {}
+    for symbol in symbols:
+        if symbol["kind"] != "ClassDef":
+            continue
+        end = symbol["end_line"] or symbol["line"]
+        class_ranges_by_file.setdefault(symbol["file"], []).append((symbol["line"], end))
+
     candidates: list[dict[str, Any]] = []
-    for symbol in symbol_data.get("symbols", []):
+    for symbol in symbols:
         name = str(symbol["name"])
         if name.startswith("__") and name.endswith("__"):
             continue
         if name == "main":
             continue
+        if symbol["kind"] in ("FunctionDef", "AsyncFunctionDef") and _is_method(
+            symbol, class_ranges_by_file
+        ):
+            continue
         if not references.get(name):
             candidates.append({**symbol, "reason": "No direct name references found."})
     return candidates
+
+
+def _is_method(
+    symbol: dict[str, Any],
+    class_ranges_by_file: dict[str, list[tuple[int, int]]],
+) -> bool:
+    ranges = class_ranges_by_file.get(symbol["file"], [])
+    line = symbol["line"]
+    return any(start < line <= end for start, end in ranges)
 
 
 def _symbol(

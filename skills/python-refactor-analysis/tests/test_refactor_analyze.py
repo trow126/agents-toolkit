@@ -10,9 +10,11 @@ import pytest
 from refactor_analyze import checks
 from refactor_analyze.cli import build_parser, main
 from refactor_analyze.config import AnalysisConfig, ConfigurationError, load_config
+from refactor_analyze._ast_cache import AstCache
 from refactor_analyze.imports import _tarjan_scc
 from refactor_analyze.refactors import _fallback_occurrences
 from refactor_analyze.report_markdown import render_checks
+from refactor_analyze.symbols import analyze_symbols, find_dead_code_candidates
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
@@ -359,3 +361,47 @@ def test_scopes_md_contains_assign_and_arg(tmp_path: Path) -> None:
     assert "| `f` | `x` |" in scopes_md
     assert "## Assignments" in scopes_md
     assert "| `f` | `y` |" in scopes_md
+
+
+def test_find_dead_code_candidates_skips_methods_and_keeps_module_level(
+    tmp_path: Path,
+) -> None:
+    source = (
+        "class A:\n"
+        "    def used_method(self):\n"
+        "        return 1\n"
+        "    def unused_method(self):\n"
+        "        return 2\n"
+        "\n"
+        "def truly_dead():\n"
+        "    return 0\n"
+        "\n"
+        "def referenced():\n"
+        "    return A\n"
+        "\n"
+        "_ = referenced\n"
+    )
+    file = tmp_path / "mod.py"
+    file.write_text(source, encoding="utf-8")
+
+    symbol_data = analyze_symbols(tmp_path, [file], AstCache())
+    candidates = find_dead_code_candidates(symbol_data)
+
+    names = {item["name"] for item in candidates}
+    assert "truly_dead" in names
+    assert "unused_method" not in names
+    assert "used_method" not in names
+    assert "referenced" not in names
+
+
+def test_find_dead_code_candidates_still_flags_unreferenced_module_functions(
+    tmp_path: Path,
+) -> None:
+    source = "def alone():\n    return 1\n"
+    file = tmp_path / "flat.py"
+    file.write_text(source, encoding="utf-8")
+
+    symbol_data = analyze_symbols(tmp_path, [file], AstCache())
+    candidates = find_dead_code_candidates(symbol_data)
+
+    assert {item["name"] for item in candidates} == {"alone"}
