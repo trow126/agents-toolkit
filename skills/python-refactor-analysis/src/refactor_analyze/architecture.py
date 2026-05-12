@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
-def analyze_architecture(root: Path, python_files: list[Path], import_graph: dict[str, Any]) -> dict[str, Any]:
+def analyze_architecture(
+    root: Path, python_files: list[Path], import_graph: dict[str, Any]
+) -> dict[str, Any]:
     packages = _top_level_packages(root, python_files)
     graph = import_graph.get("graph", {})
     fan_in: dict[str, int] = {path: 0 for path in graph}
@@ -19,7 +21,10 @@ def analyze_architecture(root: Path, python_files: list[Path], import_graph: dic
             {"file": path, "fan_in": fan_in.get(path, 0), "fan_out": fan_out.get(path, 0)}
             for path in set(fan_in) | set(fan_out)
         ),
-        key=lambda item: (item["fan_in"] + item["fan_out"], item["fan_in"]),
+        key=lambda item: (
+            cast(int, item["fan_in"]) + cast(int, item["fan_out"]),
+            cast(int, item["fan_in"]),
+        ),
         reverse=True,
     )[:20]
 

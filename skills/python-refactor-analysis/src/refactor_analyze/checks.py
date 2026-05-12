@@ -128,8 +128,8 @@ def _run_command(name: str, command: list[str], cwd: Path, timeout: int | None) 
             name=name,
             command=command,
             returncode=None,
-            stdout=exc.stdout or "",
-            stderr=exc.stderr or "",
+            stdout=_decode_output(exc.stdout),
+            stderr=_decode_output(exc.stderr),
             timeout=True,
         )
     except OSError as exc:
@@ -148,3 +148,11 @@ def _run_command(name: str, command: list[str], cwd: Path, timeout: int | None) 
         stdout=completed.stdout[-6000:],
         stderr=completed.stderr[-6000:],
     )
+
+
+def _decode_output(value: bytes | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value

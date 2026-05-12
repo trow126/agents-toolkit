@@ -49,15 +49,18 @@ def find_dead_code_candidates(symbol_data: dict[str, Any]) -> list[dict[str, Any
     return candidates
 
 
-def _symbol(root: Path, path: Path, node: ast.AST) -> dict[str, Any]:
-    name = getattr(node, "name", "<unknown>")
+def _symbol(
+    root: Path,
+    path: Path,
+    node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+) -> dict[str, Any]:
     record: dict[str, Any] = {
         "file": _rel(root, path),
-        "name": name,
+        "name": node.name,
         "kind": node.__class__.__name__,
-        "line": getattr(node, "lineno", None),
-        "end_line": getattr(node, "end_lineno", None),
-        "column": getattr(node, "col_offset", None),
+        "line": node.lineno,
+        "end_line": node.end_lineno,
+        "column": node.col_offset,
         "docstring": bool(ast.get_docstring(node)),
     }
     if isinstance(node, ast.ClassDef):
