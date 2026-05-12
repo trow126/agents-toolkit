@@ -18,6 +18,34 @@ def build_import_analysis(
 ) -> dict[str, Any]:
     package_roots = package_roots or [root]
     modules = {_module_name(root, path, package_roots): path for path in python_files}
+    graph, imports_by_file, unresolved, errors = _build_import_graph(
+        root, python_files, cache, modules
+    )
+    reverse = _reverse_graph(graph)
+    return {
+        "provider": "grimp" if importlib.util.find_spec("grimp") else "ast",
+        "profile": profile,
+        "modules": {module: _rel(root, path) for module, path in sorted(modules.items())},
+        "imports_by_file": imports_by_file,
+        "graph": graph,
+        "reverse_graph": reverse,
+        "unresolved": unresolved,
+        "cycles": _cycles(graph),
+        "parse_errors": errors,
+    }
+
+
+def _build_import_graph(
+    root: Path,
+    python_files: list[Path],
+    cache: AstCache,
+    modules: dict[str, Path],
+) -> tuple[
+    dict[str, list[str]],
+    dict[str, list[str]],
+    dict[str, list[str]],
+    list[dict[str, Any]],
+]:
     graph: dict[str, list[str]] = {}
     imports_by_file: dict[str, list[str]] = {}
     unresolved: dict[str, list[str]] = {}
@@ -51,18 +79,7 @@ def build_import_analysis(
         if missing:
             unresolved[file_key] = sorted(set(missing))
 
-    reverse = _reverse_graph(graph)
-    return {
-        "provider": "grimp" if importlib.util.find_spec("grimp") else "ast",
-        "profile": profile,
-        "modules": {module: _rel(root, path) for module, path in sorted(modules.items())},
-        "imports_by_file": imports_by_file,
-        "graph": graph,
-        "reverse_graph": reverse,
-        "unresolved": unresolved,
-        "cycles": _cycles(graph),
-        "parse_errors": errors,
-    }
+    return graph, imports_by_file, unresolved, errors
 
 
 def impact_for_focus(
