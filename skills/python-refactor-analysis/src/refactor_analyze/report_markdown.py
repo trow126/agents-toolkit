@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -291,27 +292,27 @@ def _mermaid_call_graph(calls: dict[str, Any], *, top: int = 80) -> list[str]:
 def _mermaid_class_diagram(symbols: dict[str, Any], *, top: int = 50) -> list[str]:
     body: list[str] = []
     seen: set[tuple[str, str]] = set()
-    for symbol in symbols.get("symbols", []):
-        if symbol.get("kind") != "ClassDef":
+    for sub, base in _inheritance_pairs(symbols):
+        key = (base, sub)
+        if key in seen:
             continue
-        bases = symbol.get("bases") or []
-        if not bases:
-            continue
-        sub = str(symbol.get("name") or "")
-        if not sub:
-            continue
-        for base in bases:
-            key = (base, sub)
-            if key in seen:
-                continue
-            seen.add(key)
-            body.append(f"    {base} <|-- {sub}")
-            if len(body) >= top:
-                break
+        seen.add(key)
+        body.append(f"    {base} <|-- {sub}")
         if len(body) >= top:
             break
     note = f"_Filtered to first {top} inheritance edges._"
     return _mermaid_block("classDiagram", body, note)
+
+
+def _inheritance_pairs(symbols: dict[str, Any]) -> Iterator[tuple[str, str]]:
+    for symbol in symbols.get("symbols", []):
+        if symbol.get("kind") != "ClassDef":
+            continue
+        sub = str(symbol.get("name") or "")
+        if not sub:
+            continue
+        for base in symbol.get("bases") or []:
+            yield sub, base
 
 
 def _mermaid_import_graph(imports: dict[str, Any], *, top: int = 30) -> list[str]:
