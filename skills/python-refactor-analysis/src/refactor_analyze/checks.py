@@ -91,17 +91,6 @@ def _is_uv_project(root: Path) -> bool:
     return (root / "pyproject.toml").is_file() or (root / "uv.lock").is_file()
 
 
-def _skipped_command(name: str, command: list[str], reason: str) -> CommandResult:
-    return CommandResult(
-        name=name,
-        command=command,
-        returncode=None,
-        stdout="",
-        stderr=reason,
-        skipped=True,
-    )
-
-
 def _unsupported_command(name: str, command: list[str], reason: str) -> CommandResult:
     return CommandResult(
         name=name,
