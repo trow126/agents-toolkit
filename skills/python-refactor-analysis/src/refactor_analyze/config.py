@@ -28,7 +28,6 @@ class AnalysisConfig:
     run_pyright_check: bool = False
     run_pyre_check: bool = False
     run_compile_check: bool = False
-    skip_type_inference: bool = False
     skip_refactor_probes: bool = False
     check_timeout_seconds: int | None = 60
 

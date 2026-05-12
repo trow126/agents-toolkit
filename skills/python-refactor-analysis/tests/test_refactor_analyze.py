@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from refactor_analyze import checks
-from refactor_analyze.cli import main
+from refactor_analyze.cli import build_parser, main
 from refactor_analyze.config import AnalysisConfig, ConfigurationError, load_config
 from refactor_analyze.imports import _tarjan_scc
 from refactor_analyze.refactors import _fallback_occurrences
@@ -144,6 +144,29 @@ def test_load_config_rejects_unknown_keys(tmp_path: Path) -> None:
 
     with pytest.raises(ConfigurationError, match="Unsupported configuration key: unknown_key"):
         load_config(tmp_path)
+
+
+def test_load_config_rejects_removed_type_inference_key(tmp_path: Path) -> None:
+    tmp_path.joinpath("pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[tool.refactor-analyze]",
+                "skip-type-inference = true",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ConfigurationError, match="Unsupported configuration key: skip_type_inference"):
+        load_config(tmp_path)
+
+
+def test_cli_help_does_not_include_removed_type_inference_option() -> None:
+    help_text = build_parser().format_help()
+
+    assert "--skip-type-inference" not in help_text
+    assert "type inference" not in help_text.lower()
 
 
 def test_cli_writes_reports_for_minimal_project(tmp_path: Path) -> None:

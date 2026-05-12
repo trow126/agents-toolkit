@@ -9,11 +9,15 @@
 - uv-only project checks (`ruff`, `mypy`, `pytest`)
 - a structure-first prompt for the next coding agent
 
+The tool borrows the structure-map approach from `ast-structure-map`, but narrows it to Python refactor planning. It does not implement security-scanner features such as taint analysis, CWE reports, secret scanning, or dependency CVE audits.
+
 ## Run
 
 ```bash
-uv run --project . refactor-analyze /path/to/repo --out .analysis --diff --profile full
+uv run --project . refactor-analyze /path/to/repo --out .analysis --profile full
 ```
+
+The intended workflow is whole-repository analysis with the full profile.
 
 Project checks run through `uv run --project /path/to/repo ...`. Repositories without
 `pyproject.toml` or `uv.lock` are reported as unsupported for checks; the tool does not

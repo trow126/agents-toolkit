@@ -55,7 +55,6 @@ def analyze_project(
     diff: bool = False,
     run_project_checks: bool = True,
     profile: str | None = None,
-    skip_type_inference: bool = False,
     skip_refactor_probes: bool = False,
     timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
@@ -63,7 +62,6 @@ def analyze_project(
         root,
         out,
         profile=profile,
-        skip_type_inference=skip_type_inference,
         skip_refactor_probes=skip_refactor_probes,
         timeout_seconds=timeout_seconds,
     )
@@ -189,7 +187,6 @@ def _prepare_analysis(
     out: Path,
     *,
     profile: str | None,
-    skip_type_inference: bool,
     skip_refactor_probes: bool,
     timeout_seconds: int | None,
 ) -> tuple[Path, Path, AnalysisConfig]:
@@ -198,7 +195,6 @@ def _prepare_analysis(
     config = load_config(root, profile=profile)
     config = replace(
         config,
-        skip_type_inference=skip_type_inference or config.skip_type_inference,
         skip_refactor_probes=skip_refactor_probes or config.skip_refactor_probes,
         check_timeout_seconds=timeout_seconds
         if timeout_seconds is not None
