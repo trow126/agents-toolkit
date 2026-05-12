@@ -84,15 +84,7 @@ def analyze_project(
         paths or [],
         diff,
     )
-    symbol_data = analyze_symbols(root, python_files, cache)
-    refactor_probes = analyze_refactor_probes(
-        root,
-        python_files,
-        symbol_data,
-        cache,
-        enabled=not config.skip_refactor_probes,
-        max_symbols=config.max_symbols,
-    )
+    symbol_data, refactor_probes = _collect_symbols_and_probes(root, python_files, cache, config)
 
     complexity = _collect_complexity(root, python_files, config, cache)
     checks = (
@@ -102,13 +94,9 @@ def analyze_project(
     )
     architecture = analyze_architecture(root, python_files, import_analysis)
     structure = build_structure_map(root, python_files)
-    focus_analysis = {
-        **impact_for_focus(import_analysis, focus, root),
-        "files": sorted(_rel(root, path) for path in focus),
-        "direct_dependencies": _direct_dependencies(import_analysis, focus, root),
-        "related_tests": _related_tests(import_analysis, focus, python_files, root),
-        "selection": focus_selection,
-    }
+    focus_analysis = _build_focus_analysis(
+        import_analysis, focus, focus_selection, python_files, root
+    )
 
     result = {
         "schema_version": SCHEMA_VERSION,
@@ -204,6 +192,40 @@ def _prepare_analysis(
         else config.check_timeout_seconds,
     )
     return root, output_dir, config
+
+
+def _collect_symbols_and_probes(
+    root: Path,
+    python_files: list[Path],
+    cache: AstCache,
+    config: AnalysisConfig,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    symbol_data = analyze_symbols(root, python_files, cache)
+    refactor_probes = analyze_refactor_probes(
+        root,
+        python_files,
+        symbol_data,
+        cache,
+        enabled=not config.skip_refactor_probes,
+        max_symbols=config.max_symbols,
+    )
+    return symbol_data, refactor_probes
+
+
+def _build_focus_analysis(
+    import_analysis: dict[str, Any],
+    focus: set[Path],
+    focus_selection: dict[str, Any],
+    python_files: list[Path],
+    root: Path,
+) -> dict[str, Any]:
+    return {
+        **impact_for_focus(import_analysis, focus, root),
+        "files": sorted(_rel(root, path) for path in focus),
+        "direct_dependencies": _direct_dependencies(import_analysis, focus, root),
+        "related_tests": _related_tests(import_analysis, focus, python_files, root),
+        "selection": focus_selection,
+    }
 
 
 def _collect_complexity(
