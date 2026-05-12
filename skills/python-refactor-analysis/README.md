@@ -1,6 +1,6 @@
 # Python Refactor Analysis
 
-`refactor-analyze` scans a Python project and writes 10 refactor-focused report files with:
+`refactor-analyze` scans a Python project and writes 11 refactor-focused report files with:
 
 - repository and package structure
 - import graph and focus impact
@@ -23,6 +23,7 @@ For invocation as a Claude Code skill, see [`SKILL.md`](./SKILL.md).
 
 ## Outputs
 
-`summary.md`, `structure_map.md` (+`.json`), `structure_review.md`, `findings.json`,
-`checks.md`, `hotspots.md`, `import_graph.json`, `refactor_prompt.md`, and the legacy
-`analysis.md`.
+`summary.md`, `structure_map.md` (+`.json`), `structure_review.md` (with Mermaid
+call graph, class inheritance, and import graph sections), `findings.json`,
+`checks.md`, `hotspots.md`, `import_graph.json` (Tarjan SCC cycles),
+`refactor_prompt.md`, `scopes.md`, and the legacy `analysis.md`.

@@ -10,6 +10,7 @@ from refactor_analyze.report_markdown import (
     render_hotspots,
     render_markdown,
     render_refactor_prompt,
+    render_scopes,
     render_structure_map,
     render_structure_review,
     render_summary,
@@ -28,6 +29,7 @@ def write_reports(result: dict[str, Any], output_dir: Path, config: AnalysisConf
         "hotspots": output_dir / "hotspots.md",
         "import_graph": output_dir / "import_graph.json",
         "refactor_prompt": output_dir / "refactor_prompt.md",
+        "scopes": output_dir / "scopes.md",
         "analysis": output_dir / "analysis.md",
     }
 
@@ -50,6 +52,7 @@ def write_reports(result: dict[str, Any], output_dir: Path, config: AnalysisConf
         encoding="utf-8",
     )
     files["refactor_prompt"].write_text(render_refactor_prompt(result), encoding="utf-8")
+    files["scopes"].write_text(render_scopes(result), encoding="utf-8")
     files["analysis"].write_text(render_markdown(result), encoding="utf-8")
 
     ordered_files = [str(path) for path in files.values()]

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import re
 from typing import Any
+
+
+_MERMAID_ID_RE = re.compile(r"[^0-9A-Za-z]+")
 
 
 def render_markdown(result: dict[str, Any]) -> str:
@@ -58,6 +62,7 @@ def render_structure_review(result: dict[str, Any]) -> str:
     architecture = result.get("architecture", {})
     imports = result.get("imports", {})
     calls = result.get("calls", {})
+    symbols = result.get("symbols", {})
     lines = [
         "# Structure Review",
         "",
@@ -71,6 +76,27 @@ def render_structure_review(result: dict[str, Any]) -> str:
     _section(lines, "Packages", _packages(architecture))
     _section(lines, "Cycles", _cycles(architecture))
     _section(lines, "Call Edges", _call_edges(calls))
+    _section(lines, "Mermaid: Call Graph", _mermaid_call_graph(calls))
+    _section(lines, "Mermaid: Class Inheritance", _mermaid_class_diagram(symbols))
+    _section(lines, "Mermaid: Imports", _mermaid_import_graph(imports))
+    return _finish(lines)
+
+
+def render_scopes(result: dict[str, Any]) -> str:
+    symbols = result.get("symbols", {})
+    scopes = symbols.get("scopes", [])
+    lines = [
+        "# Variable Scopes",
+        "",
+        f"- Total entries: `{len(scopes)}`",
+        "- Coverage: function arguments and `Assign` / `AnnAssign` targets only.",
+        "- Comprehension, `for`, and `with` bindings are intentionally excluded.",
+        "",
+    ]
+    args = [scope for scope in scopes if scope.get("kind") == "arg"]
+    assigns = [scope for scope in scopes if scope.get("kind") == "assign"]
+    _section(lines, "Arguments", _scope_table(args))
+    _section(lines, "Assignments", _scope_table(assigns))
     return _finish(lines)
 
 
@@ -212,7 +238,10 @@ def _packages(architecture: dict[str, Any]) -> list[str]:
 
 
 def _cycles(architecture: dict[str, Any]) -> list[str]:
-    return ["- " + " -> ".join(f"`{item}`" for item in cycle) for cycle in architecture.get("cycles", [])]
+    return [
+        f"- SCC ({len(cycle)}): " + ", ".join(f"`{item}`" for item in cycle)
+        for cycle in architecture.get("cycles", [])
+    ]
 
 
 def _call_edges(calls: dict[str, Any]) -> list[str]:
@@ -222,6 +251,115 @@ def _call_edges(calls: dict[str, Any]) -> list[str]:
             f"- `{edge['file']}`:{edge['line']} `{edge['caller']}` -> `{edge['callee']}`"
         )
     return output
+
+
+def _mermaid_id(value: str) -> str:
+    sanitized = _MERMAID_ID_RE.sub("_", value).strip("_")
+    if not sanitized:
+        return "node"
+    if sanitized[0].isdigit():
+        return f"n_{sanitized}"
+    return sanitized
+
+
+def _mermaid_block(header: str, body: list[str], note: str) -> list[str]:
+    if not body:
+        return [f"_No data for {header}._"]
+    lines = ["```mermaid", header, *body, "```", "", note]
+    return lines
+
+
+def _mermaid_call_graph(calls: dict[str, Any], *, top: int = 80) -> list[str]:
+    edges = calls.get("edges", [])
+    seen: set[tuple[str, str]] = set()
+    body: list[str] = []
+    for edge in edges:
+        caller = str(edge.get("caller") or "<module>")
+        callee = str(edge.get("callee") or "")
+        if not callee:
+            continue
+        key = (caller, callee)
+        if key in seen:
+            continue
+        seen.add(key)
+        caller_id = _mermaid_id(caller)
+        callee_id = _mermaid_id(callee)
+        body.append(f'    {caller_id}["{caller}"] --> {callee_id}["{callee}"]')
+        if len(body) >= top:
+            break
+    note = f"_Filtered to first {top} unique caller→callee pairs._"
+    return _mermaid_block("flowchart LR", body, note)
+
+
+def _mermaid_class_diagram(symbols: dict[str, Any], *, top: int = 50) -> list[str]:
+    body: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for symbol in symbols.get("symbols", []):
+        if symbol.get("kind") != "ClassDef":
+            continue
+        bases = symbol.get("bases") or []
+        if not bases:
+            continue
+        sub = str(symbol.get("name") or "")
+        if not sub:
+            continue
+        for base in bases:
+            key = (base, sub)
+            if key in seen:
+                continue
+            seen.add(key)
+            body.append(f"    {base} <|-- {sub}")
+            if len(body) >= top:
+                break
+        if len(body) >= top:
+            break
+    note = f"_Filtered to first {top} inheritance edges._"
+    return _mermaid_block("classDiagram", body, note)
+
+
+def _mermaid_import_graph(imports: dict[str, Any], *, top: int = 30) -> list[str]:
+    graph: dict[str, list[str]] = imports.get("graph", {}) or {}
+    if not graph:
+        return ["_No import edges available._"]
+    fan_in: dict[str, int] = {}
+    fan_out: dict[str, int] = {}
+    for source, targets in graph.items():
+        fan_out[source] = len(targets)
+        for target in targets:
+            fan_in[target] = fan_in.get(target, 0) + 1
+    nodes = set(fan_in) | set(fan_out)
+    ranked = sorted(
+        nodes,
+        key=lambda node: (fan_in.get(node, 0) + fan_out.get(node, 0), node),
+        reverse=True,
+    )[:top]
+    selected = set(ranked)
+    body: list[str] = []
+    for source in ranked:
+        for target in graph.get(source, []):
+            if target not in selected:
+                continue
+            source_id = _mermaid_id(source)
+            target_id = _mermaid_id(target)
+            body.append(f'    {source_id}["{source}"] --> {target_id}["{target}"]')
+    note = f"_Filtered to top {top} fan-in+fan-out nodes._"
+    return _mermaid_block("flowchart LR", body, note)
+
+
+def _scope_table(scopes: list[dict[str, Any]]) -> list[str]:
+    if not scopes:
+        return ["_No entries._"]
+    lines = [
+        "| File | Scope | Name | Line |",
+        "| --- | --- | --- | --- |",
+    ]
+    for scope in scopes[:200]:
+        lines.append(
+            f"| `{scope.get('file')}` | `{scope.get('scope')}` | `{scope.get('name')}` | {scope.get('line')} |"
+        )
+    if len(scopes) > 200:
+        lines.append(f"_Truncated to first 200 of {len(scopes)} entries._")
+    return lines
 
 
 def _finish(lines: list[str]) -> str:

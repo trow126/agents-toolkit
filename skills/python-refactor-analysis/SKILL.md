@@ -1,6 +1,6 @@
 ---
 name: python-refactor-analysis
-description: Analyze a Python repository before refactoring. Use when planning code cleanup, dependency-impact analysis, dead-code review, structure-first refactor work, or before editing an unfamiliar Python project. Generates ten structure/import/complexity/check reports under `.analysis/`.
+description: Analyze a Python repository before refactoring. Use when planning code cleanup, dependency-impact analysis, dead-code review, structure-first refactor work, or before editing an unfamiliar Python project. Generates eleven structure/import/complexity/check reports under `.analysis/`.
 ---
 
 # Python Refactor Analysis
@@ -55,8 +55,9 @@ Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are ru
 | `findings.json` | Machine-readable findings |
 | `checks.md` | uv project check results: passed, failed, skipped, timeout, or unsupported |
 | `hotspots.md` | Complexity, long functions, fan-in/out |
-| `import_graph.json` | Resolved import graph and cycles |
+| `import_graph.json` | Resolved import graph and Tarjan SCC cycles |
 | `refactor_prompt.md` | Suggested prompt for the next coding agent |
+| `scopes.md` | Function arguments and `Assign` / `AnnAssign` targets per scope |
 | `analysis.md` | Legacy single-file digest |
 
 ## Refactor policy

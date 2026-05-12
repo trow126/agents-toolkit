@@ -10,6 +10,7 @@ import pytest
 from refactor_analyze import checks
 from refactor_analyze.cli import main
 from refactor_analyze.config import AnalysisConfig, ConfigurationError, load_config
+from refactor_analyze.imports import _tarjan_scc
 from refactor_analyze.refactors import _fallback_occurrences
 from refactor_analyze.report_markdown import render_checks
 
@@ -257,3 +258,81 @@ def test_wrapper_requires_uv_without_python_fallback(tmp_path: Path) -> None:
     assert result.returncode == 127
     assert "requires uv" in result.stderr
     assert "No module named" not in result.stderr
+
+
+def test_tarjan_scc_detects_three_node_cycle_and_skips_trivial_nodes() -> None:
+    graph = {
+        "a": ["b"],
+        "b": ["c"],
+        "c": ["a"],
+        "d": ["e"],
+        "e": [],
+        "self": ["self"],
+    }
+
+    result = _tarjan_scc(graph)
+
+    assert ["a", "b", "c"] in result
+    assert ["self"] in result
+    for component in result:
+        if len(component) == 1:
+            assert component == ["self"]
+    assert not any(set(component) == {"d", "e"} for component in result)
+
+
+def test_class_diagram_includes_inheritance(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_pyproject(repo)
+    repo.joinpath("models.py").write_text(
+        "class Base:\n    pass\n\nclass Sub(Base):\n    pass\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "analysis"
+
+    exit_code = main([str(repo), "--out", str(output_dir), "--skip-checks"])
+
+    assert exit_code == 0
+    review = output_dir.joinpath("structure_review.md").read_text(encoding="utf-8")
+    assert "## Mermaid: Class Inheritance" in review
+    assert "Base <|-- Sub" in review
+
+
+def test_call_graph_mermaid_renders_known_edge(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_pyproject(repo)
+    repo.joinpath("app.py").write_text(
+        "def callee():\n    return 1\n\ndef caller():\n    callee()\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "analysis"
+
+    exit_code = main([str(repo), "--out", str(output_dir), "--skip-checks"])
+
+    assert exit_code == 0
+    review = output_dir.joinpath("structure_review.md").read_text(encoding="utf-8")
+    assert "## Mermaid: Call Graph" in review
+    assert "flowchart LR" in review
+    assert 'caller["caller"] --> callee["callee"]' in review
+
+
+def test_scopes_md_contains_assign_and_arg(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_pyproject(repo)
+    repo.joinpath("app.py").write_text(
+        "def f(x):\n    y = 1\n    return x + y\n",
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "analysis"
+
+    exit_code = main([str(repo), "--out", str(output_dir), "--skip-checks"])
+
+    assert exit_code == 0
+    scopes_md = output_dir.joinpath("scopes.md").read_text(encoding="utf-8")
+    assert "# Variable Scopes" in scopes_md
+    assert "## Arguments" in scopes_md
+    assert "| `f` | `x` |" in scopes_md
+    assert "## Assignments" in scopes_md
+    assert "| `f` | `y` |" in scopes_md

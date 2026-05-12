@@ -124,29 +124,71 @@ def _reverse_graph(graph: dict[str, list[str]]) -> dict[str, list[str]]:
 
 
 def _cycles(graph: dict[str, list[str]]) -> list[list[str]]:
-    cycles: list[list[str]] = []
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    stack: list[str] = []
+    return _tarjan_scc(graph)
 
-    def visit(node: str) -> None:
-        if node in visiting:
-            start = stack.index(node)
-            cycles.append(stack[start:] + [node])
-            return
-        if node in visited:
-            return
-        visiting.add(node)
-        stack.append(node)
-        for child in graph.get(node, []):
-            visit(child)
-        stack.pop()
-        visiting.remove(node)
-        visited.add(node)
 
-    for node in graph:
-        visit(node)
-    return cycles
+def _tarjan_scc(graph: dict[str, list[str]]) -> list[list[str]]:
+    """Return non-trivial strongly connected components as sorted node lists.
+
+    A component is reported when it has 2 or more nodes, or when it is a single
+    node with a self-loop. Implemented iteratively to avoid Python recursion
+    limits on large repositories.
+    """
+    index_of: dict[str, int] = {}
+    lowlink: dict[str, int] = {}
+    on_stack: set[str] = set()
+    scc_stack: list[str] = []
+    components: list[list[str]] = []
+    counter = 0
+
+    nodes = set(graph)
+    for targets in graph.values():
+        nodes.update(targets)
+
+    for start in sorted(nodes):
+        if start in index_of:
+            continue
+        work: list[tuple[str, list[str], int]] = [(start, list(graph.get(start, [])), 0)]
+        index_of[start] = counter
+        lowlink[start] = counter
+        counter += 1
+        scc_stack.append(start)
+        on_stack.add(start)
+
+        while work:
+            node, successors, pos = work[-1]
+            if pos < len(successors):
+                work[-1] = (node, successors, pos + 1)
+                child = successors[pos]
+                if child not in index_of:
+                    index_of[child] = counter
+                    lowlink[child] = counter
+                    counter += 1
+                    scc_stack.append(child)
+                    on_stack.add(child)
+                    work.append((child, list(graph.get(child, [])), 0))
+                elif child in on_stack:
+                    lowlink[node] = min(lowlink[node], index_of[child])
+                continue
+
+            if lowlink[node] == index_of[node]:
+                component: list[str] = []
+                while True:
+                    member = scc_stack.pop()
+                    on_stack.discard(member)
+                    component.append(member)
+                    if member == node:
+                        break
+                if len(component) > 1 or node in graph.get(node, []):
+                    components.append(sorted(component))
+
+            work.pop()
+            if work:
+                parent = work[-1][0]
+                lowlink[parent] = min(lowlink[parent], lowlink[node])
+
+    components.sort(key=lambda component: (len(component), component), reverse=True)
+    return components
 
 
 def _rel(root: Path, path: Path) -> str:
