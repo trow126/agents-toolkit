@@ -9,6 +9,9 @@ from typing import Any
 from refactor_analyze._ast_cache import AstCache
 
 
+_SccFrame = tuple[str, list[str], int]
+
+
 def build_import_analysis(
     root: Path,
     python_files: list[Path],
@@ -169,45 +172,39 @@ def _tarjan_scc(graph: dict[str, list[str]]) -> list[list[str]]:
     components: list[list[str]] = []
     counter = 0
 
-    nodes = set(graph)
-    for targets in graph.values():
-        nodes.update(targets)
-
-    for start in sorted(nodes):
+    for start in sorted(_graph_nodes(graph)):
         if start in index_of:
             continue
-        work: list[tuple[str, list[str], int]] = [(start, list(graph.get(start, [])), 0)]
-        index_of[start] = counter
-        lowlink[start] = counter
-        counter += 1
-        scc_stack.append(start)
-        on_stack.add(start)
+        work, counter = _start_scc_node(
+            start,
+            graph,
+            index_of,
+            lowlink,
+            on_stack,
+            scc_stack,
+            counter,
+        )
 
         while work:
             node, successors, pos = work[-1]
             if pos < len(successors):
                 work[-1] = (node, successors, pos + 1)
-                child = successors[pos]
-                if child not in index_of:
-                    index_of[child] = counter
-                    lowlink[child] = counter
-                    counter += 1
-                    scc_stack.append(child)
-                    on_stack.add(child)
-                    work.append((child, list(graph.get(child, [])), 0))
-                elif child in on_stack:
-                    lowlink[node] = min(lowlink[node], index_of[child])
+                counter = _visit_scc_child(
+                    successors[pos],
+                    node,
+                    graph,
+                    index_of,
+                    lowlink,
+                    on_stack,
+                    scc_stack,
+                    work,
+                    counter,
+                )
                 continue
 
             if lowlink[node] == index_of[node]:
-                component: list[str] = []
-                while True:
-                    member = scc_stack.pop()
-                    on_stack.discard(member)
-                    component.append(member)
-                    if member == node:
-                        break
-                if len(component) > 1 or node in graph.get(node, []):
+                component = _pop_scc_component(node, scc_stack, on_stack)
+                if _is_reportable_component(component, node, graph):
                     components.append(sorted(component))
 
             work.pop()
@@ -217,6 +214,68 @@ def _tarjan_scc(graph: dict[str, list[str]]) -> list[list[str]]:
 
     components.sort(key=lambda component: (len(component), component), reverse=True)
     return components
+
+
+def _graph_nodes(graph: dict[str, list[str]]) -> set[str]:
+    nodes = set(graph)
+    for targets in graph.values():
+        nodes.update(targets)
+    return nodes
+
+
+def _start_scc_node(
+    node: str,
+    graph: dict[str, list[str]],
+    index_of: dict[str, int],
+    lowlink: dict[str, int],
+    on_stack: set[str],
+    scc_stack: list[str],
+    counter: int,
+) -> tuple[list[_SccFrame], int]:
+    index_of[node] = counter
+    lowlink[node] = counter
+    scc_stack.append(node)
+    on_stack.add(node)
+    return [(node, list(graph.get(node, [])), 0)], counter + 1
+
+
+def _visit_scc_child(
+    child: str,
+    node: str,
+    graph: dict[str, list[str]],
+    index_of: dict[str, int],
+    lowlink: dict[str, int],
+    on_stack: set[str],
+    scc_stack: list[str],
+    work: list[_SccFrame],
+    counter: int,
+) -> int:
+    if child not in index_of:
+        index_of[child] = counter
+        lowlink[child] = counter
+        scc_stack.append(child)
+        on_stack.add(child)
+        work.append((child, list(graph.get(child, [])), 0))
+        return counter + 1
+    if child in on_stack:
+        lowlink[node] = min(lowlink[node], index_of[child])
+    return counter
+
+
+def _pop_scc_component(node: str, scc_stack: list[str], on_stack: set[str]) -> list[str]:
+    component: list[str] = []
+    while True:
+        member = scc_stack.pop()
+        on_stack.discard(member)
+        component.append(member)
+        if member == node:
+            return component
+
+
+def _is_reportable_component(
+    component: list[str], node: str, graph: dict[str, list[str]]
+) -> bool:
+    return len(component) > 1 or node in graph.get(node, [])
 
 
 def _rel(root: Path, path: Path) -> str:

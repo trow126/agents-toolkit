@@ -38,28 +38,40 @@ def analyze_symbols(
 def find_dead_code_candidates(symbol_data: dict[str, Any]) -> list[dict[str, Any]]:
     references = symbol_data.get("references", {})
     symbols = symbol_data.get("symbols", [])
+    class_ranges_by_file = _class_ranges_by_file(symbols)
 
+    return [
+        {**symbol, "reason": "No direct name references found."}
+        for symbol in symbols
+        if _is_dead_code_candidate(symbol, references, class_ranges_by_file)
+    ]
+
+
+def _class_ranges_by_file(symbols: list[dict[str, Any]]) -> dict[str, list[tuple[int, int]]]:
     class_ranges_by_file: dict[str, list[tuple[int, int]]] = {}
     for symbol in symbols:
         if symbol["kind"] != "ClassDef":
             continue
         end = symbol["end_line"] or symbol["line"]
         class_ranges_by_file.setdefault(symbol["file"], []).append((symbol["line"], end))
+    return class_ranges_by_file
 
-    candidates: list[dict[str, Any]] = []
-    for symbol in symbols:
-        name = str(symbol["name"])
-        if name.startswith("__") and name.endswith("__"):
-            continue
-        if name == "main":
-            continue
-        if symbol["kind"] in ("FunctionDef", "AsyncFunctionDef") and _is_method(
-            symbol, class_ranges_by_file
-        ):
-            continue
-        if not references.get(name):
-            candidates.append({**symbol, "reason": "No direct name references found."})
-    return candidates
+
+def _is_dead_code_candidate(
+    symbol: dict[str, Any],
+    references: dict[str, list[dict[str, Any]]],
+    class_ranges_by_file: dict[str, list[tuple[int, int]]],
+) -> bool:
+    name = str(symbol["name"])
+    if name.startswith("__") and name.endswith("__"):
+        return False
+    if name == "main":
+        return False
+    if symbol["kind"] in ("FunctionDef", "AsyncFunctionDef") and _is_method(
+        symbol, class_ranges_by_file
+    ):
+        return False
+    return not references.get(name)
 
 
 def _is_method(
