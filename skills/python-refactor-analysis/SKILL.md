@@ -11,6 +11,13 @@ This skill adapts the structure-map idea from `ast-structure-map` for Python ref
 
 Normal skill usage is intentionally single-mode: analyze the whole target repository with the full profile.
 
+Full-profile runs are not expected to finish quickly on medium or large repositories.
+The Rope refactor probes and project checks can run for 10-30+ minutes and may emit no
+stdout until all reports are written. Do not assume the command is hung just because it
+is silent for several minutes. Use a long outer timeout when a strict result is needed;
+use `--skip-refactor-probes` only for a fast structural preview, and rerun without that
+flag before relying on dead-code/refactor-probe findings.
+
 ## Workflow
 
 1. Run the full-depth CLI on the whole target repository (see "Invocation").
@@ -32,6 +39,24 @@ Equivalent via the bundled wrapper when this skill is installed under `~/.claude
 ```bash
 ~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
   <repo> --out .analysis --profile full
+```
+
+For strict runs, prefer an explicit long timeout around the command. In sandboxed
+environments where the default `uv` cache is read-only, point `UV_CACHE_DIR` at a
+writable temporary directory:
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache timeout 1800 \
+  uv run --project "${CLAUDE_SKILL_DIR}" \
+  refactor-analyze <repo> --out .analysis --profile full --timeout 300
+```
+
+For a quick preview that skips Rope probes but still writes the structure/import/
+complexity reports:
+
+```bash
+uv run --project "${CLAUDE_SKILL_DIR}" \
+  refactor-analyze <repo> --out .analysis --profile full --skip-refactor-probes
 ```
 
 Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are run as
