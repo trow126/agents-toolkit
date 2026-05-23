@@ -6,6 +6,9 @@
 # プロジェクト学習事項と品質ゲート
 @LEARNINGS.md
 
+# Karpathy-Inspired 実装行動規律
+@rules/karpathy-guidelines.md
+
 # PR 作成後レビュー規約
 @rules/pr-review.md
 

@@ -132,6 +132,7 @@ echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/..." > ~/.config/slack-
 
 - `code-quality.md` - 実装の完全性、No Fallback ポリシー
 - `git-workflow.md` - Conventional Commits、Feature Branch 運用
+- `karpathy-guidelines.md` - 前提明示、シンプルさ、外科的変更、成功条件駆動
 - `safety.md` - 根本原因分析、体系的デバッグ
 - `workflow.md` - タスクパターン、並列実行戦略
 
