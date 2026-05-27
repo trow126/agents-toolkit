@@ -16,5 +16,6 @@ if echo "$COMMAND" | grep -q "gh pr create"; then
     echo "2. gh pr diff <PR番号> で差分を取得"
     echo "3. Agent でコードレビューを実施（自己レビュー防止のため別コンテキスト）"
     echo "4. レビュー結果を gh pr comment <PR番号> --body でPRコメントに投稿"
+    echo "5. コメント投稿後は修正・追加commit・追加pushを開始せず停止"
   fi
 fi
