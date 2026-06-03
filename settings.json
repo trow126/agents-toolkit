@@ -17,6 +17,8 @@
       "Bash(bun *)",
       "Bash(cat *)",
       "Bash(echo *)",
+      "Bash(env PYTHONDONTWRITEBYTECODE=1 UV_CACHE_DIR=/tmp/uv-cache uv run *)",
+      "Bash(env UV_CACHE_DIR=/tmp/uv-cache uv run *)",
       "Bash(file *)",
       "Bash(find *)",
       "Bash(gh *)",
@@ -28,6 +30,7 @@
       "Bash(npm *)",
       "Bash(pnpm *)",
       "Bash(pwd)",
+      "Bash(rm -f /tmp/*)",
       "Bash(stat *)",
       "Bash(tail *)",
       "Bash(test *)",
@@ -132,10 +135,6 @@
       "Bash(mkfs *)",
       "Bash(mkfs.* *)"
     ],
-    "ask": [
-      "Bash(rm *)"
-    ],
-    "disableBypassPermissionsMode": "disable",
     "defaultMode": "acceptEdits"
   },
   "hooks": {
@@ -245,6 +244,10 @@
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true,
+    "session-report@claude-plugins-official": true
+  },
   "language": "japanese",
   "sandbox": {
     "enabled": false,
@@ -258,8 +261,12 @@
   },
   "autoUpdatesChannel": "latest",
   "tui": "default",
-  "skipAutoPermissionPrompt": false,
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "disableAutoMode": "disable",
+  "theme": "light-ansi",
+  "editorMode": "vim",
+  "skipAutoPermissionPrompt": false,
   "autoMode": {
     "environment": [
       "Personal development environment on WSL2",
@@ -267,7 +274,5 @@
       "Routine work is local Python ML/data projects and Solidity DeFi projects inside the session repository",
       "Do not treat all repositories under ~/ as automatically trusted; moving into another repository or home-level config is scope escalation unless the user explicitly asks"
     ]
-  },
-  "theme": "light-ansi",
-  "editorMode": "vim"
+  }
 }
