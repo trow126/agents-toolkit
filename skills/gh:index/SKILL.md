@@ -26,7 +26,7 @@ description: プロジェクト構造を最大限調査し、Issue作成の元�
 
 ### Phase 1: Discovery（探索）
 
-1. **プロジェクト全体スキャン**: Serena 経由で `list_dir(recursive=true)`
+1. **プロジェクト全体スキャン**: `Glob` / `Grep` / `Read` / 必要最小限の `Bash(find ...)`
 2. **技術スタック検出**:
    - 言語: `.py`, `.ts`, `.js`, `.go`, `.rs` 等
    - フレームワーク: package.json, pyproject.toml, Cargo.toml
@@ -35,17 +35,18 @@ description: プロジェクト構造を最大限調査し、Issue作成の元�
 4. **エントリポイント**: main.*, index.*, src/*, app/*
 
 ```
-Serena ツール:
-- list_dir(relative_path=".", recursive=true)
-- find_file(file_mask="*.md", relative_path=".")
-- find_file(file_mask="pyproject.toml|package.json|Cargo.toml", relative_path=".")
+調査ツール:
+- `Glob("**/*")`
+- `Grep` で TODO/FIXME/依存関係パターンを検索
+- `Read` で設定ファイルと主要コードを確認
+- `Bash(find ...)` は巨大リポジトリの件数確認など必要時のみ使用
 ```
 
 ---
 
 ### Phase 2: Deep Analysis（詳細分析）
 
-1. **シンボル抽出**: 全コードファイルに対して `get_symbols_overview()`
+1. **シンボル抽出**: 主要コードファイルを `Read` / `Grep` で確認し、公開 class/function/API を抽出
 2. **依存関係マッピング**:
    - 外部: requirements.txt, package.json の依存関係
    - 内部: import/require パターン
@@ -62,10 +63,10 @@ Serena ツール:
    - 技術的負債: TODO/FIXME/HACK コメント
 
 ```
-Serena ツール:
-- get_symbols_overview(relative_path) 各コードファイルに対して
-- search_for_pattern(substring_pattern="TODO|FIXME|HACK", restrict_search_to_code_files=true)
-- search_for_pattern(substring_pattern="password|secret|api_key", restrict_search_to_code_files=true)
+調査ツール:
+- `Grep` で `class|def|function|export|TODO|FIXME|HACK` を検索
+- `Grep` で `password|secret|api_key|token` を検索
+- `Read` で候補ファイルの周辺文脈を確認
 ```
 
 ---
@@ -212,15 +213,15 @@ Generated: {timestamp}
 
 ---
 
-## MCP Integration
+## Tool Integration
 
-| フェーズ | Serena ツール | 目的 |
+| フェーズ | ツール | 目的 |
 |---------|-------------|------|
-| Discovery | list_dir | フルディレクトリスキャン |
-| Discovery | find_file | 設定/ドキュメントファイルの特定 |
-| Analysis | get_symbols_overview | コードシンボルの抽出 |
-| Analysis | search_for_pattern | パターン/懸念事項の検出 |
-| Output | create_text_file | project_index.md の書き込み |
+| Discovery | Glob / Bash(find) | フルディレクトリスキャン |
+| Discovery | Glob / Read | 設定/ドキュメントファイルの特定 |
+| Analysis | Grep / Read | コードシンボルの抽出 |
+| Analysis | Grep | パターン/懸念事項の検出 |
+| Output | Write | project_index.md の書き込み |
 
 ---
 
@@ -331,19 +332,19 @@ Claude:
 
 以下の手順に従ってください:
 
-1. **Serena をアクティベート**（未アクティブの場合）:
-   ```
-   activate_project(ユーザーのカレントディレクトリ)
-   ```
+1. **対象ディレクトリを確認**:
+   - 引数あり: 指定ディレクトリを対象にする
+   - 引数なし: ユーザーのカレントディレクトリを対象にする
 
 2. **Phase 1 - Discovery**:
-   - `list_dir(relative_path=".", recursive=true)`
+   - `Glob` でファイル構成を確認
+   - 必要時のみ `Bash(find ...)` で件数や深さを確認
    - 設定ファイルから言語/フレームワークを検出
    - ドキュメントファイルの棚卸
 
 3. **Phase 2 - Analysis**:
-   - 各コードファイルに対して `get_symbols_overview()`
-   - `search_for_pattern()` でTODO/FIXME/セキュリティ懸念を検出
+   - 主要コードファイルを `Read` / `Grep` で確認
+   - `Grep` でTODO/FIXME/セキュリティ懸念を検出
    - 品質メトリクスを計算
 
 4. **Phase 3 - Indexing**:

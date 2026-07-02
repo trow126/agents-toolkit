@@ -23,12 +23,12 @@
    - 汎用パターン（Ruff、Python慣用句、async、型安全） → `~/.claude/LEARNINGS.md` に追記
    - プロジェクト固有（API仕様、設計判断） → `claudedocs/learnings.md` に追記
 2. **記録形式**: `- **[修正内容]**: [正しい方法] (理由: [why])` を1行で追記
-3. **auto-memory**: feedback型メモリとして永続化（Serena Memoryセクションの `write_memory` パターンに準拠）
+3. **auto-memory**: feedback型メモリとして永続化（プロジェクトまたはグローバルの learnings ファイルに記録）
 4. セッション開始時にプロジェクトの learnings を確認する
 
-## Serena Memory
-- 確認なしで memory 操作を自動実行する
-- セッションパターン: list_memories > 作業 > write_memory (チェックポイント) > write_memory (保存)
+## ローカル記録
+- 確認なしで外部 memory 操作を自動実行しない
+- セッションパターン: learnings 確認 > 作業 > 必要に応じたローカル checkpoint > 保存
 - チェックポイントのタイミング: タスク完了時、30分間隔、リスクのある操作時
 
 ## ツール選択

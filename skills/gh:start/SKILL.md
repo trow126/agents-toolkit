@@ -30,7 +30,7 @@ allowed-tools:
 
 ## Phase 1: Fetch (Issue取得)
 
-1. **checkpoint確認**: `read_memory(memory_name="issue_{N}_checkpoint")` を試行
+1. **checkpoint確認**: `.claude/checkpoints/issue_{N}_checkpoint.md` を確認
    - checkpoint存在 → レジュームを提案（残タスクのみ実行）
    - checkpoint不在 → 新規実行
 
@@ -47,7 +47,7 @@ gh-issue-fetch.sh 42
 
 **成功条件**: exit 0 + 有効なJSON + state == "open"
 
-5. **checkpoint初期化**: `write_memory(memory_name="issue_{N}_checkpoint", content=...)` でタスク一覧・状態を保存
+5. **checkpoint初期化**: `.claude/checkpoints/issue_{N}_checkpoint.md` にタスク一覧・状態を保存
 
 ---
 
@@ -61,7 +61,7 @@ gh-issue-fetch.sh 42
    - TaskUpdate → `in_progress` に更新
    - Agent tool でサブエージェントに委譲して実装（下記テンプレート参照）
    - 完了後 → TaskUpdate → `completed` に更新
-   - checkpoint更新: `write_memory(memory_name="issue_{N}_checkpoint", content=...)` で完了タスクを記録
+   - checkpoint更新: `.claude/checkpoints/issue_{N}_checkpoint.md` に完了タスクを記録
 
 3. **エラー時**: エラー内容を表示して停止（checkpointは保存済みなので次回レジューム可能）
 
@@ -201,4 +201,4 @@ Claude:
 - `gh` CLI (GitHub CLI)
 - `jq` (JSONパース)
 - `python3` (パーサースクリプト)
-- Serena MCP (checkpoint用 write_memory / read_memory / delete_memory。引数名は必ず `memory_name` / `content` を明示すること)
+- ローカルcheckpoint: `.claude/checkpoints/issue_{N}_checkpoint.md`

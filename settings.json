@@ -47,8 +47,7 @@
       "WebSearch",
       "Write",
       "mcp__context7",
-      "mcp__sequential-thinking",
-      "mcp__serena"
+      "mcp__sequential-thinking"
     ],
     "deny": [
       "Bash(> /dev/sd*)",

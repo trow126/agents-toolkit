@@ -109,7 +109,6 @@ echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/..." > ~/.config/slack-
 | `/task-management` | 階層的タスク管理 |
 | `/token-efficiency` | トークン圧縮コミュニケーション |
 | `/knowledge-audit` | 学習事項の棚卸し・圧縮 |
-| `/serena:reset` | Serena メモリリセット |
 
 ## カスタマイズ
 

@@ -17,14 +17,13 @@
 SessionStart hook が git 情報を systemMessage で自動注入:
 
 1. `git status` + `git branch` → hook が自動実行
-2. `list_memories` (Serena MCP有効の場合) → 手動で実行
-3. プロジェクトの `claudedocs/learnings.md` → 必要に応じて確認
+2. プロジェクトの `claudedocs/learnings.md` → 必要に応じて確認
 
 # ツール選択マトリクス
 | タスク種別 | 最適ツール | 代替手段 |
 |-----------|-----------|----------|
 | 深い分析 | Sequential MCP | ネイティブ推論 |
-| シンボル操作 | Serena MCP | 手動検索 |
+| シンボル操作 | Grep / Read / Glob | 手動検索 |
 | ドキュメント参照 | Context7 MCP | Web検索 |
 | 複数ファイル編集 | 並列 Edit (パラレルツールコール) | 逐次Edit |
 | インフラ構成 | WebFetch (公式ドキュメント) | 推測禁止 |
@@ -74,7 +73,7 @@ SessionStart hook が git 情報を systemMessage で自動注入:
 
 **現在の運用**:
 - 最新版 (v2.1.x 系) では Edit/Write ツールを日本語ファイルにも使用可
-- 万が一 panic が再発した場合のフォールバック: Serena MCP `replace_content` / `replace_symbol_body` or `sed`
+- 万が一 panic が再発した場合のフォールバック: UTF-8 を明示した `uv run python` 変換 or `sed`
 
 Ref: https://github.com/anthropics/claude-code/issues/14405 (CLOSED 2026-04-18)
 

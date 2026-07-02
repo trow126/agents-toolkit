@@ -5,13 +5,11 @@
 # このスクリプトは以下を自動実行:
 # 1. 振り返り生成（CodeRabbitレビュー分析含む）
 # 1.5. technical_debt.md マージ（worktree → main repo）
-# 2. Serena unregistration
-# 3. Worktree削除
-# 4. ローカルブランチ削除
-# 5. origin同期 (fetch --prune, pull) ※事前に stash
-# 6. claudedocs をコミット+プッシュ（learnings.md + technical_debt.md）
-# 7. Serena checkpoint削除（オプション）
-# 8. brainstormファイル削除（オプション）
+# 2. Worktree削除
+# 3. ローカルブランチ削除
+# 4. origin同期 (fetch --prune, pull) ※事前に stash
+# 5. claudedocs をコミット+プッシュ（learnings.md + technical_debt.md）
+# 6. brainstormファイル削除（オプション）
 
 set -e
 
@@ -24,7 +22,6 @@ show_help() {
     echo "  -h, --help       このヘルプを表示"
     echo "  -f, --force      確認なしで実行"
     echo "  --no-retro       振り返り生成をスキップ"
-    echo "  --keep-memory    Serenaメモリを保持"
     echo "  --keep-brainstorm brainstormファイルを保持"
     echo "  --no-stash       未コミット変更があっても stash しない"
     echo ""
@@ -41,7 +38,6 @@ show_help() {
 # デフォルト値
 FORCE=false
 NO_RETRO=false
-KEEP_MEMORY=false
 KEEP_BRAINSTORM=false
 NO_STASH=false
 ISSUE_NUMBER=""
@@ -59,10 +55,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-retro)
             NO_RETRO=true
-            shift
-            ;;
-        --keep-memory)
-            KEEP_MEMORY=true
             shift
             ;;
         --keep-brainstorm)
@@ -155,7 +147,6 @@ if [ "$FORCE" != true ]; then
     echo "  • Delete local branch: $BRANCH_NAME (if exists)"
     echo "  • Sync with origin (auto-stash if needed)"
     echo "  • Commit and push claudedocs (learnings.md, technical_debt.md)"
-    [ "$KEEP_MEMORY" != true ] && echo "  • Clean Serena memories for issue-${ISSUE_NUMBER}"
     [ "$KEEP_BRAINSTORM" != true ] && echo "  • Clean brainstorm files (if any)"
     echo ""
     read -p "Proceed? [Y/n] " -n 1 -r
@@ -204,14 +195,6 @@ if [ -f "$WORKTREE_DEBT_FILE" ]; then
     fi
     DEBT_MERGED=true
     echo "   ✅ technical_debt.md merged to main repo"
-fi
-
-# 2. Serena unregistration (before worktree removal)
-echo "🔧 Unregistering from Serena..."
-if command -v gtr-serena-cleanup.sh &> /dev/null; then
-    gtr-serena-cleanup.sh "$WORKTREE_PATH" "$ISSUE_NUMBER"
-else
-    echo "   ⚠️  gtr-serena-cleanup.sh not found (manual cleanup may be needed)"
 fi
 
 # 3. Worktree削除
@@ -352,24 +335,6 @@ if [ -n "$DOCS_TO_COMMIT" ]; then
     echo "   ⚠️  Failed to commit/push claudedocs (check manually)"
 else
     echo "📤 No claudedocs changes to commit"
-fi
-
-# 7. Serenaメモリ削除（オプション）
-if [ "$KEEP_MEMORY" != true ]; then
-    SERENA_DIR="${MAIN_REPO}/.serena/memories"
-    if [ -d "$SERENA_DIR" ]; then
-        echo "🧠 Cleaning Serena memories..."
-        CLEANED=0
-        for pattern in "checkpoint_issue_${ISSUE_NUMBER}" "issue_${ISSUE_NUMBER}_" "work_issue_${ISSUE_NUMBER}"; do
-            while IFS= read -r -d '' f; do
-                if [ -f "$f" ]; then
-                    rm "$f" && echo "   Deleted: $(basename "$f")"
-                    CLEANED=$((CLEANED + 1))
-                fi
-            done < <(find "$SERENA_DIR" -maxdepth 1 -name "${pattern}*.md" -print0 2>/dev/null)
-        done
-        [ "$CLEANED" -eq 0 ] && echo "   ℹ️  No memories found for issue-${ISSUE_NUMBER}"
-    fi
 fi
 
 # 8. brainstormファイル削除（オプション）

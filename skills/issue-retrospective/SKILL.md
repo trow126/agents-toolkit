@@ -212,7 +212,7 @@ Claude:
   1. Uses issue-retrospective skill automatically
   2. Analyzes Issue #42 history
   3. Extracts learnings
-  4. Stores to Serena memory
+  4. Stores learnings in local project docs
   5. Displays retrospective summary
   6. Proceeds to close Issue
 ```
@@ -223,7 +223,7 @@ User: "Use issue-retrospective skill for Issue #123 but don't close it yet"
 Claude:
   1. Analyzes Issue #123
   2. Extracts learnings
-  3. Stores to Serena memory
+  3. Stores learnings in local project docs
   4. Displays retrospective
   5. Issue remains open
 ```

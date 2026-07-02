@@ -79,7 +79,7 @@ description: 深い Web リサーチを自動計画とインテリジェント�
 - **Tavily**: プライマリ検索・抽出エンジン
 - **Sequential**: 複雑な推論と統合
 - **Playwright**: JavaScript重視コンテンツの抽出
-- **Serena**: リサーチセッションの永続化
+- **Local files**: リサーチセッションを `claudedocs/` に保存
 
 ## Output Standards
 - レポートを `claudedocs/research_[topic]_[timestamp].md` に保存

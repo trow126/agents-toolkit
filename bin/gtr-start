@@ -147,14 +147,6 @@ if [ -f "${REPO_ROOT}/.claude/settings.local.json" ]; then
     echo "🔗 Linked .claude/settings.local.json"
 fi
 
-# Register with Serena MCP
-echo "🔧 Registering with Serena..."
-if command -v gtr-serena-register.sh &> /dev/null; then
-    gtr-serena-register.sh "$WORKTREE_PATH" "$REPO_NAME" "$ISSUE_NUMBER"
-else
-    echo "   ⚠️  gtr-serena-register.sh not found (Serena may use wrong project)"
-fi
-
 echo ""
 echo "🚀 Starting Claude Code..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

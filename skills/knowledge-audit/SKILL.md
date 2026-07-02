@@ -92,7 +92,7 @@ Display the audit report. Ask user to confirm before proceeding to Phase 2.
 
 ### Phase 2: Compression (Write)
 
-**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use **Serena MCP** `replace_content` or **Bash** `sed`. NEVER use Claude Code native Edit/Write on Japanese files.
+**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use UTF-8-safe `uv run python` transforms or **Bash** `sed`. Verify output after editing Japanese files.
 
 #### Step 0: Backup
 
@@ -171,7 +171,7 @@ Follow a compressed v2.0 reference format (`~/projects/reference-project-a/claud
 
 #### Step 2: Write Compressed File
 
-Use Serena MCP `create_text_file` or Bash to write the new file.
+Use `Write` or Bash to write the new file, then verify UTF-8 output.
 
 #### Step 3: Update Global LEARNINGS.md
 
@@ -287,7 +287,7 @@ PR #AAA〜#BBB の追跡項目を精査:
 
 - **Backup**: Always `cp` before modification
 - **User confirmation**: Show audit report before any writes
-- **UTF-8 bug**: Use Serena MCP or Bash sed for Japanese files; NEVER native Edit/Write
+- **UTF-8 safety**: Use UTF-8-safe transforms or Bash sed for Japanese files and verify output
 - **Git check**: `git status` before modification if in a repo
 - **No data loss**: Issue index preserves all issue references; patterns are compressed, not deleted
 

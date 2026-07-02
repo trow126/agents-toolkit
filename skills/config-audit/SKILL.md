@@ -317,7 +317,7 @@ deny リスト必須パターン:
 {"date":"YYYY-MM-DD","sources":{"official":N,"github":N,"blog":N,"failed":N},"scores":{"critical":N,"warning":N,"info":N,"opportunity":N},"git_hash":"<HEAD of ~/.claude/ if git managed>"}
 ```
 
-2. Serena `write_memory` が利用可能な場合のみ実行（利用不可時はスキップしレポート末尾に記録）
+2. `audit-history.jsonl` への追記結果をレポート末尾に記録
 
 ---
 
