@@ -3,6 +3,11 @@
 # 汎用学習事項
 @LEARNINGS.md
 
+# 共有ルール（正本: ~/.agents/rules/ — Codex と共有。正本編集後は ~/.agents/bin/sync-shared-rules.sh を実行）
+@~/.agents/rules/karpathy-guidelines.md
+@~/.agents/rules/no-fallback.md
+@~/.agents/rules/git-safety.md
+
 # セッション初期化
 
 - SessionStart hook が `git status` / `git branch` を systemMessage で自動注入する
@@ -45,7 +50,5 @@ main は Fable（quota 消費が重い）のため、直接作業は計画・分
 
 # グローバル安全ガードレール
 
-- main/master への force-push 禁止
-- 本番データ/データベースの削除禁止
-- シークレットを含む .env ファイルの変更禁止
+- Git 安全ガードレール（force-push・本番データ・.env）は共有ルール `~/.agents/rules/git-safety.md` を適用（上記 import 済み）
 - `claude` を `$HOME` 直下から起動しない
