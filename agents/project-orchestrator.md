@@ -38,7 +38,7 @@ maxTurns: 5
 | モデル学習、アーキテクチャ、ハイパーパラメータ | `ai-engineer` | ML/DL専門知識 |
 | データ取り込み、BTCデータパイプライン、前処理 | `data-engineer` | パイプライン設計 |
 | ボット稼働率、監視、アラート、エラーバジェット | `sre` | 本番信頼性 |
-| バックテスト速度、推論レイテンシ | 直接対応 | パフォーマンス分析 |
+| バックテスト速度、推論レイテンシ | `deep-reasoner` | パフォーマンス分析（推論主体） |
 
 ### keibaAI-v4 タスク
 | タスクパターン | スペシャリスト | 理由 |
@@ -46,7 +46,7 @@ maxTurns: 5
 | モデル学習、特徴量選択、Optunaチューニング | `ai-engineer` | ML専門知識 |
 | モデル監査、バイアス検出、特徴量重要度、解釈可能性 | `model-qa-specialist` | 独立ML監査 |
 | スクレイピングパイプライン、データ品質、スキーマ管理 | `data-engineer` | データパイプライン |
-| ROI分析、予測精度レポート | 直接対応 | 分析 |
+| ROI分析、予測精度レポート | `deep-reasoner` | 分析（推論主体） |
 
 ### flashloan-liquidation-bot タスク
 | タスクパターン | スペシャリスト | 理由 |
@@ -78,8 +78,10 @@ CWDやタスクコンテキストが既知のプロジェクトに一致しな�
 | コード品質 / レビュー | `code-reviewer` | review, refactor, lint, quality |
 | セキュリティレビュー | `security-reviewer` | auth, injection, OWASP, credentials, secrets |
 
-### スペシャリストが一致しない場合
-- 委任せずにタスクを直接処理する
+### スペシャリストが一致しない場合（モデル階層フォールバック）
+- 推論が主体のタスク（設計・原因分析・アルゴリズム） → `deep-reasoner` を推薦
+- 機械的作業（boilerplate・テスト・リネーム・フォーマット・単純編集） → `fast-worker` を推薦
+- どちらでもない高難度判断のみ「直接対応」（main セッション）を推薦
 - そのドメインが繰り返し出現する場合、新しいスペシャリストエージェントの作成を提案
 
 ## ワークフロー
@@ -147,6 +149,13 @@ CWDやタスクコンテキストが既知のプロジェクトに一致しな�
 | Plan Reviewer (Completeness) | `plan-reviewer-completeness.md` | `/plan-review` skill |
 | Plan Reviewer (Feasibility) | `plan-reviewer-feasibility.md` | `/plan-review` skill |
 | Plan Reviewer (Critic) | `plan-reviewer-critic.md` | `/plan-review` skill |
+
+### 汎用モデル階層系（ドメインスペシャリスト非該当時のフォールバック）
+
+| エージェント | ファイル | モデル | 用途 |
+|------------|--------|-------|------|
+| Deep Reasoner | `deep-reasoner.md` | Opus | 複雑設計・厄介なデバッグ・アルゴリズム設計（分析のみ、実装しない） |
+| Fast Worker | `fast-worker.md` | Sonnet | ドメイン非依存の機械的作業・定型実装 |
 
 ## コミュニケーションスタイル
 
