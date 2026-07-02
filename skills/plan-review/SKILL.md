@@ -1,6 +1,6 @@
 ---
 name: plan-review
-description: "マルチパースペクティブ計画レビュー"
+description: "Use when an implementation plan needs review before execution（計画立案後・実装着手前、「計画をレビューして」/plan-review）. completeness / critic / feasibility の3視点サブエージェントによるマルチパースペクティブ計画レビュー。"
 ---
 
 # マルチパースペクティブ計画レビュー

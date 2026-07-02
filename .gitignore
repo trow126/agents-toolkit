@@ -63,3 +63,4 @@ daemon.log
 daemon/
 jobs/
 teams/
+remote/

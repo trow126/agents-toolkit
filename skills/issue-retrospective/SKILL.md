@@ -1,6 +1,6 @@
 ---
 name: issue-retrospective
-description: Extract learnings from completed GitHub Issues and record them as Issue comments and claudedocs/learnings.md (project, gitignored)
+description: Use when a GitHub Issue was just closed or the user asks for a retrospective（「振り返りして」「retrospective」「学習事項を抽出して」）. Extract learnings from completed Issues and record them as Issue comments and claudedocs/learnings.md (project, gitignored).
 allowed-tools: Bash, Read, Write, Edit
 ---
 

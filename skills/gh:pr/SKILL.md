@@ -138,7 +138,7 @@ EOF
 
 3. **別コンテキストレビュー**: `Agent` でコードレビューを実施
    - 観点: バグ、セキュリティ、パフォーマンス、可読性、テスト漏れ
-   - 出力形式は `rules/pr-review.md` の `## Automated Code Review` テンプレートに従う
+   - 出力形式は `pr-review` スキル（skills/pr-review/SKILL.md）の `## Automated Code Review` テンプレートに従う
    - 指摘がない場合も、要修正「なし」としてコメント本文を生成する
    - Agent にはレビューコメント本文の生成だけを依頼し、修正実装を依頼しない
 

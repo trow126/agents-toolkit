@@ -1,6 +1,6 @@
 ---
 name: gh:review
-description: 全レビューソース（CodeRabbit・セルフレビュー・Codex等）の指摘をIssue・計画との整合性を確認しながら統合処理。採用/却下を判断し、修正・テスト・再プッシュまで一貫実行。
+description: Use when processing review feedback on an existing PR（「レビュー対応して」「指摘を反映して」/gh:review <PR番号>）. 全レビューソース（CodeRabbit・セルフレビュー・Codex等）の指摘を統合処理し、修正・テスト・再プッシュまで一貫実行。
 argument-hint: "[pr-number]"
 ---
 

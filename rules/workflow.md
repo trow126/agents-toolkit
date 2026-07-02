@@ -20,7 +20,8 @@
 ユーザーが修正した場合（「違う」「そうじゃない」「Xを使って」等）:
 
 1. **記録先の判断**:
-   - 汎用パターン（Ruff、Python慣用句、async、型安全） → `~/.claude/LEARNINGS.md` に追記
+   - 言語固有の汎用パターン（Ruff、Python慣用句、async、型安全） → `~/.claude/rules/python.md` 等の paths 付きルールに追記
+   - 言語非依存の汎用パターン（CLI、git、ツール運用） → `~/.claude/LEARNINGS.md` に追記
    - プロジェクト固有（API仕様、設計判断） → `claudedocs/learnings.md` に追記
 2. **記録形式**: `- **[修正内容]**: [正しい方法] (理由: [why])` を1行で追記
 3. **auto-memory**: feedback型メモリとして永続化（プロジェクトまたはグローバルの learnings ファイルに記録）

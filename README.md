@@ -7,7 +7,7 @@ Claude Code の設定フレームワーク。GitHub Issue 駆動の開発ワー�
 `~/.claude/` ディレクトリに配置して使う Claude Code の設定一式。
 
 - **GitHub Issue 駆動ワークフロー**: Issue 取得 → 実装 → コミット → 進捗同期の 4 フェーズ
-- **カスタムスキル**: PR 作成、コードレビュー、ブレインストーミング等 19 種
+- **カスタムスキル**: PR 作成、コードレビュー、ブランチ整理等 20 種
 - **品質ゲート**: Ruff ルール準拠、型安全ガード、実装前チェックリスト
 - **Git Worktree 統合**: Issue ごとに隔離された作業環境を自動構築
 - **Hook 自動化**: PR 作成時の自動レビュー、テスト品質検証、Slack 通知
@@ -16,9 +16,8 @@ Claude Code の設定フレームワーク。GitHub Issue 駆動の開発ワー�
 
 ```
 ~/.claude/
-├── CLAUDE.md          # コア設定（ツール選択、エージェントルーティング）
-├── FLAGS.md           # 動作フラグ（--think, --delegate 等）
-├── LEARNINGS.md       # 実装前品質ゲート
+├── CLAUDE.md          # コア設定（モデル役割分担、エージェントルーティング）
+├── LEARNINGS.md       # 汎用学習事項（言語固有は rules/ の paths スコープ）
 ├── settings.json      # Claude Code 設定（権限、Hook、モデル）
 ├── bin/               # CLI ツール
 │   ├── gtr-start      # Git Worktree + Issue ワークフロー開始
@@ -87,6 +86,8 @@ echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/..." > ~/.config/slack-
 | `/gh:review` | 統合コードレビュー（CodeRabbit + セルフレビュー） |
 | `/gh:coderabbit` | Quality / Security / Performance 分析 |
 | `/gh:index` | プロジェクト構造インデックス生成 |
+| `/pr-review` | PR 作成直後のセルフレビューコメント投稿 |
+| `/branch-cleanup` | マージ後のブランチ・worktree 整理 |
 
 ### プロセス自動化
 
@@ -101,29 +102,16 @@ echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/..." > ~/.config/slack-
 
 | スキル | 説明 |
 |--------|------|
-| `/brainstorm` | 要件探索・協調的発見 |
 | `/deep-research-mode` | 体系的調査モード |
 | `/introspect` | メタ認知分析・エラー回復 |
 | `/plan-review` | マルチパースペクティブ計画レビュー |
-| `/sc:research` | Web リサーチ自動化 |
-| `/task-management` | 階層的タスク管理 |
+| `/model-routing` | モデル委任の詳細運用規則 |
 | `/token-efficiency` | トークン圧縮コミュニケーション |
 | `/knowledge-audit` | 学習事項の棚卸し・圧縮 |
+| `/config-audit` | グローバル設定のベストプラクティス監査 |
+| `/python-refactor-analysis` | リファクタ前の構造分析レポート生成 |
 
 ## カスタマイズ
-
-### 動作フラグ
-
-プロンプトに付与して動作を制御する。
-
-```
---think          標準分析（~4K tokens）
---think-hard     深い分析（~10K tokens）
---ultrathink     最大深度（~32K tokens）
---delegate       サブエージェント並列処理
---validate       実行前リスク評価
---safe-mode      最大検証、保守的実行
-```
 
 ### ルール
 

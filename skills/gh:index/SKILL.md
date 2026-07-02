@@ -1,6 +1,6 @@
 ---
 name: gh:index
-description: プロジェクト構造を最大限調査し、Issue作成の元ネタとなるナレッジインデックスを生成
+description: Use when planning Issues for a project or when the user asks to survey/index the codebase（「プロジェクトを調査して」「インデックス化して」/gh:index）. プロジェクト構造を調査し Issue 作成の元ネタとなるナレッジインデックスを生成する（調査のみ・変更なし）。
 ---
 
 # /gh:index - プロジェクトナレッジインデックス生成

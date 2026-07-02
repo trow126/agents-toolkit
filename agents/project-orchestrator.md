@@ -1,6 +1,8 @@
 ---
 name: project-orchestrator
-description: "タスクルーティングとスペシャリスト推薦。"
+description: "タスクルーティングとスペシャリスト推薦。マルチステップ・クロスドメイン・新規プロジェクトのタスクで、どのスペシャリストが適切か決める際に使用。"
+tools: Read, Grep, Glob
+model: sonnet
 maxTurns: 5
 ---
 

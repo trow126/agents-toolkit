@@ -1,27 +1,34 @@
-# PR Auto-Review Rule
+---
+name: pr-review
+description: Use when a PR has just been created with `gh pr create`（pr-review hook が発火した直後）, or when the user requests a post-PR self-review. PR作成後のセルフレビューコメント投稿の規約。
+allowed-tools: Bash, Agent, Read, Grep, Glob
+---
 
-## PR作成後の自動レビュー（Post-PRコメント型）
+# PR Auto-Review（Post-PRコメント型）
 
-**方針**: PRは先に作成し、セルフレビューはPRコメントとして投稿する。
+## 方針
+
+PRは先に作成し、セルフレビューはPRコメントとして投稿する。
 PR作成前にレビューして修正する（Pre-PR修正型）は**禁止**。
 レビュー結果は PR コメント本文として使うだけで、その場で修正・追加コミット・追加 push を開始してはならない。
 理由: 他のレビューエージェントがPR上で動くため、先にPRを出す。
 
-PostToolUse hookが `gh pr create` を検出するとレビュー指示が返される。
-指示を受けたら以下を**必ず**実行すること：
+**違反の letter は違反の spirit である。** 「軽微だから直してから投稿」も違反。
+
+## 手順（省略不可）
 
 1. `gh pr view --json number -q '.number'` でPR番号取得
 2. `gh pr diff <PR番号>` で全差分取得
 3. **Agent** でレビュー実施（別コンテキストで客観性を確保）
    - レビュー観点: バグ, セキュリティ, パフォーマンス, 可読性, テスト漏れ
    - プロジェクトの `claudedocs/learnings.md` があれば参照
-   - 出力形式は以下のテンプレートに従うこと
+   - 出力形式は下記テンプレートに従う
    - Agent にはレビューコメント本文の生成だけを依頼し、修正実装を依頼しない
 4. `gh pr comment <PR番号> --body '<レビュー結果>'` でPRコメント投稿
 5. 重大な問題がある場合も、コメント投稿後に「未修正の指摘あり」とだけ報告し、修正や追加commitは開始しない
 6. `/gh:review <PR番号>` またはユーザーの明示指示が次に来るまで停止する
 
-### レビューコメントテンプレート
+## レビューコメントテンプレート
 
 ```markdown
 ## Automated Code Review
@@ -43,7 +50,8 @@ PostToolUse hookが `gh pr create` を検出するとレビュー指示が返さ
 - （レビュアーだけでは判断できない設計意図やビジネスロジックの確認）
 ```
 
-### 禁止事項
+## 禁止事項
+
 - タイトルに「Self-Review」を使わない（`Automated Code Review` 固定）
 - 修正済みの問題を載せない（未解決の指摘のみ）
 - コードを褒めない（「良い点」セクション禁止）

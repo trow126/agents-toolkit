@@ -1,7 +1,7 @@
 ---
 name: ai-engineer
 description: "本番ML/DLシステムの構築・学習・デプロイ"
-tools: Read, Grep, Glob, Bash, Edit, Write, Agent
+tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
 

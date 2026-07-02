@@ -1,6 +1,6 @@
 ---
 name: gh:coderabbit
-description: "Python向け統合コードレビュー。Quality/Security/Performance/Architecture/Anti-Fallback + CodeRabbitパターンを全検出"
+description: "Use when the user asks for a comprehensive Python code review（「コードレビューして」「静的解析して」/gh:coderabbit）. Python向け統合コードレビュー（Quality/Security/Performance/Architecture/Anti-Fallback + CodeRabbitパターン）。PR上の指摘への対応には gh:review を使う。"
 ---
 
 # /gh:coderabbit - 統合コードレビュー

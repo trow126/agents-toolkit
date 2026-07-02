@@ -11,11 +11,7 @@ STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty')
 if echo "$COMMAND" | grep -q "gh pr create"; then
   # Check tool output for success (PR URL present)
   if echo "$STDOUT" | grep -qE "https://github\.com/.+/pull/[0-9]+"; then
-    echo "PR作成を検出。PRレビュー手順を実行してください："
-    echo "1. gh pr view --json number -q '.number' でPR番号を取得"
-    echo "2. gh pr diff <PR番号> で差分を取得"
-    echo "3. Agent でコードレビューを実施（自己レビュー防止のため別コンテキスト）"
-    echo "4. レビュー結果を gh pr comment <PR番号> --body でPRコメントに投稿"
-    echo "5. コメント投稿後は修正・追加commit・追加pushを開始せず停止"
+    echo "PR作成を検出。Skill ツールで 'pr-review' スキルを起動し、Post-PR セルフレビュー規約に従うこと。"
+    echo "要点: Agent でレビュー生成 → gh pr comment で投稿 → 投稿後は修正・追加commit・追加pushをせず停止。"
   fi
 fi

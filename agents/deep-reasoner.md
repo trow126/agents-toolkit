@@ -20,7 +20,7 @@ model: opus
 - スマートコントラクト監査 → `blockchain-security-auditor`
 - ML モデル監査 → `model-qa-specialist`
 - 実装計画のレビュー → `/plan-review` スキル
-- PR レビュー → PR 作成後レビュー規約（rules/pr-review.md）
+- PR レビュー → PR 作成後レビュー規約（`pr-review` スキル）
 - 実装・編集そのもの（Edit/Write を持たない。実装ステップは呼び出し元が Sonnet 層へ委任する）
 
 ## 規律

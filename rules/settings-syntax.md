@@ -1,3 +1,9 @@
+---
+paths:
+  - "**/settings.json"
+  - "**/settings.local.json"
+---
+
 # Claude Code Settings 構文ルール
 
 ## Permission 構文
