@@ -55,3 +55,11 @@ claudedocs/reviews/
 # Audit history (machine-local tracking data)
 skills/config-audit/audit-history.jsonl
 skills/python-refactor-analysis/.analysis/**
+
+# Claude Code runtime data (auto-generated, machine-local)
+.last-update-result.json
+gh-pr-status-cache.json
+daemon.log
+daemon/
+jobs/
+teams/
