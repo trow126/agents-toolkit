@@ -2,7 +2,7 @@
 # PostToolUse hook: テスト品質の自動検証
 #
 # Edit/Write で Python ファイルが変更された際に動作:
-#   1. プロジェクトにテスト品質ツーリングがなければ自動セットアップ
+#   1. プロジェクトにテスト品質ツーリングがなければ通知
 #   2. テストファイル変更時は品質チェック実行を通知
 #
 # 全プロジェクト共通。ターミナル表示で人間にも見える。
@@ -32,14 +32,7 @@ fi
 
 # ── 1. テスト品質ツーリングの有無を判定 ──
 if ! grep -q "hypothesis" "$PROJECT_DIR/pyproject.toml" 2>/dev/null; then
-    # 未セットアップ → 自動実行
-    SETUP_SCRIPT="$HOME/bin/setup-test-quality.sh"
-    if [ -x "$SETUP_SCRIPT" ]; then
-        echo "[test-quality] テスト品質ツーリング未検出。セットアップを実行します..."
-        (cd "$PROJECT_DIR" && "$SETUP_SCRIPT") 2>&1
-    else
-        echo "[test-quality] テスト品質ツーリング未検出。~/bin/setup-test-quality.sh を実行してください"
-    fi
+    echo "[test-quality] テスト品質ツーリング未検出。必要なら ~/bin/setup-test-quality.sh を手動実行してください"
     exit 0
 fi
 

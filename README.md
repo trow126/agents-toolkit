@@ -63,7 +63,7 @@ cp ~/.claude/settings.json ~/.claude/settings.local.json
 | 参照先 | 用途 | 対応 |
 |--------|------|------|
 | `~/bin/suggest-claude-md-hook.sh` | セッション終了時に CLAUDE.md 更新提案 | 不要なら `SessionEnd` / `PreCompact` Hook を削除 |
-| `~/bin/setup-test-quality.sh` | テスト品質ツーリング自動セットアップ | 未配置でもフォールバックメッセージを表示するのみ |
+| `~/bin/setup-test-quality.sh` | テスト品質ツーリング手動セットアップ | Hook は未検出時に案内を表示するのみ |
 
 ### Slack 通知
 
