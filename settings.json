@@ -42,12 +42,9 @@
       "Glob",
       "Grep",
       "Read",
-      "SlashCommand(/gh:usage)",
       "WebFetch",
       "WebSearch",
-      "Write",
-      "mcp__context7",
-      "mcp__sequential-thinking"
+      "Write"
     ],
     "deny": [
       "Bash(> /dev/sd*)",
