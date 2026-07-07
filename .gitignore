@@ -60,7 +60,14 @@ skills/python-refactor-analysis/.analysis/**
 .last-update-result.json
 gh-pr-status-cache.json
 daemon.log
+daemon.lock
+daemon.status.json
+daemon.json
 daemon/
 jobs/
 teams/
 remote/
+
+# Python build artifacts
+__pycache__/
+*.pyc
