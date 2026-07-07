@@ -16,6 +16,7 @@
       "Agent",
       "Bash(bun *)",
       "Bash(cat *)",
+      "Bash(curl *)",
       "Bash(echo *)",
       "Bash(env PYTHONDONTWRITEBYTECODE=1 UV_CACHE_DIR=/tmp/uv-cache uv run *)",
       "Bash(env UV_CACHE_DIR=/tmp/uv-cache uv run *)",
@@ -51,7 +52,6 @@
       "Bash(bash *)",
       "Bash(cat **/.env*)",
       "Bash(cat .env*)",
-      "Bash(curl *)",
       "Bash(dd if=*of=/dev/sd*)",
       "Bash(git checkout -- .)",
       "Bash(git clean -f *)",
@@ -133,7 +133,7 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "claude-fable-5[1m]",
+  "model": "opus[1m]",
   "hooks": {
     "ConfigChange": [
       {
