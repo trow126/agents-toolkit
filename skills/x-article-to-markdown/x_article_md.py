@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""X (Twitter) の Article / Note Tweet 本文を、メディア込みの自己完結 Markdown 化する。
+"""X (Twitter) の投稿を、メディア込みの自己完結 Markdown 化する。
+
+Article(ロングフォーム) / Note Tweet(長文) / 通常ツイートの 3 タイプに対応し、
+Article があれば article.md、なければ tweet.md を生成する。
 
 X Article の URL を直接 fetch しても本文は HTML に無い。seed tweet を GraphQL
 TweetResultByRestId で取得し、article field toggle を有効化する必要がある。
@@ -7,7 +10,8 @@ TweetResultByRestId で取得し、article field toggle を有効化する必要
   1. web bundle から TweetResultByRestId の queryId を動的抽出
   2. guest token を発行
   3. article field toggle 付きで GraphQL を叩く
-  4. Draft.js content_state を Markdown に変換(画像/動画/引用/コード/リンク/太字)
+  4. Article: Draft.js content_state を Markdown 化(画像/動画/引用/コード/リンク/太字)
+     Note Tweet / 通常ツイート: 本文 + richtext(太字/斜体) + t.co 展開 + 添付メディア
   5. メディアを assets/ にダウンロードして相対参照(--remote-media で URL 参照のまま)
 
 使い方:
@@ -155,11 +159,13 @@ def fetch_tweet_result(query_id, guest_token, tweet_id):
     return json.loads(body)
 
 
-# ---------- Draft.js -> Markdown ----------
+# ---------- Markdown 共通ヘルパー ----------
 
-def apply_inline(text, style_ranges, url_ranges):
-    """UTF-16 オフセット基準(Draft.js 準拠)で Bold と Link を Markdown 反映。"""
-    u16 = list(text)  # BMP 前提: 1 char = 1 code unit
+def insert_marks(text, marks):
+    """(start, end, open_str, close_str) を文字位置基準で挿入(BMP 前提)。
+
+    同一位置では閉じ記号を先に出力し、ネストした範囲を壊さない。
+    """
     inserts = {}
 
     def add(idx, s, opening):
@@ -169,22 +175,53 @@ def apply_inline(text, style_ranges, url_ranges):
         else:
             inserts[idx][1] = s + inserts[idx][1]
 
-    for r in style_ranges:
-        if str(r.get("style", "")).startswith("Bold"):
-            add(r["offset"], "**", True)
-            add(r["offset"] + r["length"], "**", False)
-    for u in url_ranges:
-        add(u["fromIndex"], "[", True)
-        add(u["toIndex"], f"]({u['text']})", False)
+    for start, end, open_str, close_str in marks:
+        add(start, open_str, True)
+        add(end, close_str, False)
 
     out = []
-    for i in range(len(u16) + 1):
+    for i in range(len(text) + 1):
         if i in inserts:
             out.append(inserts[i][1])
             out.append(inserts[i][0])
-        if i < len(u16):
-            out.append(u16[i])
+        if i < len(text):
+            out.append(text[i])
     return "".join(out)
+
+
+def make_media_ref(outdir, remote_media):
+    """assets/ へ DL して相対参照を返す media_ref と、DL 記録リストを作る。"""
+    assets = os.path.join(outdir, "assets")
+    dl = []
+
+    def media_ref(url, name):
+        if remote_media:
+            return url
+        os.makedirs(assets, exist_ok=True)
+        ext = os.path.splitext(url.split("?")[0])[1] or ".jpg"
+        fn = f"{name}{ext}"
+        dest = os.path.join(assets, fn)
+        if not os.path.exists(dest):
+            body, _ = http_get(url)
+            with open(dest, "wb") as f:
+                f.write(body)
+        dl.append(f"assets/{fn}")
+        return f"assets/{fn}"
+
+    return media_ref, dl
+
+
+# ---------- Draft.js (Article) -> Markdown ----------
+
+def apply_inline(text, style_ranges, url_ranges):
+    """UTF-16 オフセット基準(Draft.js 準拠)で Bold と Link を Markdown 反映。"""
+    marks = []
+    for r in style_ranges:
+        if str(r.get("style", "")).startswith("Bold"):
+            marks.append((r["offset"], r["offset"] + r["length"], "**", "**"))
+    for u in url_ranges:
+        marks.append((u["fromIndex"], u["toIndex"], "[", f"]({u['text']})"))
+    return insert_marks(text, marks)
 
 
 def build_media_maps(media_entities):
@@ -209,22 +246,7 @@ def render_markdown(art, outdir, tweet_id, remote_media):
     blocks = cs["blocks"]
     emap = {e["key"]: e["value"] for e in cs["entityMap"]}
     mid2img, mid2video = build_media_maps(art.get("media_entities", []))
-    assets = os.path.join(outdir, "assets")
-    dl = []
-
-    def media_ref(url, name):
-        if remote_media:
-            return url
-        os.makedirs(assets, exist_ok=True)
-        ext = os.path.splitext(url.split("?")[0])[1] or ".jpg"
-        fn = f"{name}{ext}"
-        dest = os.path.join(assets, fn)
-        if not os.path.exists(dest):
-            body, _ = http_get(url)
-            with open(dest, "wb") as f:
-                f.write(body)
-        dl.append(f"assets/{fn}")
-        return f"assets/{fn}"
+    media_ref, dl = make_media_ref(outdir, remote_media)
 
     L = [f"# {art['title']}\n"]
     L.append(f"> 出典: [X Article](https://x.com/i/article/{art.get('rest_id','')}) "
@@ -255,18 +277,7 @@ def render_markdown(art, outdir, tweet_id, remote_media):
                         v = mid2video[mid]
                         n += 1
                         thumb = media_ref(v["thumb"], f"video{n}_thumb")
-                        if remote_media:
-                            vref = v["mp4"]
-                        else:
-                            os.makedirs(assets, exist_ok=True)
-                            vfn = f"assets/video{n}.mp4"
-                            dest = os.path.join(outdir, vfn)
-                            if not os.path.exists(dest):
-                                body, _ = http_get(v["mp4"])
-                                with open(dest, "wb") as f:
-                                    f.write(body)
-                            dl.append(vfn)
-                            vref = vfn
+                        vref = media_ref(v["mp4"], f"video{n}")
                         L.append(f"[![{cap}]({thumb})]({vref})")
                         L.append(f"*🎬 動画 ({v['dur']//1000}秒) — {cap}*\n")
                     elif mid in mid2img:
@@ -303,6 +314,86 @@ def render_markdown(art, outdir, tweet_id, remote_media):
     return md, dl
 
 
+# ---------- Note Tweet / 通常ツイート -> Markdown ----------
+
+RICHTEXT_MARKS = {"Bold": "**", "Italic": "*"}
+
+
+def apply_richtext(text, tags):
+    """Note Tweet の richtext_tags(from_index/to_index)を Markdown 記号に変換。"""
+    marks = []
+    for tag in tags:
+        mark = "".join(RICHTEXT_MARKS[t] for t in tag.get("richtext_types", [])
+                       if t in RICHTEXT_MARKS)
+        if mark:
+            marks.append((tag["from_index"], tag["to_index"], mark, mark))
+    return insert_marks(text, marks)
+
+
+def expand_tco(text, url_entities, media_entities):
+    """t.co トークンを [display_url](expanded_url) へ展開し、メディアトークンは除去。
+
+    richtext 適用後でも壊れないよう、インデックスではなく文字列置換で行う。
+    """
+    for u in url_entities:
+        text = text.replace(u["url"], f"[{u['display_url']}]({u['expanded_url']})")
+    for m in media_entities:
+        text = text.replace(m["url"], "")
+    return text.strip()
+
+
+def render_tweet_markdown(result, outdir, tweet_id, remote_media):
+    """Article を持たない tweet(Note Tweet / 通常ツイート)を Markdown 化。"""
+    leg = result["legacy"]
+    user = result["core"]["user_results"]["result"]["core"]
+    note = ((result.get("note_tweet") or {})
+            .get("note_tweet_results") or {}).get("result")
+    media_entities = (leg.get("extended_entities") or {}).get("media", [])
+    media_ref, dl = make_media_ref(outdir, remote_media)
+
+    if note:  # 長文本文は note_tweet 側が全文(legacy は 280 字で切れる)
+        tags = (note.get("richtext") or {}).get("richtext_tags", [])
+        text = apply_richtext(note["text"], tags)
+        urls = (note.get("entity_set") or {}).get("urls", [])
+    else:
+        text = leg["full_text"]
+        urls = (leg.get("entities") or {}).get("urls", [])
+    text = expand_tco(text, urls, media_entities)
+
+    url = f"https://x.com/{user['screen_name']}/status/{tweet_id}"
+    L = [f"# {user['name']} (@{user['screen_name']}) のポスト\n"]
+    L.append(f"> 出典: [{url}]({url})\n")
+    created = datetime.datetime.strptime(
+        leg["created_at"], "%a %b %d %H:%M:%S %z %Y")
+    L.append(f"> 投稿日時: {created:%Y-%m-%d %H:%M} UTC\n")
+    L.append("\n---\n")
+    L.append(text + "\n")
+
+    n = 0
+    for m in media_entities:
+        n += 1
+        if m["type"] == "photo":
+            L.append(f"![photo {n}]({media_ref(m['media_url_https'], f'img{n}')})\n")
+        else:  # video / animated_gif
+            info = m["video_info"]
+            mp4s = [v for v in info["variants"]
+                    if v["content_type"] == "video/mp4"]
+            best = max(mp4s, key=lambda v: v.get("bitrate", 0))
+            thumb = media_ref(m["media_url_https"], f"video{n}_thumb")
+            vref = media_ref(best["url"].split("?")[0], f"video{n}")
+            L.append(f"[![video {n}]({thumb})]({vref})")
+            L.append(f"*🎬 動画 ({info.get('duration_millis', 0)//1000}秒)*\n")
+
+    qid = (((result.get("quoted_status_result") or {}).get("result") or {})
+           .get("rest_id") or leg.get("quoted_status_id_str"))
+    if leg.get("is_quote_status") and qid:
+        L.append(f"> 📌 引用ポスト: [https://x.com/i/status/{qid}]"
+                 f"(https://x.com/i/status/{qid})\n")
+
+    md = re.sub(r"\n{3,}", "\n\n", "\n".join(L))
+    return md, dl
+
+
 def main():
     ap = argparse.ArgumentParser(description="X Article -> self-contained Markdown")
     ap.add_argument("target", help="tweet status URL または tweet id")
@@ -333,22 +424,31 @@ def main():
     if result.get("__typename") == "TweetUnavailable":
         raise SystemExit(f"ERROR: tweet を取得できません(削除/非公開/年齢制限など): "
                          f"{result.get('reason')}")
-    article = ((result.get("article") or {}).get("article_results") or {}).get("result")
-    if not article:
-        raise SystemExit(
-            "ERROR: この tweet に X Article が紐づいていません。"
-            "(Note Tweet や通常ツイートは本スクリプトの対象外)")
     if args.json_only:
         print(raw)
         return
 
-    md, dl = render_markdown(article, args.out, tweet_id, args.remote_media)
-    md_path = os.path.join(args.out, "article.md")
+    article = ((result.get("article") or {}).get("article_results") or {}).get("result")
+    if article:
+        md, dl = render_markdown(article, args.out, tweet_id, args.remote_media)
+        md_path = os.path.join(args.out, "article.md")
+        summary = f"title: {article['title']}\n" \
+                  f"body: {len(article.get('plain_text') or '')} chars"
+    else:
+        md, dl = render_tweet_markdown(result, args.out, tweet_id,
+                                       args.remote_media)
+        md_path = os.path.join(args.out, "tweet.md")
+        user = result["core"]["user_results"]["result"]["core"]
+        note = ((result.get("note_tweet") or {})
+                .get("note_tweet_results") or {}).get("result")
+        kind = "note tweet" if note else "tweet"
+        body = note["text"] if note else result["legacy"]["full_text"]
+        summary = f"author: {user['name']} (@{user['screen_name']})\n" \
+                  f"body: {len(body)} chars ({kind})"
     with open(md_path, "w") as f:
         f.write(md)
     print(f"\nMD: {md_path}")
-    print(f"title: {article['title']}")
-    print(f"body: {len(article.get('plain_text') or '')} chars")
+    print(summary)
     print(f"media: {len(set(dl))} files"
           + ("" if not args.remote_media else " (remote URL 参照)"))
 
