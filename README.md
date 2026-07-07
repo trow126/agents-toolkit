@@ -55,6 +55,21 @@ cp ~/.claude/settings.json ~/.claude/settings.local.json
 # settings.local.json を環境に合わせて編集
 ```
 
+### シークレットスキャン（コミットするマシンでは必須）
+
+本リポジトリは public のため、コミット前に [gitleaks](https://github.com/gitleaks/gitleaks) でステージ済み差分をスキャンする。フック（`githooks/pre-commit`）は gitleaks 未インストール時にコミットを明示エラーで拒否する。
+
+```bash
+# gitleaks をインストール（例: v8.30.1 linux x64）
+curl -sL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+  | tar -xz -C ~/.local/bin gitleaks
+
+# フックを有効化（リポジトリごとに一度）
+git -C ~/.claude config core.hooksPath githooks
+```
+
+GitHub 側でも Secret Scanning + Push Protection を有効化済み（既知プロバイダのトークンは push 時にもブロックされる）。
+
 ### 外部スクリプト（任意）
 
 `settings.json` の一部の Hook は同梱されていない外部スクリプトを参照する。これらは環境に合わせて自作するか、該当 Hook エントリを削除する。

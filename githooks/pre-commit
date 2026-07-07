@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# claude-toolkit は public リポジトリのため、コミット前に gitleaks で
+# ステージ済み差分をスキャンし、シークレット検出時はコミットを拒否する。
+#
+# セットアップ（マシンごとに一度、README 参照）:
+#   1. gitleaks をインストール
+#   2. git config core.hooksPath githooks
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "ERROR: gitleaks が見つかりません。このリポジトリは public のため、" >&2
+    echo "シークレットスキャンなしのコミットは禁止です。" >&2
+    echo "導入: https://github.com/gitleaks/gitleaks/releases から ~/.local/bin へ" >&2
+    exit 1
+fi
+
+exec gitleaks git --pre-commit --staged --redact --verbose .
