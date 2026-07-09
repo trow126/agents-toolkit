@@ -27,7 +27,5 @@
 
 ## 実装前品質ゲート
 - 実装前に LEARNINGS.md を確認する
-- CodeRabbit 防止: Ruff ルール (G004, TRY401, RUF059, RUF022) を適用する
 - 型安全性: ゼロ除算、空配列、None ハンドリング、インデックス境界
-- ログ出力: `%s` フォーマット、`logger.exception()` に `{e}` を含めない
-- Markdown: 見出し/テーブル/コードブロックの前後に空行
+- 言語固有ゲート（Ruff・ログ出力・Markdown 空行）は paths スコープ付き `rules/python.md` / `rules/markdown.md` に定義済み
