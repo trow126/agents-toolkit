@@ -68,8 +68,6 @@
       "Bash(rm -rf models*)",
       "Bash(rm -rf results*)",
       "Bash(rm -rf ~)",
-      "Bash(scp *)",
-      "Bash(ssh *)",
       "Bash(sudo *)",
       "Bash(uv run python scripts/scraping/*)",
       "Bash(uv run python scripts/voting/*)",
@@ -133,7 +131,6 @@
     ],
     "defaultMode": "bypassPermissions"
   },
-  "model": "opus[1m]",
   "hooks": {
     "ConfigChange": [
       {
@@ -298,5 +295,6 @@
       "Routine work is local Python ML/data projects and Solidity DeFi projects inside the session repository",
       "Do not treat all repositories under ~/ as automatically trusted; moving into another repository or home-level config is scope escalation unless the user explicitly asks"
     ]
-  }
+  },
+  "model": "claude-fable-5[1m]"
 }
