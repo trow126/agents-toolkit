@@ -1,11 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "env": {
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "60",
-    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_SUBPROCESS_ENV_SCRUB": "0",
-    "ENABLE_TOOL_SEARCH": "true"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "attribution": {
     "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
@@ -230,17 +226,6 @@
           }
         ]
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/user-prompt-submit-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
     ]
   },
   "statusLine": {
@@ -283,7 +268,6 @@
   "autoUpdatesChannel": "latest",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,
-  "skipWorkflowUsageWarning": true,
   "disableAutoMode": "disable",
   "theme": "light-ansi",
   "editorMode": "vim",
@@ -296,5 +280,8 @@
       "Do not treat all repositories under ~/ as automatically trusted; moving into another repository or home-level config is scope escalation unless the user explicitly asks"
     ]
   },
-  "model": "claude-fable-5[1m]"
+  "model": "claude-fable-5",
+  "effortLevel": "high",
+  "autoCompactEnabled": true,
+  "autoMemoryEnabled": true
 }

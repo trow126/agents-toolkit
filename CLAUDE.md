@@ -11,13 +11,14 @@
 # セッション初期化
 
 - SessionStart hook が `git status` / `git branch` を systemMessage で自動注入する
-- プロジェクトの `claudedocs/learnings.md` は UserPromptSubmit hook が先頭 4000 バイトを自動注入する
+- プロジェクトの高信号な教訓は `.claude/rules/**/project-learnings.md` からセッションごとに読み込み、新しい継続的な知見は native auto memory に保存する
 
 # エージェントオーケストレーション
 
 - 非自明なタスク（マルチステップ・クロスドメイン・新規プロジェクト）は `project-orchestrator` に相談して最適なスペシャリストを決定する
 - スペシャリストが明白な単一ドメインタスク（例: `.sol` 編集 → `solidity-engineer`）はスキップ可
 - machine-specific なプロジェクト→スペシャリストの高速ルーティングは untracked の `CLAUDE.local.md` に定義する（公開リポジトリに固有名を書かない）
+- Agent Teams / `ultracode` は、3 本以上の独立した workstream に分割でき、並列化の利点が調整コストを明確に上回る大型タスクだけに使う。通常実装・単純調査・同一ファイルへの並列 write には使わない
 
 # モデル役割分担（quota 運用）
 
