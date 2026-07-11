@@ -234,8 +234,8 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "claude-code-setup@claude-plugins-official": true,
-    "session-report@claude-plugins-official": true,
+    "claude-code-setup@claude-plugins-official": false,
+    "session-report@claude-plugins-official": false,
     "superpowers@claude-plugins-official": true,
     "kaggle-skill@shepsci": true,
     "codex@openai-codex": true
@@ -283,5 +283,15 @@
   "model": "claude-fable-5",
   "effortLevel": "high",
   "autoCompactEnabled": true,
-  "autoMemoryEnabled": true
+  "autoMemoryEnabled": true,
+  "skillOverrides": {
+    "gh:coderabbit": "off",
+    "progress-tracker": "off",
+    "issue-retrospective": "off",
+    "issue-parser": "off",
+    "issue-work-logger": "off",
+    "introspect": "off",
+    "token-efficiency": "off",
+    "x-article-to-markdown": "off"
+  }
 }
