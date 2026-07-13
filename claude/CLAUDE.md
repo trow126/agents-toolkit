@@ -8,6 +8,9 @@
 @~/.agents/rules/no-fallback.md
 @~/.agents/rules/git-safety.md
 @~/.agents/rules/decision-integrity.md
+@~/.agents/rules/quality-priority.md
+@~/.agents/rules/scope-discipline.md
+@~/.agents/rules/test-policy.md
 
 # セッション初期化
 

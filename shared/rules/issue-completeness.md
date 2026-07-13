@@ -1,5 +1,3 @@
-<!-- 正本: ~/.agents/rules/issue-completeness.md（編集は正本側で行い、~/.agents/bin/sync-shared-rules.sh で同期する） -->
-<!-- BEGIN shared:issue-completeness -->
 # Global Issue Completeness Policy
 
 Status: active
@@ -88,4 +86,3 @@ continues.
   template or equivalent canonical structure.
 - This policy adds completeness requirements on top of those templates; it does
   not replace their section names.
-<!-- END shared:issue-completeness -->

@@ -182,10 +182,11 @@ GitHub Projects権限がない場合、自動的にラベルモードに切り�
    ```
 4. **ラベル自動推論**: タイトル+本文から推論（検証済みラベルのみ使用）
 5. **タスク数確認**: 8個以上で警告表示（分割推奨）
-6. **GitHub Issue作成**: `gh issue create`
+6. **完全性ゲート**: 共有ルール `~/.agents/rules/issue-completeness.md` の要件を確認 — 「この Issue 単体で完了判定できるか？」（成功条件は最終状態で定義、対象・非目標・受入基準・検証手順を明記。予見可能なフォローアップ Issue を残さない）
+7. **GitHub Issue作成**: `gh issue create`
    - **🚨 重要**: `--body`にはファイル内容を**完全に**渡す（省略禁止）
-7. **GitHub Projects追加**: `gh_projects_set_todo`
-8. **結果表示**: Issue番号とURL
+8. **GitHub Projects追加**: `gh_projects_set_todo`
+9. **結果表示**: Issue番号とURL
 
 **ラベルフォールバックマッピング**:
 存在しないラベル推論時は以下で代替:
