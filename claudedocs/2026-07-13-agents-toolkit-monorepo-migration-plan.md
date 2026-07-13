@@ -177,18 +177,29 @@ codex/*
 !codex/AGENTS.md
 !codex/hooks.json
 !codex/herdr-agent-state.sh
-!codex/rules/
 !codex/skills/
+
+# rules/ は issue_completeness_policy.md のみ追跡
+# (default.rules は実操作履歴由来の承認キャッシュで私的情報を含むため追跡しない — Task 2 監査決定)
+!codex/rules/
+codex/rules/*
+!codex/rules/issue_completeness_policy.md
 
 # 二重防御(allowlist ミス時の保険)
 codex/auth.json
 codex/config.toml
 codex/gh.config.toml
+codex/rules/default.rules
 codex/*.sqlite
 codex/*.sqlite-*
 codex/history.jsonl
 codex/session_index.jsonl
 codex/installation_id
+
+# --- shared: agmsg スキルのランタイム状態(Task 2 監査決定) ---
+shared/skills/agmsg/db/
+shared/skills/agmsg/run/
+shared/skills/agmsg/teams/
 
 # --- 一時ファイル全般 ---
 *.bak
