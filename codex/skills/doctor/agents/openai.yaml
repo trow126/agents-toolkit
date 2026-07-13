@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doctor"
+  short_description: "Diagnose and safely repair Codex health"
+  default_prompt: "Use $doctor to diagnose this Codex environment, propose safe fixes, apply only approved changes, and verify the result."
