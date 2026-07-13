@@ -153,7 +153,8 @@ link "$REPO_DIR/shared" "$HOME/.agents"
 link "$REPO_DIR/codex" "$HOME/.codex"
 
 # gitleaks pre-commit hook の有効化(core.hooksPath は .git/config 保存のためマシンごとに必要)
-if [[ -d "$REPO_DIR/.git" ]]; then
+# -e: worktree 等で .git がファイルの場合も対応
+if [[ -e "$REPO_DIR/.git" ]]; then
   git -C "$REPO_DIR" config core.hooksPath claude/githooks
   echo "hooksPath: claude/githooks"
 fi
@@ -177,7 +178,15 @@ codex/*
 !codex/AGENTS.md
 !codex/hooks.json
 !codex/herdr-agent-state.sh
+
+# skills/ も default-deny + 監査済みスキルのみ allowlist(新スキルは監査後に追記する)
+# 注: codex/skills/.system/ 等の未監査ディレクトリは自動的に除外される
 !codex/skills/
+codex/skills/*
+!codex/skills/claude-second-opinion/
+!codex/skills/doctor/
+!codex/skills/issue-writing/
+!codex/skills/kaggle/
 
 # rules/ は issue_completeness_policy.md のみ追跡
 # (default.rules は実操作履歴由来の承認キャッシュで私的情報を含むため追跡しない — Task 2 監査決定)
@@ -258,6 +267,7 @@ REPO="$HOME/agents-toolkit"
 BRANCH="feat/monorepo-restructure"
 
 # ---------- 前提チェック ----------
+# pgrep -x は comm 名一致。本マシンで claude/codex とも comm 名がそのままであることを検証済み(2026-07-13)
 for p in claude codex; do
   if pgrep -x "$p" >/dev/null 2>&1; then
     echo "ERROR: $p プロセスが稼働中です。終了してから再実行してください" >&2
@@ -280,12 +290,29 @@ for f in "$KIT/bootstrap.sh" "$KIT/gitignore.root" "$KIT/README.root.md"; do
     exit 1
   fi
 done
+if ! git -C "$HOME/.claude" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "ERROR: ~/.claude が git リポジトリではありません" >&2
+  exit 1
+fi
+if ! git -C "$HOME/.claude" rev-parse --verify master >/dev/null 2>&1; then
+  echo "ERROR: master ブランチが存在しません(復旧不能点より前に検出)" >&2
+  exit 1
+fi
+if [[ -e "$HOME/.claude/claude" ]]; then
+  echo "ERROR: ~/.claude/claude が既に存在します(claude/ サブディレクトリ作成と衝突)" >&2
+  exit 1
+fi
 if ! git -C "$HOME/.claude" diff --quiet || ! git -C "$HOME/.claude" diff --cached --quiet; then
   echo "ERROR: ~/.claude に未コミットの変更があります" >&2
   exit 1
 fi
 
+# 以降は状態を変更する。途中失敗時に復旧手がかりを必ず表示する
+trap 'echo "ERROR: 移行が途中で失敗しました。バックアップ: ${BACKUP:-未作成} / 部分状態: $REPO および $HOME/.claude を確認し、計画末尾のロールバック手順を参照してください" >&2' ERR
+
 # ---------- バックアップ(.agents と .codex の設定部分) ----------
+# 注: ~/.claude の未追跡 runtime(cache/sessions 等)はバックアップ対象外。
+#     再生成可能なデータであり、mv による移動のみで消失リスクがなく、失敗時は mv で戻せるため
 STAMP="$(date +%Y%m%d-%H%M%S)"
 BACKUP="$HOME/agents-migration-backup-$STAMP.tar.gz"
 tar --exclude='.codex/cache' --exclude='.codex/tmp' --exclude='.codex/log' \
