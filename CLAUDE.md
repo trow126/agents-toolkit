@@ -7,6 +7,7 @@
 @~/.agents/rules/karpathy-guidelines.md
 @~/.agents/rules/no-fallback.md
 @~/.agents/rules/git-safety.md
+@~/.agents/rules/decision-integrity.md
 
 # セッション初期化
 
