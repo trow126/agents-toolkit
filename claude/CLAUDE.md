@@ -53,8 +53,3 @@ main は Fable（quota 消費が重い）のため、直接作業は計画・分
 # 起動運用
 
 `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）。
-
-# グローバル安全ガードレール
-
-- Git 安全ガードレール（force-push・本番データ・.env）は共有ルール `~/.agents/rules/git-safety.md` を適用（上記 import 済み）
-- `claude` を `$HOME` 直下から起動しない

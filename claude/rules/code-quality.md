@@ -1,10 +1,5 @@
 # コード品質ルール
 
-## 共有正本の適用（CLAUDE.md で import 済み）
-- No Fallback: `~/.agents/rules/no-fallback.md`
-- 実装スコープと完全性: `~/.agents/rules/scope-discipline.md`
-- テスト方針: `~/.agents/rules/test-policy.md`
-
 ## コード構成
 - 言語/フレームワークの命名規則に従う
 - 既存のプロジェクト構成パターンに合わせる
