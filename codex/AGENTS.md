@@ -18,11 +18,65 @@
 - 正しさを速度と引き換えにしない。「動けば良い」より「正しく動く」
 <!-- END shared:quality-priority -->
 
-## Python / uv
+<!-- BEGIN shared:python-guidelines -->
+## Python ガイドライン
 
-- Python コマンドは原則 `uv run` 経由で実行する（例: `uv run python -m json.tool`, `uv run pytest`, `uv run ruff check`）。
-- `python` / `python3` を直接実行するのは、システム Python 自体の確認など明示的な理由がある場合のみ。その場合は理由を述べる。
-- `uv` 未導入または非 `uv` プロジェクトでは、まず環境を確認し、推測で bare `python` にフォールバックしない。
+### uv プロジェクト
+
+- pyproject.toml があるプロジェクトでは常に `uv run python` または `uv run script.py` を使用する
+- `python` / `python3` を直接実行するのは、システム Python 自体の確認など明示的な理由がある場合のみ（理由を述べる）
+- `uv` 未導入または非 uv プロジェクトでは、まず環境を確認し、推測で bare `python` にフォールバックしない
+- 一時確認の Python 実行で `__pycache__` を残したくない場合は `PYTHONDONTWRITEBYTECODE=1` を付ける
+- `__pycache__` cleanup のために `rm -rf` を実行しない
+
+### 実装前チェックリスト
+
+1. **`__all__`**: アルファベット順にソート（RUF022）
+2. **ロギング**: f-stringではなく `%s` フォーマットを使用（G004）
+3. **例外**: `logger.exception("msg")` に `{e}` を含めない（TRY401）
+4. **型ヒント**: `__init__` に `-> None` を付与（ANN204）
+5. **日時**: `datetime.now(timezone.utc)` を使用（DTZ005）
+6. **非同期**: while/sleepを避け、Eventを使用（ASYNC110）
+7. **テスト**: 空、単一、境界値、無効値、NaN のケースを網羅
+8. **CancelledError**: `except Exception:` の前に `except asyncio.CancelledError: raise` 必須（asyncループ内）
+9. **Queue型**: `asyncio.Queue[dict[str, Any]]` 禁止。frozen dataclass使用
+10. **No Fallback**: `except: pass` / `except: return None` 禁止。エラーは明示的に処理または伝播。必須設定値に `dict.get(k, default)` 禁止
+11. **PEP 758 (Python 3.14+)**: `except A, B, C:` は括弧なしで有効。Python 2構文ではない。ruff formatは括弧を削除する
+12. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
+13. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
+14. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
+15. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
+16. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
+17. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
+18. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
+
+### 主要な型安全ガード
+
+```python
+# ゼロ除算
+rate = wins / total if total > 0 else 0.0
+
+# インデックス境界
+first = items[0] if items else None
+
+# 空のDataFrame
+if df.empty or df["col"].isna().all():
+    return None
+
+# MIN_CELLS パターン（テーブルパース）
+MIN_CELLS = max_index + 1
+if len(cells) < MIN_CELLS:
+    return None
+```
+
+### クイックコマンド
+
+```bash
+uv run ruff check src/ --fix
+uv run ruff format src/
+uv run mypy src/
+```
+<!-- END shared:python-guidelines -->
 
 <!-- BEGIN shared:no-fallback -->
 ## No Fallback ポリシー
@@ -144,11 +198,32 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - シークレットを含む `.env` ファイルの変更禁止
 <!-- END shared:git-safety -->
 
-## Git
+<!-- BEGIN shared:git-workflow -->
+## Git ワークフロー
 
-- セッション開始時に `git status` と `git branch` を確認する。
-- 意味のあるコミットメッセージ（Conventional Commits）。
-- 明示的な依頼なしにコミットしない。
+- セッション開始時に `git status` と `git branch` を確認する
+- すべての作業は feature ブランチで行い、main/master で直接作業しない
+- 明示的な依頼なしにコミットしない。依頼されたコミットは意味単位で分割する
+- ステージング前に必ず `git diff` を確認する
+- リスクのある操作の前にロールバック手段（コミットの提案・バックアップ）を確保する
+- Conventional Commits 形式 (fix:, feat:, docs: など) と説明的な本文を使用する
+- "fix bug"、"update code"、"changes" のような曖昧なメッセージは避ける
+<!-- END shared:git-workflow -->
+
+<!-- BEGIN shared:learnings -->
+## 汎用学習事項（Learnings）
+
+言語非依存・プロジェクト非依存の教訓。言語固有の品質ゲートは共有正本 `python-guidelines.md` 等に定義する。
+
+### CLI操作の注意点
+
+- **jqスライス括弧順序**: `(.body[:400])` の閉じ括弧は内側から `]` → `)` → `}` → `]`。誤: `(.body[:400)}]`、正: `(.body[:400])}]`
+
+### 実行環境の注意点
+
+- **systemd user service の PATH は最小構成**: 外部 CLI（claude/codex 等）は絶対パスを設定で明示し、検証は `systemctl --user show-environment` の PATH を再現して行う (理由: シェルでの成功は偽陰性になる。複数プロジェクトで独立に再発)
+- **プロセス並列 × ライブラリ内スレッドの積で CPU 飽和**: 並列 chunk/ワーカー実行時は `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1` や n_jobs 制限でスレッドを明示制限する (理由: torch/BLAS は既定で全コア分のスレッドを作る。複数プロジェクトで独立に再発)
+<!-- END shared:learnings -->
 
 ## GitHub 操作
 

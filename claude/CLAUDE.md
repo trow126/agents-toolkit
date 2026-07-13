@@ -1,7 +1,7 @@
 # Claude Code 設定
 
 # 汎用学習事項
-@LEARNINGS.md
+@~/.agents/rules/learnings.md
 
 # 共有ルール（正本: ~/.agents/rules/ — Codex と共有。正本編集後は ~/.agents/bin/sync-shared-rules.sh を実行）
 @~/.agents/rules/karpathy-guidelines.md
@@ -11,6 +11,7 @@
 @~/.agents/rules/quality-priority.md
 @~/.agents/rules/scope-discipline.md
 @~/.agents/rules/test-policy.md
+@~/.agents/rules/git-workflow.md
 
 # セッション初期化
 

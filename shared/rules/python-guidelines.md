@@ -1,10 +1,3 @@
----
-paths:
-  - "**/*.py"
----
-
-<!-- 正本: ~/.agents/rules/python-guidelines.md（編集は正本側で行い、~/.agents/bin/sync-shared-rules.sh で同期する） -->
-<!-- BEGIN shared:python-guidelines -->
 ## Python ガイドライン
 
 ### uv プロジェクト
@@ -62,8 +55,3 @@ uv run ruff check src/ --fix
 uv run ruff format src/
 uv run mypy src/
 ```
-<!-- END shared:python-guidelines -->
-
-## Claude Code 固有
-
-- クイックコマンドの各コマンドは個別に実行する（`&&` はパーミッションチェックをバイパスする: Issue #16180）

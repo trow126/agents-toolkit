@@ -41,7 +41,6 @@ hooks/*.original
 /*.md
 !README.md
 !CLAUDE.md
-!LEARNINGS.md
 
 # Exclude SuperClaude standard commands
 # commands/sc/

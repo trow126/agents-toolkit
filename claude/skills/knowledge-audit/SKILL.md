@@ -64,9 +64,9 @@ Compare extracted patterns against the candidate ledger `~/.claude/skills/knowle
 - **Register as candidate if**: generalizable but first sighting (1 project only) → append one line to the ledger: `- [slug] | 初出: <project> <YYYY-MM-DD> | <one-line summary>`
 - **Do NOT promote**: domain-specific patterns (horse racing, DeFi, ML training specifics)
 
-Promotion destinations (常時ロード削減方針に従い二股):
-- 言語/フレームワーク固有 (Ruff rules, Python idioms, async, pytest) → paths スコープ付きルール (`~/.claude/rules/python.md` 等)
-- 言語非依存 (CLI, git, ツール運用) → `~/.claude/LEARNINGS.md`
+Promotion destinations (常時ロード削減方針に従い二股。いずれも共有正本 — 追記後 `~/.agents/bin/sync-shared-rules.sh` を実行):
+- 言語/フレームワーク固有 (Ruff rules, Python idioms, async, pytest) → `~/.agents/rules/python-guidelines.md`
+- 言語非依存 (CLI, git, ツール運用) → `~/.agents/rules/learnings.md`
 
 #### Step 4: Generate Audit Report
 
@@ -182,7 +182,7 @@ Use `Write` or Bash to write the new file, then verify UTF-8 output.
 #### Step 3: Update Global Knowledge & Candidate Ledger
 
 If Phase 1 Step 3 confirmed promotions or new candidates:
-1. Promotions: 言語固有 → append to the matching paths-scoped rule (`~/.claude/rules/python.md` 等) / 言語非依存 → append to `~/.claude/LEARNINGS.md`. Check the destination for an existing equivalent first; append as concise checklist item (not verbose entry)
+1. Promotions: 言語固有 → append to `~/.agents/rules/python-guidelines.md` / 言語非依存 → append to `~/.agents/rules/learnings.md`. Check the destination for an existing equivalent first; append as concise checklist item (not verbose entry), then run `~/.agents/bin/sync-shared-rules.sh`
 2. Ledger maintenance: remove promoted patterns' lines from `promotion-candidates.md`, append new first-sighting candidates
 
 #### Step 4: Insert Compression Note
@@ -304,4 +304,4 @@ PR #AAA〜#BBB の追跡項目を精査:
 |---------|------|-------|
 | Compressed learnings | `~/projects/reference-project-a/claudedocs/learnings.md` | 635 |
 | Mature technical debt audit | `~/projects/reference-project-b/claudedocs/technical_debt.md` | 254 |
-| Global learnings checklist | `~/.claude/LEARNINGS.md` | 51 |
+| Global learnings checklist | `~/.agents/rules/learnings.md` | - |
