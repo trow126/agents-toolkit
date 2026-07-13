@@ -58,9 +58,15 @@ Parse `## Issue #N:` entries and classify:
 
 #### Step 3: Check Global Promotion
 
-Compare extracted patterns against `~/.claude/LEARNINGS.md`:
-- **Promote if**: Pattern appears in 2+ projects AND is language/framework-level (Ruff rules, Python idioms, async patterns)
-- **Do NOT promote**: Domain-specific patterns (horse racing, DeFi, ML training specifics)
+Compare extracted patterns against the candidate ledger `~/.claude/skills/knowledge-audit/promotion-candidates.md` (untracked; create from its header format if missing) and existing global knowledge:
+
+- **Promote if**: pattern is generalizable (not domain-specific) AND appears in 2+ projects — evidenced by a ledger hit, an existing global entry, or direct observation in this audit
+- **Register as candidate if**: generalizable but first sighting (1 project only) → append one line to the ledger: `- [slug] | 初出: <project> <YYYY-MM-DD> | <one-line summary>`
+- **Do NOT promote**: domain-specific patterns (horse racing, DeFi, ML training specifics)
+
+Promotion destinations (常時ロード削減方針に従い二股):
+- 言語/フレームワーク固有 (Ruff rules, Python idioms, async, pytest) → paths スコープ付きルール (`~/.claude/rules/python.md` 等)
+- 言語非依存 (CLI, git, ツール運用) → `~/.claude/LEARNINGS.md`
 
 #### Step 4: Generate Audit Report
 
@@ -173,12 +179,11 @@ Follow a compressed v2.0 reference format (`~/projects/reference-project-a/claud
 
 Use `Write` or Bash to write the new file, then verify UTF-8 output.
 
-#### Step 3: Update Global LEARNINGS.md
+#### Step 3: Update Global Knowledge & Candidate Ledger
 
-If promotion candidates exist:
-1. Read `~/.claude/LEARNINGS.md`
-2. Check if pattern already exists
-3. Append as concise checklist item (not verbose entry)
+If Phase 1 Step 3 confirmed promotions or new candidates:
+1. Promotions: 言語固有 → append to the matching paths-scoped rule (`~/.claude/rules/python.md` 等) / 言語非依存 → append to `~/.claude/LEARNINGS.md`. Check the destination for an existing equivalent first; append as concise checklist item (not verbose entry)
+2. Ledger maintenance: remove promoted patterns' lines from `promotion-candidates.md`, append new first-sighting candidates
 
 #### Step 4: Insert Compression Note
 

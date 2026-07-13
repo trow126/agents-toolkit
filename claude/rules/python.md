@@ -28,6 +28,10 @@ paths:
 12. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
 13. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
 14. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
+15. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
+16. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
+17. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
+18. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
 
 ## 主要な型安全ガード
 

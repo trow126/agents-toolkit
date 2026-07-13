@@ -41,6 +41,7 @@ hooks/*.original
 /*.md
 !README.md
 !CLAUDE.md
+!LEARNINGS.md
 
 # Exclude SuperClaude standard commands
 # commands/sc/
@@ -54,6 +55,7 @@ claudedocs/reviews/
 
 # Audit history (machine-local tracking data)
 skills/config-audit/audit-history.jsonl
+skills/knowledge-audit/promotion-candidates.md
 skills/python-refactor-analysis/.analysis/**
 
 # Claude Code runtime data (auto-generated, machine-local)
