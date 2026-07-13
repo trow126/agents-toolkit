@@ -43,6 +43,8 @@ shared/skills/agmsg/db/
 shared/skills/agmsg/run/
 shared/skills/agmsg/teams/
 
-# --- 一時ファイル全般 ---
+# --- 一時ファイル・ビルド成果物全般 ---
 *.bak
 *.tmp
+__pycache__/
+*.pyc
