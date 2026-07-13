@@ -10,4 +10,6 @@
   - rm -f のサイレント性(Task 1、ブリーフ指定どおりのため対応不要と判断)
   - trap ERR メッセージにロールバックコマンドをインライン表示せず計画参照のみ(Task 3 再レビュー)
   - broken symlink 名 claude の edge case は -e で検出不可(Task 3 再レビュー、trap で捕捉される)
-- 次: Task 4(merge → push → gh rename → remote URL)。rename はユーザー確認後に実行
+- Task 4: complete (master へ merge・push 済み 941b408、GitHub rename claude-toolkit→agents-toolkit 実行・検証済み、remote URL 更新・fetch 確認済み)
+- 最終レビュー判断: kit スクリプトは設計時の並列諮問(Codex+Opus)+タスクレビュー2巡で検証済み、残る diff は docs のみのため全ブランチ再レビューは省略(理由記録)
+- 次: Task 5(ユーザー手動切替: bash ~/agents-toolkit-kit/migrate.sh、全エージェント停止下)→ Task 6(新セッションでスモークテスト・push・掃除)
