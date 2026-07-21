@@ -1,18 +1,13 @@
-# 安全性ルール
+# 安全性ルール（Claude Code 固有）
 
-## 障害調査
-- 障害が発生した理由を必ず調査する（根本原因分析）
-- 品質チェックやバリデーションをバイパスしない
-- 体系的にデバッグする: 理解 > 診断 > 修正 > 検証
-- バグ報告: 実装前に具体的な修正仮説を提示する。金融/取引ロジックの場合、修正前に必ず根本原因を明確にする
+<!-- 障害調査・フレームワークの尊重は共有正本へ移設: ~/.agents/rules/failure-investigation.md / framework-respect.md -->
+
+## Claude Code 運用
+
 - `~/.claude/settings.json` と `~/.claude/settings.local.json` は Claude セッション内で直接編集しない。shell で編集してから Claude を再起動する
 
-## フレームワークの尊重
-- ライブラリ使用前に package.json/deps を確認する
-- 既存のプロジェクト規約とインポートスタイルに従う
-- ロールバック機能を備えたバッチ操作を優先する
-
 ## 複合コマンド
+
 - Bash コマンドで `&&`, `||`, `;`, `|` を避ける
   - 理由: 権限チェックは最初のコマンドにのみ適用され、後続のコマンドは許可リストをバイパスする
   - Ref: https://github.com/anthropics/claude-code/issues/16180 (Open)

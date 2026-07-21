@@ -15,17 +15,13 @@
 - タスク完了前に lint/typecheck を実行する
 - 完了とマークする前に操作の証拠を示す: 実際の実行出力またはファイルの最終状態
 
-## 自己改善（ミス再発防止ループ）
+## 自己改善（Claude 固有）
 
-ユーザーが修正した場合（「違う」「そうじゃない」「Xを使って」等）:
+<!-- 記録先ルーティングと承認境界は共有正本へ移設: ~/.agents/rules/self-improvement.md -->
 
-1. **記録先の判断**:
-   - 言語固有の汎用パターン（Ruff、Python慣用句、async、型安全） → 共有正本 `~/.agents/rules/python-guidelines.md` に追記し `sync-shared-rules.sh` を実行
-   - 言語非依存の汎用パターン（CLI、git、ツール運用） → 共有正本 `~/.agents/rules/learnings.md` に追記し `sync-shared-rules.sh` を実行
-   - プロジェクト固有（API仕様、設計判断） → `claudedocs/learnings.md` に追記
-2. **記録形式**: `- **[修正内容]**: [正しい方法] (理由: [why])` を1行で追記
-3. **auto-memory**: feedback型メモリとして永続化（プロジェクトまたはグローバルの learnings ファイルに記録）
-4. セッション開始時にプロジェクトの learnings を確認する
+- プロジェクト固有の教訓の記録先は `claudedocs/learnings.md`
+- auto-memory への feedback 型メモリ永続化も共有正本の承認境界に従い、共有ルール・プロジェクトファイルへの書き込み権限を拡張しない
+- セッション開始時にプロジェクトの learnings を確認する
 
 ## ローカル記録
 - 確認なしで外部 memory 操作を自動実行しない

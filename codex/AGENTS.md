@@ -171,6 +171,8 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - 常識、既存 schema、ドキュメント、過去の実装を無条件に正しい証拠として扱わない。
 - 観測との矛盾、外部 I/O や API・schema・version の境界、低コストで検証可能、高影響・不可逆という条件で source of truth と照合する。
 - 実設定、型、schema、公式仕様、fixture、実データ、テストから適切な根拠を選ぶ。
+- 日時・バージョン・役職・価格など、時間経過で変わる判断は現在の環境または一次情報で確認する。
+- ナレッジカットオフや過去の記録だけから現在値を推測しない。
 - 十分な証拠が得られたら確定して進み、根拠のない再疑義や確認質問を続けない。
 
 ### 4. 根拠付きの明確な立場
@@ -225,14 +227,60 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - **プロセス並列 × ライブラリ内スレッドの積で CPU 飽和**: 並列 chunk/ワーカー実行時は `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1` や n_jobs 制限でスレッドを明示制限する (理由: torch/BLAS は既定で全コア分のスレッドを作る。複数プロジェクトで独立に再発)
 <!-- END shared:learnings -->
 
+<!-- BEGIN shared:failure-investigation -->
+## 障害調査（Failure Investigation）
+
+- 障害が発生した理由を必ず調査する（根本原因分析）
+- テストの無効化・品質チェックやバリデーションのバイパスで回避しない
+- 体系的にデバッグする: 理解 > 診断 > 修正 > 検証
+- バグ報告: 実装前に具体的な修正仮説を提示する。金融/取引ロジックの場合、修正前に必ず根本原因を明確にする
+<!-- END shared:failure-investigation -->
+
+<!-- BEGIN shared:framework-respect -->
+## フレームワークの尊重
+
+- ライブラリ使用前に package.json/deps を確認する
+- 既存のプロジェクト規約とインポートスタイルに従う
+- ロールバック機能を備えたバッチ操作を優先する
+<!-- END shared:framework-respect -->
+
+<!-- BEGIN shared:workspace-hygiene -->
+## ワークスペース衛生
+
+- 現在の作業で自分が作成し、不要かつ安全に削除できると確認した一時ファイル・スクリプト・ビルド成果物・デバッグ出力だけを片付ける
+- 既存・ユーザー所有・無関係な成果物やログは削除しない
+- 誤ってコミットされる可能性のある一時ファイルを残さない
+- テストは `tests/`, `__tests__/`, `test/`、スクリプトは `scripts/`, `tools/`, `bin/` など、既存のディレクトリパターンを優先して配置する
+- 新しいディレクトリを作成する前に既存のパターンを確認する
+<!-- END shared:workspace-hygiene -->
+
+<!-- BEGIN shared:self-improvement -->
+## 自己改善（ミス再発防止ループ）
+
+ユーザーが修正した場合（「違う」「そうじゃない」「Xを使って」等）、再利用可能な教訓として分類し、記録先候補を判断する:
+
+- 言語固有の汎用パターン（Ruff、Python慣用句、async、型安全） → 共有正本 `~/.agents/rules/python-guidelines.md`
+- 言語非依存の汎用パターン（CLI、git、ツール運用） → 共有正本 `~/.agents/rules/learnings.md`
+- プロジェクト固有（API仕様、設計判断） → 対象リポジトリの learnings ファイル
+
+記録形式: `- **[修正内容]**: [正しい方法] (理由: [why])` を1行で追記する。共有正本を更新した場合は `~/.agents/bin/sync-shared-rules.sh` を実行する。
+
+制約: 共有ルール・memory・プロジェクトファイルを自動更新しない。更新案（記録先と追記文）を提示し、ユーザーの明示依頼後にのみ書き込む。
+<!-- END shared:self-improvement -->
+
+<!-- BEGIN shared:markdown-rules -->
+## Markdown ルール
+
+- 見出し・テーブル・コードブロックの前後に空行を入れる
+<!-- END shared:markdown-rules -->
+
 ## GitHub 操作
 
 - Issue / PR / コメント / リリース等の操作は `[plugins."github@openai-curated"]` の MCP ツール（`github_create_issue`, `github_add_comment_to_issue`, `github_update_issue` 等）を優先する。書き込み系 4 ツールは `approval_mode = "approve"` で個別承認が必須（approval_policy=never 下で唯一残る意図的なガードレール。緩めない）。
 - 現在のグローバル設定は `sandbox_mode = "danger-full-access"` のため `gh` CLI もネットワークに到達できる。sandbox を絞って起動している場合（workspace-write で `network_access = false`）は `gh` が失敗するため、勝手に `network_access` を有効化せず、ユーザーに `codex --profile gh`（`~/.codex/gh.config.toml`: workspace-write + network_access=true）での再起動を依頼する。
 
-## 安全性
+## 安全性（Codex 固有）
 
-- 障害は根本原因を調査する。テスト無効化やバリデーションバイパスで回避しない。
 - 実資金・本番運用を扱うリポジトリでの作業は、デフォルトの danger-full-access ではなく `codex -s workspace-write` など sandbox を絞った起動を推奨する。
 
 ## agmsg（エージェント間メッセージング）

@@ -12,6 +12,10 @@
 @~/.agents/rules/scope-discipline.md
 @~/.agents/rules/test-policy.md
 @~/.agents/rules/git-workflow.md
+@~/.agents/rules/failure-investigation.md
+@~/.agents/rules/framework-respect.md
+@~/.agents/rules/self-improvement.md
+@~/.agents/rules/workspace-hygiene.md
 
 # セッション初期化
 
