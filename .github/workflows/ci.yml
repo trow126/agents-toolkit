@@ -1,0 +1,58 @@
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Shell syntax check (bash -n)
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            if ! bash -n "$f"; then
+              echo "syntax error: $f"
+              fail=1
+            fi
+          done < <(git ls-files '*.sh')
+          exit "$fail"
+
+      - name: JSON syntax check (jq empty)
+        run: |
+          set -euo pipefail
+          fail=0
+          while IFS= read -r f; do
+            if ! jq empty "$f"; then
+              echo "invalid JSON: $f"
+              fail=1
+            fi
+          done < <(git ls-files '*.json')
+          exit "$fail"
+
+      - name: Validate repo layout
+        run: ./scripts/validate-layout.sh
+
+      - name: Check shared rules sync
+        run: ./shared/bin/sync-shared-rules.sh --check
+
+      - name: Run test suite
+        run: |
+          set -euo pipefail
+          for t in tests/test-*.sh; do
+            echo "== $t =="
+            "$t"
+          done
+
+      - name: gitleaks (full history scan)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
