@@ -274,6 +274,87 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - 見出し・テーブル・コードブロックの前後に空行を入れる
 <!-- END shared:markdown-rules -->
 
+<!-- BEGIN shared:issue-completeness -->
+## Issue Completeness Policy
+
+## Purpose
+
+Prevent predictable follow-up issues that exist only because the initial issue
+did not define the real completion state. The first issue should normally be
+self-contained enough that an implementer can decide done or not-done without
+guessing what "complete" means.
+
+## Core Rules
+
+1. Initial issue completeness is the default requirement.
+   - Write the first issue so it can stand on its own.
+   - Do not leave essential completion logic, artifact integrity conditions, or
+     known edge cases for a predictable follow-up issue.
+
+2. Define success by final state, not intermediate signals.
+   - Success criteria must be based on final persisted state or user-visible
+     outcome.
+   - Do not treat a function return value, temporary in-memory result, or
+     transient `exit 0` as sufficient unless that is also the real final
+     outcome.
+
+3. Review completeness before posting the issue.
+   - When relevant to the task, explicitly check whether the issue addresses:
+     - normal success
+     - partial success
+     - zero-result or empty-result cases
+     - incremental or append-to-existing-data success
+     - precondition failure
+     - retry and idempotency
+     - stale artifact or stale state
+     - operator-visible success signals versus actual persisted data state
+
+4. Require concrete, closeable issue bodies.
+   - The issue must make the concrete problem explicit.
+   - The issue must state the exact target: repository, file, module,
+     function, workflow, dataset, artifact, or run.
+   - The issue must state the intended outcome.
+   - The issue must state what remains wrong or incomplete.
+   - The issue must state what must change.
+   - The issue must state non-goals when ambiguity is possible.
+   - The issue must state completion or acceptance criteria that can decide
+     whether the issue can be closed.
+   - The issue must state verification steps or commands when validation or
+     reproduction is expected.
+
+5. Follow-up issues are restricted.
+   - Open a follow-up issue only when genuinely new information appears after
+     the original issue was created and that information was not reasonably
+     foreseeable at issue creation time.
+   - If the missing requirement was predictable, treat it as an initial issue
+     quality failure rather than as justification for issue splitting.
+
+## Quality Gate
+
+Before posting or closing issue design work, ask:
+
+`Can the implementer decide completion from this one issue alone?`
+
+If the answer is no, the issue is incomplete and should be revised before work
+continues.
+
+## Guidance By Task Shape
+
+- Persistence, scraping, backfill, settlement, CLI, migration, and generated
+  artifact tasks require special care because real completion depends on saved
+  outputs or operator-visible behavior.
+- For those tasks, the issue should normally describe the expected post-save or
+  externally visible state, not only the execution path.
+- If partial save is allowed, the issue must distinguish between "data may be
+  saved" and "task is considered successful."
+<!-- END shared:issue-completeness -->
+
+## Issue 完全性ポリシーの適用範囲（Codex trigger）
+
+- 適用範囲: `$HOME` 配下の全 repository での GitHub Issue 作成・更新（global Codex/agent workflow）。上記の Issue Completeness Policy を issue 完全性判断の第一 source of truth とする。
+- Repo 固有の `.github/ISSUE_TEMPLATE` がある場合はその見出し・必須フィールドが正確な source of truth。本ポリシーはそれを置き換えず、完全性要件を上乗せする。
+- 正確な Issue 見出し・作成/更新手順は `issue-writing` skill (`~/.codex/skills/issue-writing/`) を使う。
+
 ## GitHub 操作
 
 - Issue / PR / コメント / リリース等の操作は `[plugins."github@openai-curated"]` の MCP ツール（`github_create_issue`, `github_add_comment_to_issue`, `github_update_issue` 等）を優先する。書き込み系 4 ツールは `approval_mode = "approve"` で個別承認が必須（approval_policy=never 下で唯一残る意図的なガードレール。緩めない）。

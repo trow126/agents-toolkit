@@ -1,12 +1,4 @@
-# Global Issue Completeness Policy
-
-Status: active
-
-Scope:
-- Applies to GitHub Issue creation and updates performed as global Codex/agent workflow under `/home/trow126`
-- Applies across repositories
-- This file is the primary source of truth for the global issue completeness policy
-- Repo-specific issue templates remain the source of truth for exact headings and required fields
+## Issue Completeness Policy
 
 ## Purpose
 
@@ -78,11 +70,3 @@ continues.
   externally visible state, not only the execution path.
 - If partial save is allowed, the issue must distinguish between "data may be
   saved" and "task is considered successful."
-
-## Relationship To Repo Templates
-
-- Use the target repository's `.github/ISSUE_TEMPLATE` headings when available.
-- If a repository does not provide a matching template, use the closest manual
-  template or equivalent canonical structure.
-- This policy adds completeness requirements on top of those templates; it does
-  not replace their section names.

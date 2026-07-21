@@ -21,11 +21,9 @@ codex/skills/*
 !codex/skills/issue-writing/
 !codex/skills/kaggle/
 
-# rules/ は issue_completeness_policy.md のみ追跡
-# (default.rules は実操作履歴由来の承認キャッシュで私的情報を含むため追跡しない — Task 2 監査決定)
-!codex/rules/
-codex/rules/*
-!codex/rules/issue_completeness_policy.md
+# rules/ は現在追跡対象なし
+# (issue_completeness_policy.md は shared/rules/issue-completeness.md の codex/AGENTS.md 同期に統合し廃止。
+#  default.rules は実操作履歴由来の承認キャッシュで私的情報を含むため追跡しない — Task 2 監査決定)
 
 # 二重防御(allowlist ミス時の保険)
 codex/auth.json
