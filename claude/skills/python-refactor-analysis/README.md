@@ -14,10 +14,12 @@ The tool borrows the structure-map approach from `ast-structure-map`, but narrow
 ## Run
 
 ```bash
-uv run --project . refactor-analyze /path/to/repo --out .analysis --profile full
+uv run --project . refactor-analyze /path/to/repo --profile full
 ```
 
 The intended workflow is whole-repository analysis with the full profile.
+Reports are written to `<repo>/.analysis` by default, regardless of the current
+working directory. Pass `--out` to write elsewhere.
 
 Project checks run through `uv run --project /path/to/repo ...`. Repositories without
 `pyproject.toml` or `uv.lock` are reported as unsupported for checks; the tool does not

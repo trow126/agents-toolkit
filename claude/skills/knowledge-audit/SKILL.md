@@ -58,7 +58,7 @@ Parse `## Issue #N:` entries and classify:
 
 #### Step 3: Check Global Promotion
 
-Compare extracted patterns against the candidate ledger `~/.claude/skills/knowledge-audit/promotion-candidates.md` (untracked; create from its header format if missing) and existing global knowledge:
+Compare extracted patterns against the candidate ledger `${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/knowledge-audit/promotion-candidates.md` (untracked; create from its header format if missing) and existing global knowledge:
 
 - **Promote if**: pattern is generalizable (not domain-specific) AND appears in 2+ projects — evidenced by a ledger hit, an existing global entry, or direct observation in this audit
 - **Register as candidate if**: generalizable but first sighting (1 project only) → append one line to the ledger: `- [slug] | 初出: <project> <YYYY-MM-DD> | <one-line summary>`

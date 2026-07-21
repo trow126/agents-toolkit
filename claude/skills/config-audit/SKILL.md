@@ -147,7 +147,7 @@ Phase 1 と並行してメインコンテキストが直接実行する。Agent 
 6. `~/.claude/hooks/*.sh` — Glob で一覧、Bash `ls -la` で実行権限確認
 7. `~/.claude/.mcp.json` — Read（存在しない場合は「未作成」と記録）
 8. `~/.claude/.claudeignore` — Read（存在しない場合は「未作成」と記録）
-9. `~/.claude/skills/config-audit/audit-history.jsonl` — 存在する場合は末尾数件を Read し、直近の比較可能な1件を前回差分用に保持
+9. `${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/config-audit/audit-history.jsonl` — 存在する場合は末尾数件を Read し、直近の比較可能な1件を前回差分用に保持
 
 **ファイル不在時**: 「未作成（推奨構成なし）」としてレポートに記録。サイレントスキップ禁止。
 `SKILL.md` がないスキルディレクトリも一覧から落とさず、Phase 3 で必ず `CRITICAL` 判定対象に含める。
@@ -312,7 +312,7 @@ deny リスト必須パターン:
 
 ### 永続化
 
-1. `~/.claude/skills/config-audit/audit-history.jsonl` に追記:
+1. `${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/config-audit/audit-history.jsonl` に追記:
 ```json
 {"date":"YYYY-MM-DD","sources":{"official":N,"github":N,"blog":N,"failed":N},"scores":{"critical":N,"warning":N,"info":N,"opportunity":N},"git_hash":"<HEAD of ~/.claude/ if git managed>"}
 ```

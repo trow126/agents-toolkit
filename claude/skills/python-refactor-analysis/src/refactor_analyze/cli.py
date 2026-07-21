@@ -12,7 +12,11 @@ from refactor_analyze.config import ConfigurationError
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="refactor-analyze")
     parser.add_argument("root", nargs="?", default=".", help="Python repository to analyze.")
-    parser.add_argument("--out", default=".analysis", help="Output directory for reports.")
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="Output directory for reports (default: <root>/.analysis).",
+    )
     parser.add_argument("--path", action="append", default=[], help="Focus a file or directory.")
     parser.add_argument("--diff", action="store_true", help="Focus files changed in git diff.")
     parser.add_argument("--profile", help="Configuration profile from pyproject.toml.")
@@ -29,10 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    root = Path(args.root)
+    out = Path(args.out) if args.out is not None else root.resolve() / ".analysis"
     try:
         result = analyze_project(
-            Path(args.root),
-            Path(args.out),
+            root,
+            out,
             paths=[Path(item) for item in args.path],
             diff=args.diff,
             run_project_checks=not args.skip_checks,

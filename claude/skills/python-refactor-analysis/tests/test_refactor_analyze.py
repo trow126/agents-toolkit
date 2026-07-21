@@ -188,6 +188,24 @@ def test_cli_writes_reports_for_minimal_project(tmp_path: Path) -> None:
     )
 
 
+def test_cli_default_out_resolves_under_root_not_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    write_pyproject(repo)
+    repo.joinpath("app.py").write_text("def main():\n    return 1\n", encoding="utf-8")
+    unrelated_cwd = tmp_path / "unrelated_cwd"
+    unrelated_cwd.mkdir()
+    monkeypatch.chdir(unrelated_cwd)
+
+    exit_code = main([str(repo), "--skip-checks"])
+
+    assert exit_code == 0
+    assert repo.joinpath(".analysis", "summary.md").is_file()
+    assert not unrelated_cwd.joinpath(".analysis").exists()
+
+
 def test_fallback_occurrences_records_read_errors(tmp_path: Path) -> None:
     source = tmp_path / "app.py"
     source.write_text("def target():\n    return 1\n", encoding="utf-8")

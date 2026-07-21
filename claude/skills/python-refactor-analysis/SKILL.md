@@ -31,15 +31,18 @@ Use the bundled CLI through `uv`; this skill does not fall back to bare `python`
 
 ```bash
 uv run --project "${CLAUDE_SKILL_DIR}" \
-  refactor-analyze <repo> --out .analysis --profile full
+  refactor-analyze <repo> --profile full
 ```
 
 Equivalent via the bundled wrapper when this skill is installed under `~/.claude`:
 
 ```bash
 ~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
-  <repo> --out .analysis --profile full
+  <repo> --profile full
 ```
+
+Reports are written to `<repo>/.analysis` by default, regardless of the current
+working directory. Pass `--out` to write elsewhere.
 
 For strict runs, prefer an explicit long timeout around the command. In sandboxed
 environments where the default `uv` cache is read-only, point `UV_CACHE_DIR` at a
@@ -48,7 +51,7 @@ writable temporary directory:
 ```bash
 UV_CACHE_DIR=/tmp/uv-cache timeout 1800 \
   uv run --project "${CLAUDE_SKILL_DIR}" \
-  refactor-analyze <repo> --out .analysis --profile full --timeout 300
+  refactor-analyze <repo> --profile full --timeout 300
 ```
 
 For a quick preview that skips Rope probes but still writes the structure/import/
@@ -56,7 +59,7 @@ complexity reports:
 
 ```bash
 uv run --project "${CLAUDE_SKILL_DIR}" \
-  refactor-analyze <repo> --out .analysis --profile full --skip-refactor-probes
+  refactor-analyze <repo> --profile full --skip-refactor-probes
 ```
 
 Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are run as
