@@ -1,37 +1,243 @@
 #!/usr/bin/env bash
-# bootstrap.sh — agents-toolkit の設定ディレクトリ symlink を作成する(冪等)
+# bootstrap.sh — install/manifest.tsv に従って設定ディレクトリの symlink を作成する(冪等)
 # 新マシンセットアップ: git clone <repo> ~/agents-toolkit && bash ~/agents-toolkit/bootstrap.sh
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "${AGENTS_TOOLKIT_REPO:-$(dirname "${BASH_SOURCE[0]}")}" && pwd -P)"
+MANIFEST="$REPO_DIR/install/manifest.tsv"
+OVERLAY_ROOT="${AGENTS_TOOLKIT_OVERLAY:-${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/overlay}"
 
-link() {
-  local src="$1" dest="$2"
-  if [[ -L "$dest" ]]; then
-    local current
-    current="$(readlink "$dest")"
-    if [[ "$current" == "$src" ]]; then
-      echo "ok: $dest -> $src"
-      return
-    fi
-    echo "ERROR: $dest は別の場所 ($current) を指す symlink です" >&2
-    exit 1
-  fi
-  if [[ -e "$dest" ]]; then
-    echo "ERROR: $dest に実体が存在します。手動で退避してから再実行してください" >&2
-    exit 1
-  fi
-  ln -s "$src" "$dest"
-  echo "linked: $dest -> $src"
+MODE="apply"
+
+usage() {
+  cat <<'EOF'
+Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
+  --check    manifest(+overlay)通りの symlink 状態を検証する(変更なし)
+  --dry-run  --apply が行う操作を実行せず列挙する(変更なし)
+  --apply    symlink を作成する(既定。引数なしも同じ)
+  --overlay PATH  overlay root を明示指定する
+EOF
 }
 
-link "$REPO_DIR/claude" "$HOME/.claude"
-link "$REPO_DIR/shared" "$HOME/.agents"
-link "$REPO_DIR/codex" "$HOME/.codex"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --check) MODE="check"; shift ;;
+    --dry-run) MODE="dry-run"; shift ;;
+    --apply) MODE="apply"; shift ;;
+    --overlay)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --overlay には PATH を指定してください" >&2
+        exit 1
+      fi
+      OVERLAY_ROOT="$2"
+      shift 2
+      ;;
+    -h|--help) usage; exit 0 ;;
+    *)
+      echo "ERROR: 不明な引数: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
 
-# gitleaks pre-commit hook の有効化(core.hooksPath は .git/config 保存のためマシンごとに必要)
-# -e: worktree 等で .git がファイルの場合も対応
-if [[ -e "$REPO_DIR/.git" ]]; then
-  git -C "$REPO_DIR" config core.hooksPath claude/githooks
-  echo "hooksPath: claude/githooks"
+declare -a ENTRY_MODE=()
+declare -a ENTRY_SRC=()
+declare -a ENTRY_TARGET=()
+declare -A SEEN_TARGETS=()
+
+# manifest 1ファイルを読み込み、検証しつつ ENTRY_* 配列へ追加する(fail-fast)
+# $1=manifest file, $2=origin (public|overlay, エラーメッセージ用), $3=source解決の基準root
+load_manifest_file() {
+  local file="$1" origin="$2" src_root="$3"
+  local line_no=0
+  local mode src target
+
+  while IFS=$'\t' read -r mode src target || [[ -n "$mode" ]]; do
+    line_no=$((line_no + 1))
+    [[ -z "$mode" ]] && continue
+    [[ "$mode" == \#* ]] && continue
+
+    if [[ -z "${src:-}" || -z "${target:-}" ]]; then
+      echo "ERROR: $file:$line_no: mode<TAB>source<TAB>target の3列が必要です" >&2
+      exit 1
+    fi
+
+    case "$mode" in
+      link-file|link-dir) ;;
+      *)
+        echo "ERROR: $file:$line_no: 不明な mode '$mode' (link-file または link-dir)" >&2
+        exit 1
+        ;;
+    esac
+
+    if [[ "$src" == /* ]]; then
+      echo "ERROR: $file:$line_no: source は絶対 path にできません: $src" >&2
+      exit 1
+    fi
+    if [[ "$src" == *".."* ]]; then
+      echo "ERROR: $file:$line_no: source に .. を含めることはできません: $src" >&2
+      exit 1
+    fi
+    if [[ "$target" == /* ]]; then
+      echo "ERROR: $file:$line_no: target は絶対 path にできません: $target" >&2
+      exit 1
+    fi
+    if [[ "$target" == *".."* ]]; then
+      echo "ERROR: $file:$line_no: target に .. を含めることはできません: $target" >&2
+      exit 1
+    fi
+
+    local src_abs="$src_root/$src"
+    if [[ "$mode" == "link-file" ]]; then
+      if [[ -d "$src_abs" ]]; then
+        echo "ERROR: $file:$line_no: mode=link-file ですが source はディレクトリです: $src_abs" >&2
+        exit 1
+      fi
+      if [[ ! -f "$src_abs" ]]; then
+        echo "ERROR: $file:$line_no: source ファイルが存在しません: $src_abs" >&2
+        exit 1
+      fi
+    else
+      if [[ ! -d "$src_abs" ]]; then
+        echo "ERROR: $file:$line_no: source ディレクトリが存在しません: $src_abs" >&2
+        exit 1
+      fi
+    fi
+
+    if [[ -n "${SEEN_TARGETS[$target]:-}" ]]; then
+      echo "ERROR: target が重複しています: $target (既存: ${SEEN_TARGETS[$target]} / 今回: $origin:$file:$line_no)" >&2
+      exit 1
+    fi
+    SEEN_TARGETS["$target"]="$origin:$file:$line_no"
+
+    ENTRY_MODE+=("$mode")
+    ENTRY_SRC+=("$src_abs")
+    ENTRY_TARGET+=("$target")
+  done < "$file"
+}
+
+if [[ ! -f "$MANIFEST" ]]; then
+  echo "ERROR: manifest が見つかりません: $MANIFEST" >&2
+  exit 1
 fi
+load_manifest_file "$MANIFEST" "public" "$REPO_DIR"
+
+OVERLAY_MANIFEST="$OVERLAY_ROOT/manifest.tsv"
+if [[ -f "$OVERLAY_MANIFEST" ]]; then
+  load_manifest_file "$OVERLAY_MANIFEST" "overlay" "$OVERLAY_ROOT"
+fi
+
+# 旧whole-directory symlink構成(未migration)を検出する。target の先頭path要素
+# ($HOME/.claude 等)が repo を指す symlink のままだと、mkdir -p や ln -s が
+# repo内の実体へ直接書き込んでしまうため、その前に検出してエラーにする。
+guard_not_old_layout() {
+  local target="$1"
+  local top="${target%%/*}"
+  local top_path="$HOME/$top"
+
+  if [[ -L "$top_path" ]]; then
+    local resolved
+    resolved="$(readlink -f "$top_path" 2>/dev/null || true)"
+    if [[ -n "$resolved" && "$resolved" == "$REPO_DIR"* ]]; then
+      echo "ERROR: $top_path は repo ($REPO_DIR) を指す symlink です(旧構成が未 migration)。scripts/migrate-layout.sh を先に実行してください" >&2
+      exit 1
+    fi
+  fi
+}
+
+# 1エントリ分の symlink 状態を検証し、apply=true なら実際に symlink を作成する
+link_entry() {
+  local target_abs="$1" src_abs="$2" apply="$3"
+
+  if [[ -L "$target_abs" ]]; then
+    local current
+    current="$(readlink "$target_abs")"
+    if [[ "$current" == "$src_abs" ]]; then
+      echo "ok: $target_abs -> $src_abs"
+      return 0
+    fi
+    echo "ERROR: $target_abs は別の場所 ($current) を指す symlink です" >&2
+    exit 1
+  fi
+  if [[ -e "$target_abs" ]]; then
+    echo "ERROR: $target_abs に実体が存在します。手動で退避してから再実行してください" >&2
+    exit 1
+  fi
+
+  if [[ "$apply" == "true" ]]; then
+    mkdir -p "$(dirname "$target_abs")"
+    ln -s "$src_abs" "$target_abs"
+    echo "linked: $target_abs -> $src_abs"
+  else
+    echo "would link: $target_abs -> $src_abs"
+  fi
+}
+
+run_apply_or_dryrun() {
+  local apply="$1"
+  local i
+  for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
+    local target="${ENTRY_TARGET[$i]}"
+    guard_not_old_layout "$target"
+    link_entry "$HOME/$target" "${ENTRY_SRC[$i]}" "$apply"
+  done
+}
+
+run_check() {
+  local i problems=0
+  for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
+    local target="${ENTRY_TARGET[$i]}"
+    local target_abs="$HOME/$target"
+    local src_abs="${ENTRY_SRC[$i]}"
+
+    guard_not_old_layout "$target"
+
+    if [[ -L "$target_abs" ]]; then
+      local current
+      current="$(readlink "$target_abs")"
+      if [[ "$current" == "$src_abs" ]]; then
+        echo "ok: $target_abs -> $src_abs"
+      else
+        echo "DRIFT: $target_abs は別の場所 ($current) を指しています(期待: $src_abs)"
+        problems=$((problems + 1))
+      fi
+    elif [[ -e "$target_abs" ]]; then
+      echo "DRIFT: $target_abs に実体が存在します(symlink ではありません)"
+      problems=$((problems + 1))
+    else
+      echo "DRIFT: $target_abs が存在しません(期待: -> $src_abs)"
+      problems=$((problems + 1))
+    fi
+  done
+
+  echo
+  if [[ "$problems" -eq 0 ]]; then
+    echo "PASS: all ${#ENTRY_MODE[@]} manifest entries are correctly linked"
+    return 0
+  fi
+  echo "FAIL: $problems entries drifted" >&2
+  return 1
+}
+
+case "$MODE" in
+  check)
+    rc=0
+    run_check || rc=$?
+    exit "$rc"
+    ;;
+  dry-run)
+    run_apply_or_dryrun "false"
+    exit 0
+    ;;
+  apply)
+    run_apply_or_dryrun "true"
+    # gitleaks pre-commit hook の有効化(core.hooksPath は .git/config 保存のためマシンごとに必要)
+    # -e: worktree 等で .git がファイルの場合も対応
+    if [[ -e "$REPO_DIR/.git" ]]; then
+      git -C "$REPO_DIR" config core.hooksPath claude/githooks
+      echo "hooksPath: claude/githooks"
+    fi
+    exit 0
+    ;;
+esac

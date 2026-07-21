@@ -1,0 +1,27 @@
+# install/manifest.tsv — bootstrap.sh が読む symlink manifest
+# 形式: mode<TAB>source<TAB>target
+#   mode   : link-file (ファイルを symlink) または link-dir (ディレクトリを symlink)
+#   source : repo root 相対 path（絶対 path・".." 禁止）
+#   target : $HOME 相対 path（絶対 path・".." 禁止）
+# "#" 始まりの行と空行は無視する。
+link-file	claude/CLAUDE.md	.claude/CLAUDE.md
+link-file	claude/settings.json	.claude/settings.json
+link-file	claude/statusline.sh	.claude/statusline.sh
+link-file	claude/.claudeignore	.claude/.claudeignore
+link-dir	claude/rules	.claude/rules
+link-dir	claude/agents	.claude/agents
+link-dir	claude/hooks	.claude/hooks
+link-dir	claude/skills	.claude/skills
+link-dir	claude/output-styles	.claude/output-styles
+link-dir	claude/bin	.claude/bin
+link-dir	claude/scripts	.claude/scripts
+link-file	codex/AGENTS.md	.codex/AGENTS.md
+link-file	codex/hooks.json	.codex/hooks.json
+link-file	codex/herdr-agent-state.sh	.codex/herdr-agent-state.sh
+link-dir	shared/rules	.agents/rules
+link-dir	shared/bin	.agents/bin
+link-dir	shared/skills/agmsg	.agents/skills/agmsg
+link-dir	codex/skills/claude-second-opinion	.agents/skills/claude-second-opinion
+link-dir	codex/skills/doctor	.agents/skills/doctor
+link-dir	codex/skills/issue-writing	.agents/skills/issue-writing
+link-dir	codex/skills/kaggle	.agents/skills/kaggle
