@@ -52,6 +52,17 @@ jobs:
             "$t"
           done
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.8"
+
+      - name: Test python-refactor-analysis
+        working-directory: claude/skills/python-refactor-analysis
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: uv run --frozen pytest -q
+
       - name: gitleaks (full history scan)
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
         env:
