@@ -100,6 +100,10 @@ run_validate() {
 # =========================================================================
 REPO1="$SANDBOX/repo1"
 build_fixture "$REPO1"
+mkdir -p "$REPO1/claude/agents/.pytest_cache" "$REPO1/tests"
+echo "allowed local cache" > "$REPO1/claude/agents/.pytest_cache/CACHEDIR.TAG"
+echo 'fixture path: /home/exampleuser' > "$REPO1/tests/absolute-home-fixture.txt"
+git -C "$REPO1" add tests/absolute-home-fixture.txt
 out=""
 rc=0
 out="$(run_validate "$REPO1" 2>&1)" || rc=$?
@@ -176,13 +180,53 @@ assert_contains "未消費shared ruleが列挙される" "$out" "shared rule not
 # =========================================================================
 REPO7="$SANDBOX/repo7"
 build_fixture "$REPO7"
-echo '{"defaultMode": "bypassPermissions"}' > "$REPO7/claude/rules/danger.md"
+echo '{"defaultMode": "bypassPermissions"}' > "$REPO7/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO7/install/manifest.tsv"
 git -C "$REPO7" add -A
 out=""
 rc=0
 out="$(run_validate "$REPO7" 2>&1)" || rc=$?
 assert_exit_zero "危険設定はWARNのみでPASSする" "$rc"
-assert_contains "危険設定がWARNとして出力される" "$out" "WARN: claude/rules/danger.md:1: bypassPermissions"
+assert_contains "危険設定がWARNとして出力される" "$out" "WARN: claude/settings.json:1: bypassPermissions"
+
+# =========================================================================
+# 8. generic agent内のproject固有sectionは非ゼロ+対象列挙
+# =========================================================================
+REPO8="$SANDBOX/repo8"
+build_fixture "$REPO8"
+printf '\n## Primary Focus（プロジェクト固有）\n' >> "$REPO8/claude/agents/sample.md"
+git -C "$REPO8" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO8" 2>&1)" || rc=$?
+assert_exit_nonzero "generic agentのproject固有sectionは失敗する" "$rc"
+assert_contains "project固有sectionのfileが列挙される" "$out" "project-specific section in generic agent"
+
+# =========================================================================
+# 9. link-dir配下の未知local artifactは非ゼロ、許可cacheは正常系でPASS済み
+# =========================================================================
+REPO9="$SANDBOX/repo9"
+build_fixture "$REPO9"
+echo "unknown" > "$REPO9/claude/agents/.unknown-runtime"
+out=""
+rc=0
+out="$(run_validate "$REPO9" 2>&1)" || rc=$?
+assert_exit_nonzero "link-dir配下の未知artifactは失敗する" "$rc"
+assert_contains "未知artifactが列挙される" "$out" "unapproved local artifact under source tree: claude/agents/.unknown-runtime"
+
+# =========================================================================
+# 10. manifest source symlinkがrepo外を指す場合は非ゼロ
+# =========================================================================
+REPO10="$SANDBOX/repo10"
+build_fixture "$REPO10"
+echo "outside" > "$SANDBOX/outside.md"
+ln -s "$SANDBOX/outside.md" "$REPO10/claude/agents/outside.md"
+git -C "$REPO10" add claude/agents/outside.md
+out=""
+rc=0
+out="$(run_validate "$REPO10" 2>&1)" || rc=$?
+assert_exit_nonzero "repo外を指すmanifest source symlinkは失敗する" "$rc"
+assert_contains "repo外sourceの実体pathが列挙される" "$out" "tracked symlink points outside repo"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

@@ -306,6 +306,61 @@ out="$(run_bootstrap "$REPO8E" "$HOME8E" "$OVERLAY8E" --apply 2>&1)" || rc=$?
 assert_exit_nonzero "overlay root外参照だと失敗する" "$rc"
 assert_contains "overlay root外参照エラーメッセージ" "$out" "source に .. を含めることはできません"
 
+# --- overlay manifestの余剰列でエラー ---
+REPO8F="$SANDBOX/repo8f"
+HOME8F="$SANDBOX/home8f"
+OVERLAY8F="$SANDBOX/overlay8f"
+build_fixture_repo "$REPO8F"
+mkdir -p "$HOME8F" "$OVERLAY8F"
+echo "private" > "$OVERLAY8F/private.md"
+printf 'link-file\tprivate.md\t.claude/private.md\textra\n' > "$OVERLAY8F/manifest.tsv"
+out=""
+rc=0
+out="$(run_bootstrap "$REPO8F" "$HOME8F" "$OVERLAY8F" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "overlay manifestの4列行は失敗する" "$rc"
+assert_contains "overlay余剰列のエラーに実列数が含まれる" "$out" "実際: 4列"
+
+# --- source symlinkがoverlay root外を指す場合はエラー ---
+REPO8G="$SANDBOX/repo8g"
+HOME8G="$SANDBOX/home8g"
+OVERLAY8G="$SANDBOX/overlay8g"
+build_fixture_repo "$REPO8G"
+mkdir -p "$HOME8G" "$OVERLAY8G"
+echo "secret" > "$SANDBOX/outside-secret.md"
+ln -s "$SANDBOX/outside-secret.md" "$OVERLAY8G/private.md"
+printf 'link-file\tprivate.md\t.claude/private.md\n' > "$OVERLAY8G/manifest.tsv"
+out=""
+rc=0
+out="$(run_bootstrap "$REPO8G" "$HOME8G" "$OVERLAY8G" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "overlay外を指すsource symlinkは失敗する" "$rc"
+assert_contains "source symlinkの実体pathが表示される" "$out" "source root 外"
+
+# --- target親子関係はsource treeへの書き込みを防ぐため拒否 ---
+REPO8H="$SANDBOX/repo8h"
+HOME8H="$SANDBOX/home8h"
+build_fixture_repo "$REPO8H"
+mkdir -p "$HOME8H"
+printf 'link-file\tcodex/AGENTS.md\t.claude/rules/AGENTS.md\n' >> "$REPO8H/install/manifest.tsv"
+out=""
+rc=0
+out="$(run_bootstrap "$REPO8H" "$HOME8H" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "target親子関係は失敗する" "$rc"
+assert_contains "target親子関係が列挙される" "$out" "target が親子関係"
+assert_false "target topology失敗時は1件も作成しない" test -e "$HOME8H/.claude/CLAUDE.md"
+
+# --- 後半targetの既存実体も全件preflightし、partial installを防ぐ ---
+REPO8I="$SANDBOX/repo8i"
+HOME8I="$SANDBOX/home8i"
+build_fixture_repo "$REPO8I"
+mkdir -p "$HOME8I/.agents/skills/agmsg"
+echo "SENTINEL" > "$HOME8I/.agents/skills/agmsg/existing"
+out=""
+rc=0
+out="$(run_bootstrap "$REPO8I" "$HOME8I" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "後半target衝突は失敗する" "$rc"
+assert_false "後半target衝突でも先頭targetを作成しない" test -e "$HOME8I/.claude/CLAUDE.md"
+assert_eq "既存target内容は保持される" "SENTINEL" "$(cat "$HOME8I/.agents/skills/agmsg/existing")"
+
 # =========================================================================
 # 9. 「親が repo を指す symlink」ガードが発火してエラーになる
 # =========================================================================

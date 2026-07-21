@@ -353,7 +353,7 @@ continues.
 
 - 適用範囲: `$HOME` 配下の全 repository での GitHub Issue 作成・更新（global Codex/agent workflow）。上記の Issue Completeness Policy を issue 完全性判断の第一 source of truth とする。
 - Repo 固有の `.github/ISSUE_TEMPLATE` がある場合はその見出し・必須フィールドが正確な source of truth。本ポリシーはそれを置き換えず、完全性要件を上乗せする。
-- 正確な Issue 見出し・作成/更新手順は `issue-writing` skill (`~/.codex/skills/issue-writing/`) を使う。
+- 正確な Issue 見出し・作成/更新手順は `issue-writing` skill (`~/.agents/skills/issue-writing/`) を使う。
 
 ## GitHub 操作
 
@@ -370,6 +370,6 @@ continues.
 
 ## Claude セカンドオピニオン
 
-- 難しい問い・広い問い・ユーザーからの「Claude にも聞いて」依頼には `claude-second-opinion` skill (`~/.codex/skills/claude-second-opinion/`) を使う。
+- 難しい問い・広い問い・ユーザーからの「Claude にも聞いて」依頼には `claude-second-opinion` skill (`~/.agents/skills/claude-second-opinion/`) を使う。
 - skill を介さず `claudecode -p` / `claude -p` を直接 bash から叩く場合は必ず `CLAUDE_STREAM_IDLE_TIMEOUT_MS=900000` を先頭に付ける。Anthropic API ストリームの idle timeout で長い読み取りが落ちる事故への対策。
 - `--add-dir` および skill の `--include-cwd` はプロジェクト配下のファイルを Anthropic API に送信するため、`.env`・`credentials*`・`secrets*` を含むディレクトリでは使用禁止。

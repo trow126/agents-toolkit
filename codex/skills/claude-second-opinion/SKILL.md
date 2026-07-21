@@ -61,7 +61,7 @@ The wrapper lives inside this skill directory. From within a Codex bash tool:
 
 ```bash
 printf '%s\n' "ここに問い" \
-  | bash ~/.codex/skills/claude-second-opinion/scripts/ask-claude.sh \
+  | bash ~/.agents/skills/claude-second-opinion/scripts/ask-claude.sh \
       --cwd /tmp
 ```
 
@@ -106,7 +106,7 @@ in the prompt instead. Omit `--allow-web` unless public web retrieval is needed.
 To temporarily disable this skill, either:
 
 - Prefix the `description` field above with `[DISABLED]`, or
-- Rename the skill directory: `mv ~/.codex/skills/claude-second-opinion{,.off}`
+- Rename the skill directory: `mv ~/.agents/skills/claude-second-opinion{,.off}`
 
 ## Final checklist
 

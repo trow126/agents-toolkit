@@ -54,7 +54,7 @@
 - 読み込まれていない `codex/rules/issue_completeness_policy.md` は廃止し、shared ruleのconsumer対応をdata化する。同期scriptに `--check` と `--write` を追加し、markerの欠落・重複・逆転を検出してatomic renameする。
 - Claudeの常時規約は `CLAUDE.md`・path-scoped rules、手順や大量の参照情報はskills、独立作業はagents、決定的guardrailはhooksへ配置する。
 - 案件名・絶対path・案件固有の監査focusを汎用agent定義から外し、外部overlayのon-demand skillまたは各projectの `CLAUDE.local.md` へ保存する。
-- staleな旧`claude-toolkit`説明、存在しない`LEARNINGS.md`参照、hard-coded `/home/trow126`、古いmigration文書を更新またはrootの `docs/archive/` へ移す。
+- staleな旧`claude-toolkit`説明、存在しない`LEARNINGS.md`参照、hard-codedな個人home path、古いmigration文書を更新またはrootの `docs/archive/` へ移す。
 - MIT licenseをroot `LICENSE`へ移す。GitHubはrootの標準名をlicense検出対象とする。[GitHub license guidance](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository)
 - `claude/.github/workflows/sync-issues-to-project.yml` はrootへ移すと外部Project自動作成が突然有効になるため、archiveして無効のままにする。別途明示承認があるまでworkflow化しない。
 

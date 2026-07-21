@@ -1,4 +1,5 @@
 ---
+name: agmsg
 description: Agent messaging — check inbox, send messages, view history
 ---
 
@@ -95,14 +96,14 @@ Four possible outputs:
 
 Then continue with the user's subcommand. This catches the case where the user invokes `/agmsg` as the first prompt before the SessionStart-hook directive has been acted on.
 
-**Sandbox compatibility.** When Claude Code's sandbox is enabled, `watch.sh` (monitor mode) runs inside the sandbox and needs to write pidfiles and SQLite WAL files under `~/.agents/skills/agmsg/`. If monitor mode fails with write/permission errors there, add an allowlist entry to `~/.claude/settings.json` (or project-level `.claude/settings.local.json`):
+**Sandbox compatibility.** When Claude Code's sandbox is enabled, `watch.sh` (monitor mode) needs to write pidfiles and SQLite WAL files under `${XDG_STATE_HOME:-$HOME/.local/state}/agmsg/`. If monitor mode fails with write/permission errors there, add the actual state directory to `~/.claude/settings.json` (or project-level `.claude/settings.local.json`). For the default XDG location:
 
 ```json
 {
   "sandbox": {
     "filesystem": {
       "allowWrite": [
-        "~/.agents/skills/agmsg/"
+        "~/.local/state/agmsg/"
       ]
     }
   }

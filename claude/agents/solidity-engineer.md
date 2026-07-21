@@ -40,7 +40,7 @@ model: sonnet
 - fee-on-transfer およびリベーストークンの適切な処理
 - スワップにはデッドラインパラメータ付きのスリッページ保護
 
-## Primary Focus（プロジェクト固有）
+## Representative Scenario（汎用）
 
 ### フラッシュローン清算コントラクト
 - **FlashLiquidator.sol**: Aave V3 FlashLoanSimpleReceiver

@@ -51,15 +51,23 @@ declare -A SEEN_TARGETS=()
 load_manifest_file() {
   local file="$1" origin="$2" src_root="$3"
   local line_no=0
-  local mode src target
+  local line mode src target field_count
+  local src_root_abs
+  src_root_abs="$(cd "$src_root" && pwd -P)"
 
-  while IFS=$'\t' read -r mode src target || [[ -n "$mode" ]]; do
+  while IFS= read -r line || [[ -n "$line" ]]; do
     line_no=$((line_no + 1))
-    [[ -z "$mode" ]] && continue
-    [[ "$mode" == \#* ]] && continue
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* ]] && continue
 
-    if [[ -z "${src:-}" || -z "${target:-}" ]]; then
-      echo "ERROR: $file:$line_no: mode<TAB>source<TAB>target の3列が必要です" >&2
+    field_count="$(awk -F'\t' '{print NF}' <<< "$line")"
+    if [[ "$field_count" -ne 3 ]]; then
+      echo "ERROR: $file:$line_no: mode<TAB>source<TAB>target の3列が必要です(実際: ${field_count}列)" >&2
+      exit 1
+    fi
+    IFS=$'\t' read -r mode src target <<< "$line"
+    if [[ -z "$mode" || -z "$src" || -z "$target" ]]; then
+      echo "ERROR: $file:$line_no: mode・source・target は空にできません" >&2
       exit 1
     fi
 
@@ -88,7 +96,7 @@ load_manifest_file() {
       exit 1
     fi
 
-    local src_abs="$src_root/$src"
+    local src_abs="$src_root_abs/$src"
     if [[ "$mode" == "link-file" ]]; then
       if [[ -d "$src_abs" ]]; then
         echo "ERROR: $file:$line_no: mode=link-file ですが source はディレクトリです: $src_abs" >&2
@@ -105,6 +113,13 @@ load_manifest_file() {
       fi
     fi
 
+    local src_real
+    src_real="$(realpath -e -- "$src_abs")"
+    if [[ "$src_real" != "$src_root_abs" && "$src_real" != "$src_root_abs/"* ]]; then
+      echo "ERROR: $file:$line_no: source の実体が source root 外を指しています: $src_abs -> $src_real" >&2
+      exit 1
+    fi
+
     if [[ -n "${SEEN_TARGETS[$target]:-}" ]]; then
       echo "ERROR: target が重複しています: $target (既存: ${SEEN_TARGETS[$target]} / 今回: $origin:$file:$line_no)" >&2
       exit 1
@@ -117,6 +132,22 @@ load_manifest_file() {
   done < "$file"
 }
 
+# target同士が親子関係だと、親のsymlink作成後に子targetを書き込む際、
+# source tree側へ意図せず書き込む可能性があるため禁止する。
+check_target_topology() {
+  local i j a b
+  for ((i = 0; i < ${#ENTRY_TARGET[@]}; i++)); do
+    a="${ENTRY_TARGET[$i]%/}"
+    for ((j = i + 1; j < ${#ENTRY_TARGET[@]}; j++)); do
+      b="${ENTRY_TARGET[$j]%/}"
+      if [[ "$a" == "$b/"* || "$b" == "$a/"* ]]; then
+        echo "ERROR: target が親子関係になっています: $a / $b" >&2
+        exit 1
+      fi
+    done
+  done
+}
+
 if [[ ! -f "$MANIFEST" ]]; then
   echo "ERROR: manifest が見つかりません: $MANIFEST" >&2
   exit 1
@@ -127,6 +158,7 @@ OVERLAY_MANIFEST="$OVERLAY_ROOT/manifest.tsv"
 if [[ -f "$OVERLAY_MANIFEST" ]]; then
   load_manifest_file "$OVERLAY_MANIFEST" "overlay" "$OVERLAY_ROOT"
 fi
+check_target_topology
 
 # 旧whole-directory symlink構成(未migration)を検出する。target の先頭path要素
 # ($HOME/.claude 等)が repo を指す symlink のままだと、mkdir -p や ln -s が
@@ -174,12 +206,49 @@ link_entry() {
   fi
 }
 
+# 1件目を作成する前に全targetを確認し、後半の衝突によるpartial installを防ぐ。
+preflight_targets() {
+  local i target target_abs src_abs current parent
+  for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
+    target="${ENTRY_TARGET[$i]}"
+    target_abs="$HOME/$target"
+    src_abs="${ENTRY_SRC[$i]}"
+    guard_not_old_layout "$target"
+
+    if [[ -L "$target_abs" ]]; then
+      current="$(readlink "$target_abs")"
+      if [[ "$current" != "$src_abs" ]]; then
+        echo "ERROR: $target_abs は別の場所 ($current) を指す symlink です" >&2
+        exit 1
+      fi
+      continue
+    fi
+    if [[ -e "$target_abs" ]]; then
+      echo "ERROR: $target_abs に実体が存在します。手動で退避してから再実行してください" >&2
+      exit 1
+    fi
+
+    parent="$(dirname "$target_abs")"
+    while [[ ! -e "$parent" && ! -L "$parent" ]]; do
+      parent="$(dirname "$parent")"
+    done
+    if [[ ! -d "$parent" ]]; then
+      echo "ERROR: target の親pathがディレクトリではありません: $parent" >&2
+      exit 1
+    fi
+    if [[ ! -w "$parent" ]]; then
+      echo "ERROR: target の作成先に書き込み権限がありません: $parent" >&2
+      exit 1
+    fi
+  done
+}
+
 run_apply_or_dryrun() {
   local apply="$1"
   local i
+  preflight_targets
   for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
     local target="${ENTRY_TARGET[$i]}"
-    guard_not_old_layout "$target"
     link_entry "$HOME/$target" "${ENTRY_SRC[$i]}" "$apply"
   done
 }
