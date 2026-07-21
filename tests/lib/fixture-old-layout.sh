@@ -40,13 +40,18 @@ build_old_layout() {
   echo "FAKE local override" > "$repo/claude/CLAUDE.local.md"
   echo "FAKE config" > "$repo/codex/config.toml"
 
+  # 旧nested config候補(source tree外のmigration archiveへ退避する対象)
+  mkdir -p "$repo/claude/.agents"
+  echo "FAKE legacy nested config" > "$repo/claude/.agents/legacy.md"
+
   # skill state exception(claude/skills/config-audit/audit-history.jsonl は
   # link-dir source(claude/skills)配下だがXDG stateへ移動する例外対象)
   mkdir -p "$repo/claude/skills/config-audit"
   echo '{"fake":"audit"}' > "$repo/claude/skills/config-audit/audit-history.jsonl"
 
-  # link-dir source(codex/skills/sample-skill)配下のuntracked残置対象(exception1)
-  echo "FAKE leftover cache" > "$repo/codex/skills/sample-skill/.cache-leftover"
+  # link-dir source配下で許可するlocal開発artifact
+  mkdir -p "$repo/codex/skills/sample-skill/.pytest_cache"
+  echo "FAKE pytest cache" > "$repo/codex/skills/sample-skill/.pytest_cache/CACHEDIR.TAG"
 
   # __pycache__ (delete candidateだが移動せず残置・警告のみ)
   mkdir -p "$repo/codex/skills/sample-skill/__pycache__"

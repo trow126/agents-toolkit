@@ -50,7 +50,8 @@ else
   REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 fi
 AT_HOME="${AGENTS_TOOLKIT_HOME:-$HOME}"
-XDG_STATE="${XDG_STATE_HOME:-$HOME/.local/state}"
+XDG_STATE="${XDG_STATE_HOME:-$AT_HOME/.local/state}"
+XDG_CONFIG="${XDG_CONFIG_HOME:-$AT_HOME/.config}"
 MANIFEST="$REPO/install/manifest.tsv"
 FORCE="${AGENTS_TOOLKIT_MIGRATE_FORCE:-0}"
 
@@ -96,11 +97,17 @@ check_manifest() {
     echo "ERROR: preflight(manifest): manifest が見つかりません: $MANIFEST" >&2
     exit 1
   fi
-  local line_no=0 mode src target
-  while IFS=$'\t' read -r mode src target || [[ -n "$mode" ]]; do
+  local line_no=0 line mode src target field_count src_real
+  while IFS= read -r line || [[ -n "$line" ]]; do
     line_no=$((line_no + 1))
-    [[ -z "$mode" ]] && continue
-    [[ "$mode" == \#* ]] && continue
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* ]] && continue
+    field_count="$(awk -F'\t' '{print NF}' <<< "$line")"
+    if [[ "$field_count" -ne 3 ]]; then
+      echo "ERROR: preflight(manifest): $MANIFEST:$line_no: mode<TAB>source<TAB>target の3列が必要です(実際: ${field_count}列)" >&2
+      exit 1
+    fi
+    IFS=$'\t' read -r mode src target <<< "$line"
     case "$mode" in
       link-file|link-dir) ;;
       *)
@@ -108,8 +115,17 @@ check_manifest() {
         exit 1
         ;;
     esac
-    if [[ -z "${src:-}" || -z "${target:-}" ]]; then
-      echo "ERROR: preflight(manifest): $MANIFEST:$line_no: mode<TAB>source<TAB>target の3列が必要です" >&2
+    if [[ -z "$src" || -z "$target" ]]; then
+      echo "ERROR: preflight(manifest): $MANIFEST:$line_no: source・target は空にできません" >&2
+      exit 1
+    fi
+    if [[ ! -e "$REPO/$src" && ! -L "$REPO/$src" ]]; then
+      echo "ERROR: preflight(manifest): $MANIFEST:$line_no: sourceが存在しません: $src" >&2
+      exit 1
+    fi
+    src_real="$(realpath -e -- "$REPO/$src")"
+    if [[ "$src_real" != "$REPO" && "$src_real" != "$REPO/"* ]]; then
+      echo "ERROR: preflight(manifest): $MANIFEST:$line_no: sourceの実体がrepo外です: $src -> $src_real" >&2
       exit 1
     fi
     if [[ "$mode" == "link-dir" ]]; then
@@ -132,17 +148,16 @@ is_under_linkdir_source() {
 # ============================================================
 # 移動計画の構築
 #   git ls-files/status で tracked/untracked/mixed を判定し、untracked/ignoredを
-#   例外ルール(skill-state XDG化・agmsg XDG化・__pycache__残置・link-dir配下残置・
-#   archive候補残置)に照らして分類する。どれにも該当しない untracked/ignored は
+#   例外ルール(skill-state XDG化・agmsg XDG化・local開発artifact残置・
+#   旧nested configのarchive退避)に照らして分類する。どれにも該当しない untracked/ignored は
 #   「runtime/private overlay を実directoryへ移動」する一般則の対象とする。
 #   git から不可視な directory(nested git repo等)は unclassified として中断する。
 # ============================================================
 declare -a PLAN_SRC=()    # repo root相対path
 declare -a PLAN_DST=()    # 絶対path(最終目的地)
-declare -a PLAN_KIND=()   # move(実directoryへ) | xdg(XDG state側へ)
+declare -a PLAN_KIND=()   # move(実directoryへ) | state(XDG state) | config(XDG config)
 declare -a WARN_PYCACHE=()
-declare -a WARN_LINKDIR=()
-declare -a WARN_ARCHIVE=()
+declare -a WARN_DEV_ARTIFACTS=()
 declare -a UNCLASSIFIED=()
 
 classify_kind() {
@@ -177,13 +192,16 @@ classify_action() {
   # 例外3: skill state(固定path、存在する場合のみ)
   case "$rel" in
     claude/skills/config-audit/audit-history.jsonl)
-      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/config-audit/audit-history.jsonl"); PLAN_KIND+=("xdg")
+      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/config-audit/audit-history.jsonl"); PLAN_KIND+=("state")
       return ;;
     claude/skills/knowledge-audit/promotion-candidates.md)
-      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/knowledge-audit/promotion-candidates.md"); PLAN_KIND+=("xdg")
+      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/knowledge-audit/promotion-candidates.md"); PLAN_KIND+=("state")
       return ;;
     claude/skills/python-refactor-analysis/.analysis)
-      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/python-refactor-analysis/.analysis"); PLAN_KIND+=("xdg")
+      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/python-refactor-analysis/.analysis"); PLAN_KIND+=("state")
+      return ;;
+    claude/CLAUDE.local.md)
+      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_CONFIG/agents-toolkit/private-routing.md"); PLAN_KIND+=("config")
       return ;;
   esac
 
@@ -191,27 +209,31 @@ classify_action() {
   if [[ "$rel" == shared/skills/agmsg/* ]]; then
     case "$base" in
       db|run|teams)
-        PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agmsg/$base"); PLAN_KIND+=("xdg")
+        PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agmsg/$base"); PLAN_KIND+=("state")
         return ;;
     esac
   fi
 
-  # __pycache__ は delete candidate だが削除せず残置し警告のみ
-  if [[ "$base" == "__pycache__" ]]; then
-    WARN_PYCACHE+=("$rel")
-    return
-  fi
+  # source treeで許容するのは、gitignore済みのlocal開発artifactだけ。
+  # vendor runtimeや用途不明のentryはこのallowlistへ混ぜない。
+  case "$base" in
+    .venv|.mypy_cache|.pytest_cache|.ruff_cache|__pycache__)
+      WARN_DEV_ARTIFACTS+=("$rel")
+      [[ "$base" == "__pycache__" ]] && WARN_PYCACHE+=("$rel")
+      return 0 ;;
+  esac
 
-  # archive/delete candidate(用途不明の残存directory、残置)
+  # 旧nested config候補は削除せず、source tree外のmigration archiveへ退避する。
   case "$rel" in
     claude/.agents|claude/.codex)
-      WARN_ARCHIVE+=("$rel")
+      PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agents-toolkit/migration-archive/$rel"); PLAN_KIND+=("state")
       return ;;
   esac
 
-  # 例外1: manifest の link-dir source 配下にある untracked ファイル → 残置し警告
+  # manifest の link-dir source 配下にある未知のuntracked entryは、install後も
+  # source treeへ書き込まれるため自動移動せずpreflight違反として停止する。
   if is_under_linkdir_source "$rel"; then
-    WARN_LINKDIR+=("$rel")
+    UNCLASSIFIED+=("$rel (link-dir source配下の未許可artifact)")
     return
   fi
 
@@ -301,6 +323,7 @@ check_unclassified() {
 # ============================================================
 TOTAL_HOME_BYTES=0
 TOTAL_XDG_BYTES=0
+TOTAL_CONFIG_BYTES=0
 
 avail_bytes() {
   local dir="$1"
@@ -312,16 +335,17 @@ check_capacity() {
   local i sz
   TOTAL_HOME_BYTES=0
   TOTAL_XDG_BYTES=0
+  TOTAL_CONFIG_BYTES=0
   for i in "${!PLAN_SRC[@]}"; do
     sz="$(du -sb "$REPO/${PLAN_SRC[$i]}" 2>/dev/null | cut -f1)"
     sz="${sz:-0}"
-    if [[ "${PLAN_KIND[$i]}" == "xdg" ]]; then
-      TOTAL_XDG_BYTES=$((TOTAL_XDG_BYTES + sz))
-    else
-      TOTAL_HOME_BYTES=$((TOTAL_HOME_BYTES + sz))
-    fi
+    case "${PLAN_KIND[$i]}" in
+      state) TOTAL_XDG_BYTES=$((TOTAL_XDG_BYTES + sz)) ;;
+      config) TOTAL_CONFIG_BYTES=$((TOTAL_CONFIG_BYTES + sz)) ;;
+      move) TOTAL_HOME_BYTES=$((TOTAL_HOME_BYTES + sz)) ;;
+    esac
   done
-  local total_all=$((TOTAL_HOME_BYTES + TOTAL_XDG_BYTES))
+  local total_all=$((TOTAL_HOME_BYTES + TOTAL_XDG_BYTES + TOTAL_CONFIG_BYTES))
 
   # 全entryはまずAT_HOME配下のstagingを経由するため、AT_HOME側は合計を要求する
   local avail_home
@@ -339,7 +363,46 @@ check_capacity() {
       exit 1
     fi
   fi
-  echo "ok: preflight(容量) 必要 ${total_all} bytes(うちXDG ${TOTAL_XDG_BYTES} bytes)"
+  if [[ "$TOTAL_CONFIG_BYTES" -gt 0 ]]; then
+    local avail_config
+    avail_config="$(avail_bytes "$XDG_CONFIG")"
+    if [[ "$avail_config" -lt "$TOTAL_CONFIG_BYTES" ]]; then
+      echo "ERROR: preflight(容量): $XDG_CONFIG の空き容量不足(必要: ${TOTAL_CONFIG_BYTES} bytes, 空き: ${avail_config} bytes)" >&2
+      exit 1
+    fi
+  fi
+  echo "ok: preflight(容量) 必要 ${total_all} bytes(うちstate ${TOTAL_XDG_BYTES} bytes / config ${TOTAL_CONFIG_BYTES} bytes)"
+}
+
+# XDG側の既存stateを上書き・入れ子化しない。HOME側のmove先は旧whole-directory
+# symlinkを外した直後に新規作成する空directory配下なので、ここではexternal先を検査する。
+check_destination_collisions() {
+  local i j dst other parent
+  for i in "${!PLAN_DST[@]}"; do
+    dst="${PLAN_DST[$i]}"
+    for j in "${!PLAN_DST[@]}"; do
+      [[ "$i" == "$j" ]] && continue
+      other="${PLAN_DST[$j]}"
+      if [[ "$dst" == "$other" || "$dst" == "$other/"* ]]; then
+        echo "ERROR: preflight(destination): 移行先が重複または親子関係です: $dst / $other" >&2
+        exit 1
+      fi
+    done
+    [[ "${PLAN_KIND[$i]}" == "move" ]] && continue
+    if [[ -e "$dst" || -L "$dst" ]]; then
+      echo "ERROR: preflight(destination): 移行先が既に存在します: $dst" >&2
+      exit 1
+    fi
+    parent="$(dirname "$dst")"
+    while [[ ! -e "$parent" && ! -L "$parent" ]]; do
+      parent="$(dirname "$parent")"
+    done
+    if [[ ! -d "$parent" || ! -w "$parent" ]]; then
+      echo "ERROR: preflight(destination): 移行先の親に書き込めません: $parent" >&2
+      exit 1
+    fi
+  done
+  echo "ok: preflight(destination) 衝突なし"
 }
 
 # ============================================================
@@ -371,9 +434,10 @@ print_plan() {
   echo "REPO=$REPO"
   echo "AT_HOME=$AT_HOME"
   echo "XDG_STATE=$XDG_STATE"
-  echo "staging(--apply時に生成): $AT_HOME/.agents-toolkit-migration-<timestamp>/"
+  echo "XDG_CONFIG=$XDG_CONFIG"
+  echo "staging(--apply時に生成): $AT_HOME/.agents-toolkit-migration-<random>/"
   echo
-  echo "--- 移動対象 (${#PLAN_SRC[@]} entries, 必要容量 $((TOTAL_HOME_BYTES + TOTAL_XDG_BYTES)) bytes) ---"
+  echo "--- 移動対象 (${#PLAN_SRC[@]} entries, 必要容量 $((TOTAL_HOME_BYTES + TOTAL_XDG_BYTES + TOTAL_CONFIG_BYTES)) bytes) ---"
   local i
   for i in "${!PLAN_SRC[@]}"; do
     printf '[%s] %s -> %s\n' "${PLAN_KIND[$i]}" "$REPO/${PLAN_SRC[$i]}" "${PLAN_DST[$i]}"
@@ -388,16 +452,12 @@ print_plan() {
   done
   echo
   if [[ "${#WARN_PYCACHE[@]}" -gt 0 ]]; then
-    echo "--- 警告: __pycache__ (残置・削除候補、移動対象外) ---"
+    echo "--- 情報: __pycache__ (許可済みlocal開発artifact、移動対象外) ---"
     printf '  %s\n' "${WARN_PYCACHE[@]}"
   fi
-  if [[ "${#WARN_LINKDIR[@]}" -gt 0 ]]; then
-    echo "--- 警告: link-dir source配下のuntracked (残置) ---"
-    printf '  %s\n' "${WARN_LINKDIR[@]}"
-  fi
-  if [[ "${#WARN_ARCHIVE[@]}" -gt 0 ]]; then
-    echo "--- 警告: archive/delete candidate (残置) ---"
-    printf '  %s\n' "${WARN_ARCHIVE[@]}"
+  if [[ "${#WARN_DEV_ARTIFACTS[@]}" -gt 0 ]]; then
+    echo "--- 情報: 許可済みlocal開発artifact (残置) ---"
+    printf '  %s\n' "${WARN_DEV_ARTIFACTS[@]}"
   fi
   echo
   echo "実行後: bash $REPO/bootstrap.sh --apply (個別symlink作成) / --check (検証)"
@@ -428,9 +488,11 @@ prepend_reverse_op() {
 do_move() {
   local src="$1" dst="$2"
   mkdir -p "$(dirname "$dst")"
+  # undoを操作前に永続化する(write-ahead)。mv自体が失敗した場合はdstが
+  # 存在しないので条件付きundoは何もしない。
+  prepend_reverse_op "if [[ -e '$dst' || -L '$dst' ]]; then mv '$dst' '$src'; fi"
   mv "$src" "$dst"
   log_op "mv '$src' -> '$dst'"
-  prepend_reverse_op "mv '$dst' '$src'"
 }
 
 on_error() {
@@ -448,10 +510,7 @@ on_error() {
 }
 
 apply_migration() {
-  local ts
-  ts="$(date +%Y%m%d-%H%M%S)"
-  STAGING="$AT_HOME/.agents-toolkit-migration-$ts"
-  mkdir -p "$STAGING"
+  STAGING="$(mktemp -d "$AT_HOME/.agents-toolkit-migration-XXXXXXXXXX")"
   OP_LOG="$STAGING/operations.log"
   REVERSE_SCRIPT="$STAGING/rollback.sh"
   : > "$OP_LOG"
@@ -478,17 +537,17 @@ apply_migration() {
     real="$(real_name_for "$root")"
     target="$AT_HOME/$real"
     link_target="$(readlink "$target")"
+    prepend_reverse_op "if [[ ! -e '$target' && ! -L '$target' ]]; then ln -s '$link_target' '$target'; fi"
     rm "$target"
     log_op "rm symlink $target (-> $link_target)"
-    prepend_reverse_op "ln -s '$link_target' '$target'"
 
+    prepend_reverse_op "if [[ -d '$target' && ! -L '$target' ]]; then rm -rf '$target'; fi"
     mkdir "$target"
     log_op "mkdir $target"
     # rm -rf: このLIFO位置に到達する時点で、このscriptが追跡した移動分は
     # 先行する逆操作(このprepend_reverse_opより後に積まれた=先に実行される)で
     # 既にstagingへ戻っている。bootstrap.sh --apply済みなら個別symlinkが
     # 残っているが、それらはrepo側を指すだけなのでrm -rfで消してよい
-    prepend_reverse_op "rm -rf '$target'"
     echo "ok: $target を実ディレクトリ化"
   done
 
@@ -497,38 +556,47 @@ apply_migration() {
     do_move "$STAGING/src/${PLAN_SRC[$i]}" "${PLAN_DST[$i]}"
   done
 
-  # ここまで成功したら通常のrollback対象外にする(bootstrap.sh失敗はデータ移動を巻き戻さない)
-  trap - ERR
-
   echo
   echo "=== bash $REPO/bootstrap.sh --apply ==="
-  if ! HOME="$AT_HOME" AGENTS_TOOLKIT_REPO="$REPO" bash "$REPO/bootstrap.sh" --apply; then
-    echo "WARN: bootstrap.sh --apply が失敗しました。移動は完了しています。個別symlinkは手動で 'bash $REPO/bootstrap.sh --apply' を再実行してください" >&2
-  else
-    echo
-    echo "=== bash $REPO/bootstrap.sh --check ==="
-    if ! HOME="$AT_HOME" AGENTS_TOOLKIT_REPO="$REPO" bash "$REPO/bootstrap.sh" --check; then
-      echo "WARN: bootstrap.sh --check がdriftを検出しました。上記出力を確認してください" >&2
+  HOME="$AT_HOME" AGENTS_TOOLKIT_REPO="$REPO" bash "$REPO/bootstrap.sh" --apply
+
+  echo
+  echo "=== bash $REPO/bootstrap.sh --check ==="
+  HOME="$AT_HOME" AGENTS_TOOLKIT_REPO="$REPO" bash "$REPO/bootstrap.sh" --check
+  for root in "${ROOTS[@]}"; do
+    real="$(real_name_for "$root")"
+    if [[ -L "$AT_HOME/$real" ]]; then
+      echo "ERROR: $AT_HOME/$real がsymlinkのままです" >&2
+      return 1
     fi
-    for root in "${ROOTS[@]}"; do
-      real="$(real_name_for "$root")"
-      if [[ -L "$AT_HOME/$real" ]]; then
-        echo "WARN: $AT_HOME/$real がsymlinkのままです(個別symlink構成になっていない可能性)" >&2
-      fi
-    done
-  fi
+  done
+
+  # bootstrap検証までをtransaction範囲とする。commit後に旧構成へ戻すと、
+  # 移行後に生成されたruntimeを消し得るため、危険な逆操作は無効化する。
+  local disabled_rollback
+  disabled_rollback="$(mktemp "$STAGING/rollback-disabled-XXXXXXXXXX")"
+  {
+    echo '#!/usr/bin/env bash'
+    echo 'set -euo pipefail'
+    echo 'echo "ERROR: migrationはcommit済みです。移行後のruntimeを保護するため自動rollbackは実行できません。operations.logを確認して手動で退避してください。" >&2'
+    echo 'exit 1'
+  } > "$disabled_rollback"
+  chmod +x "$disabled_rollback"
+  log_op "commit: bootstrap apply/check succeeded; rollback disabled"
+  # 同一staging directory内のatomic rename。失敗時はまだERR trapが有効で、
+  # 元の逆操作scriptにより旧構成へ戻る。
+  mv "$disabled_rollback" "$REVERSE_SCRIPT"
+  trap - ERR
 
   echo
   echo "=== summary ==="
   echo "移動 entry 数: ${#PLAN_SRC[@]}"
-  echo "警告(__pycache__残置、削除は手動判断): ${#WARN_PYCACHE[@]}"
+  echo "情報(__pycache__残置): ${#WARN_PYCACHE[@]}"
   [[ "${#WARN_PYCACHE[@]}" -gt 0 ]] && printf '  %s\n' "${WARN_PYCACHE[@]}"
-  echo "警告(link-dir source配下のuntracked残置): ${#WARN_LINKDIR[@]}"
-  [[ "${#WARN_LINKDIR[@]}" -gt 0 ]] && printf '  %s\n' "${WARN_LINKDIR[@]}"
-  echo "警告(archive/delete candidate残置): ${#WARN_ARCHIVE[@]}"
-  [[ "${#WARN_ARCHIVE[@]}" -gt 0 ]] && printf '  %s\n' "${WARN_ARCHIVE[@]}"
+  echo "情報(許可済みlocal開発artifact残置): ${#WARN_DEV_ARTIFACTS[@]}"
+  [[ "${#WARN_DEV_ARTIFACTS[@]}" -gt 0 ]] && printf '  %s\n' "${WARN_DEV_ARTIFACTS[@]}"
   echo "操作log: $OP_LOG"
-  echo "手動rollback: bash $REVERSE_SCRIPT"
+  echo "rollback: transaction commit済みのため無効化 ($REVERSE_SCRIPT)"
 }
 
 # ============================================================
@@ -540,6 +608,7 @@ build_plan
 check_capacity
 check_active_sessions
 check_unclassified
+check_destination_collisions
 
 case "$MODE" in
   dry-run)

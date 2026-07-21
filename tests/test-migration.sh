@@ -96,6 +96,7 @@ run_migrate() {
   AGENTS_TOOLKIT_REPO="$sandbox/agents-toolkit" \
   AGENTS_TOOLKIT_HOME="$sandbox/home" \
   XDG_STATE_HOME="$sandbox/state" \
+  XDG_CONFIG_HOME="$sandbox/config" \
   AGENTS_TOOLKIT_MIGRATE_FORCE=1 \
   "$sandbox/agents-toolkit/scripts/migrate-layout.sh" "$@"
 }
@@ -121,7 +122,7 @@ test_dry_run_no_op() {
   assert_contains "dry-run出力に claude/.credentials.json の移動計画が含まれる" "$out" "claude/.credentials.json"
   assert_contains "dry-run出力に claude/projects の移動計画が含まれる" "$out" "claude/projects"
   assert_contains "dry-run出力に shared/skills/agmsg/db のXDG移動計画が含まれる" "$out" "shared/skills/agmsg/db"
-  assert_contains "dry-run出力に __pycache__ 警告が含まれる" "$out" "__pycache__"
+  assert_contains "dry-run出力に __pycache__ 情報が含まれる" "$out" "__pycache__"
   assert_contains "dry-run出力に symlink削除計画が含まれる" "$out" "rm $sandbox/home/.claude"
 
   rm -rf "$sandbox"
@@ -158,8 +159,9 @@ test_apply_success() {
   assert_false "(exception3) repo側の audit-history.jsonl は消えている" \
     test -e "$repo/claude/skills/config-audit/audit-history.jsonl"
 
-  # private overlay も実directoryへ移動する
-  assert_true "(private overlay) CLAUDE.local.md が実directoryへ移動" test -f "$home/.claude/CLAUDE.local.md"
+  # private routingはClaudeが実際に参照する外部configへ移動する
+  assert_true "(private routing) CLAUDE.local.md がXDG configへ移動" \
+    test -f "$sandbox/config/agents-toolkit/private-routing.md"
   assert_true "(private overlay) config.toml が実directoryへ移動" test -f "$home/.codex/config.toml"
 
   # (c) tracked sourceはrepoに残る
@@ -178,11 +180,11 @@ test_apply_success() {
   assert_eq "(d) \$HOME/.claude/skills の解決先" "$repo/claude/skills" "$(readlink "$home/.claude/skills")"
   assert_true "(d) \$HOME/.agents/skills/sample-skill は個別symlink" test -L "$home/.agents/skills/sample-skill"
 
-  # (e) link-dir配下untrackedが残置警告に列挙される(移動されず、消えず残る)
-  assert_true "(e) codex/skills/sample-skill/.cache-leftover は残置" \
-    test -f "$repo/codex/skills/sample-skill/.cache-leftover"
-  assert_contains "(e) apply出力にlink-dir配下残置の警告が含まれる" \
-    "$(cat "$sandbox/apply.log")" "codex/skills/sample-skill/.cache-leftover"
+  # (e) allowlist済みlocal開発artifactだけが残置される
+  assert_true "(e) .pytest_cache は許可済みlocal artifactとして残置" \
+    test -f "$repo/codex/skills/sample-skill/.pytest_cache/CACHEDIR.TAG"
+  assert_contains "(e) apply出力に許可済みartifactが含まれる" \
+    "$(cat "$sandbox/apply.log")" "codex/skills/sample-skill/.pytest_cache"
 
   # __pycache__ も残置(削除されない)
   assert_true "__pycache__ は削除されず残置される" \
@@ -192,6 +194,9 @@ test_apply_success() {
   assert_false "(f) repo側 claude/projects は消えている" test -e "$repo/claude/projects"
   assert_false "(f) repo側 codex/auth.json は消えている" test -e "$repo/codex/auth.json"
   assert_false "(f) repo側 claude/CLAUDE.local.md は消えている" test -e "$repo/claude/CLAUDE.local.md"
+  assert_true "(f) 旧nested configはXDG migration archiveへ退避" \
+    test -f "$state/agents-toolkit/migration-archive/claude/.agents/legacy.md"
+  assert_false "(f) repo側の旧nested configは消えている" test -e "$repo/claude/.agents"
 
   # bootstrap.sh --check がPASSする(個別symlinkが検証を通る)
   local check_rc=0
@@ -225,11 +230,8 @@ test_idempotent_rerun_blocked() {
 }
 
 # ============================================================
-# 4. 失敗時rollback: stage2-b(staging→XDG state)の途中でmvを失敗させ、
+# 4. bootstrap失敗時rollback: データ移動後のbootstrap失敗もtransaction失敗として
 #    旧構成(whole-directory symlink・全runtimeが元位置)へ復元されることを確認する。
-#    XDG state側だけを書き込み不能にすることで、symlink削除・実ディレクトリ化(stage2-a)と
-#    実ディレクトリ側への移動(stage2-b前半)は成功させたうえで、XDG側の移動だけ失敗させ、
-#    「一部が完了した後の途中失敗」からの復元を検証する。
 # ============================================================
 test_failure_rollback() {
   local sandbox repo home state rc=0
@@ -239,13 +241,13 @@ test_failure_rollback() {
   home="$sandbox/home"
   state="$sandbox/state"
 
-  mkdir -p "$state"
-  chmod 555 "$state"
+  # migration preflight後、データ移動後に呼ばれるbootstrapだけを失敗させる。
+  printf '#!/usr/bin/env bash\necho "fixture bootstrap failure" >&2\nexit 42\n' > "$repo/bootstrap.sh"
+  chmod +x "$repo/bootstrap.sh"
 
   run_migrate "$sandbox" --apply >"$sandbox/fail.log" 2>&1 || rc=$?
-  chmod 755 "$state"
 
-  assert_eq "XDG state書き込み不能での apply は非ゼロ終了" "1" "$rc"
+  assert_eq "bootstrap失敗時の apply は非ゼロ終了" "1" "$rc"
   assert_contains "失敗ログにrollback実行の記録がある" "$(cat "$sandbox/fail.log")" "旧構成"
 
   # 旧構成(whole-directory symlink)へ復元されている
@@ -260,13 +262,14 @@ test_failure_rollback() {
   assert_true "claude/projects/p1/x.jsonl がrepo側に復元される" test -f "$repo/claude/projects/p1/x.jsonl"
   assert_true "shared/skills/agmsg/db/messages.db がrepo側に復元される" \
     test -f "$repo/shared/skills/agmsg/db/messages.db"
+  assert_true "旧nested configもrepo側に復元される" test -f "$repo/claude/.agents/legacy.md"
   assert_true "claude/CLAUDE.md はtracked sourceとしてrepoに残ったまま" test -f "$repo/claude/CLAUDE.md"
 
   rm -rf "$sandbox"
 }
 
 # ============================================================
-# 5. 逆操作script: 成功後にそれを手動実行すると旧構成へ戻ること
+# 5. commit後のrollback scriptは無効化され、新規runtimeを削除しないこと
 # ============================================================
 test_manual_rollback_script() {
   local sandbox repo home rc=0
@@ -281,16 +284,80 @@ test_manual_rollback_script() {
   reverse_script="$(find "$home" -maxdepth 1 -name '.agents-toolkit-migration-*' -type d | head -n1)/rollback.sh"
   assert_true "逆操作scriptが生成されている" test -f "$reverse_script"
 
+  echo "NEW SESSION" > "$home/.claude/new-session.jsonl"
   "$reverse_script" >"$sandbox/manual-rollback.log" 2>&1 || rc=$?
-  assert_eq "逆操作script手動実行は exit 0" "0" "$rc"
+  assert_eq "commit後のrollback scriptは非ゼロ終了" "1" "$rc"
+  assert_contains "commit後のrollback拒否理由が表示される" \
+    "$(cat "$sandbox/manual-rollback.log")" "commit済み"
+  assert_true "rollback拒否後も新規runtimeが保持される" test -f "$home/.claude/new-session.jsonl"
+  assert_false "rollback拒否後もwhole-directory symlinkへ戻らない" test -L "$home/.claude"
 
-  assert_true "手動rollback後: \$HOME/.claude が symlink に戻る" test -L "$home/.claude"
-  assert_eq "手動rollback後: \$HOME/.claude の解決先" "$repo/claude" "$(readlink -f "$home/.claude")"
-  assert_true "手動rollback後: claude/.credentials.json がrepo側に戻る" test -f "$repo/claude/.credentials.json"
-  assert_true "手動rollback後: shared/skills/agmsg/db がrepo側に戻る" \
-    test -f "$repo/shared/skills/agmsg/db/messages.db"
-  assert_false "手動rollback後: XDG state側のagmsg dbは残っていない" \
-    test -e "$sandbox/state/agmsg/db/messages.db"
+  rm -rf "$sandbox"
+}
+
+# ============================================================
+# 6. destination collisionは移動開始前に停止し、既存stateを変更しない
+# ============================================================
+test_destination_collision_preflight() {
+  local sandbox repo home rc=0 before after
+  sandbox="$(mktemp -d)"
+  setup_sandbox "$sandbox"
+  repo="$sandbox/agents-toolkit"
+  home="$sandbox/home"
+  mkdir -p "$sandbox/state/agmsg/db"
+  echo "SENTINEL" > "$sandbox/state/agmsg/db/existing"
+  before="$(snapshot "$repo"; snapshot "$home"; snapshot "$sandbox/state")"
+
+  run_migrate "$sandbox" --apply >"$sandbox/collision.log" 2>&1 || rc=$?
+  after="$(snapshot "$repo"; snapshot "$home"; snapshot "$sandbox/state")"
+
+  assert_eq "destination collisionは非ゼロ終了" "1" "$rc"
+  assert_contains "collision対象が表示される" "$(cat "$sandbox/collision.log")" "移行先が既に存在"
+  assert_eq "collision preflightはfilesystemを変更しない" "$before" "$after"
+  assert_eq "既存stateの内容を保持" "SENTINEL" "$(cat "$sandbox/state/agmsg/db/existing")"
+  assert_true "旧whole-directory symlinkを保持" test -L "$home/.claude"
+
+  rm -rf "$sandbox"
+}
+
+# ============================================================
+# 7. link-dir配下の未知artifactは黙って残さずpreflightで停止する
+# ============================================================
+test_unknown_linkdir_artifact_blocked() {
+  local sandbox repo rc=0
+  sandbox="$(mktemp -d)"
+  setup_sandbox "$sandbox"
+  repo="$sandbox/agents-toolkit"
+  echo "UNKNOWN" > "$repo/codex/skills/sample-skill/.unknown-runtime"
+
+  run_migrate "$sandbox" --dry-run >"$sandbox/unknown.log" 2>&1 || rc=$?
+  assert_eq "未知のlink-dir artifactは非ゼロ終了" "1" "$rc"
+  assert_contains "未知artifactが未分類として列挙される" \
+    "$(cat "$sandbox/unknown.log")" "codex/skills/sample-skill/.unknown-runtime"
+  assert_true "停止後も未知artifactを保持" test -f "$repo/codex/skills/sample-skill/.unknown-runtime"
+
+  rm -rf "$sandbox"
+}
+
+# ============================================================
+# 8. migration preflightもmanifestの余剰列を移動前に拒否する
+# ============================================================
+test_invalid_manifest_blocked() {
+  local sandbox repo home rc=0 before after
+  sandbox="$(mktemp -d)"
+  setup_sandbox "$sandbox"
+  repo="$sandbox/agents-toolkit"
+  home="$sandbox/home"
+  printf 'link-file\tclaude/CLAUDE.md\t.claude/duplicate.md\textra\n' >> "$repo/install/manifest.tsv"
+  before="$(snapshot "$repo"; snapshot "$home")"
+
+  run_migrate "$sandbox" --apply >"$sandbox/invalid-manifest.log" 2>&1 || rc=$?
+  after="$(snapshot "$repo"; snapshot "$home")"
+
+  assert_eq "4列manifestは移動前に非ゼロ終了" "1" "$rc"
+  assert_contains "manifestの実列数を表示" "$(cat "$sandbox/invalid-manifest.log")" "実際: 4列"
+  assert_eq "manifest preflight失敗はrepo/HOMEを変更しない" "$before" "$after"
+  assert_true "manifest preflight失敗後も旧symlinkを保持" test -L "$home/.claude"
 
   rm -rf "$sandbox"
 }
@@ -300,6 +367,9 @@ test_apply_success
 test_idempotent_rerun_blocked
 test_failure_rollback
 test_manual_rollback_script
+test_destination_collision_preflight
+test_unknown_linkdir_artifact_blocked
+test_invalid_manifest_blocked
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
