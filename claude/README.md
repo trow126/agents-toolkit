@@ -1,10 +1,10 @@
-# claude-toolkit
+# claude
 
-Claude Code の設定フレームワーク。GitHub Issue 駆動の開発ワークフロー、品質ゲート、カスタムスキルを提供する。
+[agents-toolkit](../README.md) モノレポ内の Claude Code 設定ソース（`install/manifest.tsv` により `~/.claude` 配下へ個別 symlink）。GitHub Issue 駆動の開発ワークフロー、品質ゲート、カスタムスキルを提供する。
 
 ## 概要
 
-`~/.claude/` ディレクトリに配置して使う Claude Code の設定一式。
+`~/.claude/` として利用される Claude Code の設定一式。汎用ルールの正本は `shared/rules/`（`~/.agents/rules/` symlink）にあり、`CLAUDE.md` から `@~/.agents/rules/*.md` で実行時 import する。
 
 - **GitHub Issue 駆動ワークフロー**: Issue 取得 → 実装 → コミット → 進捗同期の 4 フェーズ
 - **カスタムスキル**: PR 作成、コードレビュー、ブランチ整理等 20 種
@@ -16,8 +16,7 @@ Claude Code の設定フレームワーク。GitHub Issue 駆動の開発ワー�
 
 ```
 ~/.claude/
-├── CLAUDE.md          # コア設定（モデル役割分担、エージェントルーティング）
-├── LEARNINGS.md       # 汎用学習事項（言語固有は rules/ の paths スコープ）
+├── CLAUDE.md          # コア設定（モデル役割分担、エージェントルーティング。@~/.agents/rules/*.md を import）
 ├── settings.json      # Claude Code 設定（権限、Hook、モデル）
 ├── bin/               # CLI ツール
 │   ├── gtr-start      # Git Worktree + Issue ワークフロー開始
@@ -43,13 +42,9 @@ Claude Code の設定フレームワーク。GitHub Issue 駆動の開発ワー�
 
 ### インストール
 
+agents-toolkit モノレポのルートで `./bootstrap.sh --apply` を実行すると、`install/manifest.tsv` に従って `~/.claude` 配下の各ファイル・ディレクトリが `claude/` 配下の対応 source へ個別 symlink される（詳細はルート [README.md](../README.md) 参照）。
+
 ```bash
-# 既存の ~/.claude をバックアップ
-mv ~/.claude ~/.claude.bak
-
-# クローン
-git clone https://github.com/trow126/claude-toolkit.git ~/.claude
-
 # マシン固有の設定（任意）
 cp ~/.claude/settings.json ~/.claude/settings.local.json
 # settings.local.json を環境に合わせて編集
@@ -64,8 +59,8 @@ cp ~/.claude/settings.json ~/.claude/settings.local.json
 curl -sL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
   | tar -xz -C ~/.local/bin gitleaks
 
-# フックを有効化（リポジトリごとに一度）
-git -C ~/.claude config core.hooksPath githooks
+# フックを有効化（`./bootstrap.sh --apply` 実行時に自動設定される。手動で設定し直す場合）
+git -C ~/agents-toolkit config core.hooksPath claude/githooks
 ```
 
 GitHub 側でも Secret Scanning + Push Protection を有効化済み（既知プロバイダのトークンは push 時にもブロックされる）。
@@ -130,14 +125,12 @@ echo "SLACK_WEBHOOK_URL=https://hooks.slack.com/services/..." > ~/.config/slack-
 
 ### ルール
 
-`rules/` ディレクトリ内の Markdown ファイルで品質基準やワークフローを定義。
+`rules/` ディレクトリ内の Markdown ファイルで Claude Code 固有の品質基準やワークフローを定義（言語非依存の共有ルールは `shared/rules/` を参照）。
 
 - `code-quality.md` - 実装の完全性、No Fallback ポリシー
-- `git-workflow.md` - Conventional Commits、Feature Branch 運用
-- `karpathy-guidelines.md` - 前提明示、シンプルさ、外科的変更、成功条件駆動
 - `safety.md` - 根本原因分析、体系的デバッグ
 - `workflow.md` - タスクパターン、並列実行戦略
 
 ## ライセンス
 
-[MIT](LICENSE)
+[MIT](../LICENSE)
