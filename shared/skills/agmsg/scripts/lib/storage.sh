@@ -10,9 +10,9 @@
 # State root resolution order (agmsg_state_root):
 #   1. AGMSG_STATE_HOME              — explicit override (env)
 #   2. legacy skill-dir state        — only when AGMSG_STATE_HOME is unset, the
-#                                      XDG location has no messages.db yet, AND
-#                                      a legacy messages.db exists under the
-#                                      skill directory (pre-migration installs).
+#                                      XDG location has no persistent state yet,
+#                                      AND a legacy DB/config/team exists under
+#                                      the skill directory (pre-migration installs).
 #                                      Prints a one-line stderr warning.
 #   3. ${XDG_STATE_HOME:-$HOME/.local/state}/agmsg — default
 #
@@ -54,6 +54,15 @@ _agmsg_skill_dir() {
 # resolution order above. Emits a one-line stderr warning the first time the
 # legacy branch is taken (once per process).
 _AGMSG_STATE_ROOT_WARNED=
+
+_agmsg_has_persistent_state() {
+  local root="$1"
+  [ -f "$root/db/messages.db" ] && return 0
+  [ -f "$root/db/config.yaml" ] && return 0
+  [ -n "$(find "$root/teams" -mindepth 2 -maxdepth 2 -name config.json -print -quit 2>/dev/null)" ] && return 0
+  return 1
+}
+
 agmsg_state_root() {
   if [ -n "${AGMSG_STATE_HOME:-}" ]; then
     printf '%s\n' "${AGMSG_STATE_HOME%/}"
@@ -63,10 +72,16 @@ agmsg_state_root() {
   local xdg_root="${XDG_STATE_HOME:-$HOME/.local/state}/agmsg"
   local skill_dir
   skill_dir="$(_agmsg_skill_dir)" || return 1
-  local legacy_db="$skill_dir/db/messages.db"
-  local xdg_db="$xdg_root/db/messages.db"
+  local legacy_has_state=0 xdg_has_state=0
+  _agmsg_has_persistent_state "$skill_dir" && legacy_has_state=1
+  _agmsg_has_persistent_state "$xdg_root" && xdg_has_state=1
 
-  if [ ! -f "$xdg_db" ] && [ -f "$legacy_db" ]; then
+  if [ "$legacy_has_state" -eq 1 ] && [ "$xdg_has_state" -eq 1 ]; then
+    echo "Error: agmsg persistent state がlegacy ($skill_dir) とXDG ($xdg_root) の両方にあります。自動選択せず、migration/mergeを完了してください。" >&2
+    return 1
+  fi
+
+  if [ "$legacy_has_state" -eq 1 ]; then
     if [ -z "$_AGMSG_STATE_ROOT_WARNED" ]; then
       _AGMSG_STATE_ROOT_WARNED=1
       echo "agmsg: legacy state を使用中 ($skill_dir)。migration script 実行後に XDG state ($xdg_root) へ移行されます。" >&2
@@ -87,22 +102,30 @@ agmsg_storage_dir() {
     printf '%s\n' "${AGMSG_STORAGE_PATH%/}"
     return
   fi
-  printf '%s/db\n' "$(agmsg_state_root)"
+  local root
+  root="$(agmsg_state_root)" || return 1
+  printf '%s/db\n' "$root"
 }
 
 # Echo the run/ directory (pidfiles, locks, watermarks, readiness sentinels).
 agmsg_run_dir() {
-  printf '%s/run\n' "$(agmsg_state_root)"
+  local root
+  root="$(agmsg_state_root)" || return 1
+  printf '%s/run\n' "$root"
 }
 
 # Echo the teams/ directory (per-team config.json).
 agmsg_teams_dir() {
-  printf '%s/teams\n' "$(agmsg_state_root)"
+  local root
+  root="$(agmsg_state_root)" || return 1
+  printf '%s/teams\n' "$root"
 }
 
 # Echo the full path to messages.db.
 agmsg_db_path() {
-  printf '%s/messages.db\n' "$(agmsg_storage_dir)"
+  local storage_dir
+  storage_dir="$(agmsg_storage_dir)" || return 1
+  printf '%s/messages.db\n' "$storage_dir"
 }
 
 # Run sqlite3 against the message store with a busy_timeout, so a writer that

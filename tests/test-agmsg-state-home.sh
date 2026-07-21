@@ -138,7 +138,71 @@ assert_contains "legacy 使用時に stderr へ警告が出る" "$err5" "legacy"
 # 後始末: 以降のテストの legacy 検出に影響しないよう legacy db を消す。
 rm -f "$SKILL_COPY/db/messages.db"
 
-# --- 6. round-trip: 解決したパスにファイルを書き、再解決して同じ内容が読める ---
+# --- 6. legacy teams-only/config-onlyもpersistent stateとして検出する ---
+HOME6A="$SANDBOX/home6a"
+mkdir -p "$HOME6A" "$SKILL_COPY/teams/team-a"
+echo '{"name":"team-a","agents":{}}' > "$SKILL_COPY/teams/team-a/config.json"
+{
+  out6a="$(
+    unset AGMSG_STATE_HOME AGMSG_STORAGE_PATH XDG_STATE_HOME SKILL_DIR
+    export HOME="$HOME6A"
+    # shellcheck disable=SC1090
+    source "$STORAGE_SH"
+    agmsg_state_root
+  )"
+} 2> "$SANDBOX/legacy-teams.stderr"
+assert_eq "legacy teams-only stateでも skill dirが選ばれる" "$SKILL_COPY" "$out6a"
+rm -rf "$SKILL_COPY/teams"
+
+HOME6B="$SANDBOX/home6b"
+mkdir -p "$HOME6B" "$SKILL_COPY/db"
+echo 'hook.check_interval: 30' > "$SKILL_COPY/db/config.yaml"
+{
+  out6b="$(
+    unset AGMSG_STATE_HOME AGMSG_STORAGE_PATH XDG_STATE_HOME SKILL_DIR
+    export HOME="$HOME6B"
+    # shellcheck disable=SC1090
+    source "$STORAGE_SH"
+    agmsg_state_root
+  )"
+} 2> "$SANDBOX/legacy-config.stderr"
+assert_eq "legacy config-only stateでも skill dirが選ばれる" "$SKILL_COPY" "$out6b"
+rm -f "$SKILL_COPY/db/config.yaml"
+
+# --- 7. legacyとXDGの両方にpersistent stateがあれば曖昧さを隠さず失敗する ---
+HOME7="$SANDBOX/home7"
+XDG7="$SANDBOX/xdg7"
+mkdir -p "$HOME7" "$SKILL_COPY/teams/team-a" "$XDG7/agmsg/db"
+echo '{"name":"team-a","agents":{}}' > "$SKILL_COPY/teams/team-a/config.json"
+: > "$XDG7/agmsg/db/messages.db"
+rc7=0
+{
+  out7="$(
+    unset AGMSG_STATE_HOME AGMSG_STORAGE_PATH SKILL_DIR
+    export HOME="$HOME7" XDG_STATE_HOME="$XDG7"
+    # shellcheck disable=SC1090
+    source "$STORAGE_SH"
+    agmsg_state_root
+  )"
+} 2> "$SANDBOX/split-state.stderr" || rc7=$?
+assert_eq "legacy/XDG split stateは非ゼロ終了" "1" "$rc7"
+assert_contains "split stateは両方のpathを示す" "$(cat "$SANDBOX/split-state.stderr")" "両方"
+assert_eq "split state時はpathを返さない" "" "$out7"
+rc7_run=0
+{
+  out7_run="$(
+    unset AGMSG_STATE_HOME AGMSG_STORAGE_PATH SKILL_DIR
+    export HOME="$HOME7" XDG_STATE_HOME="$XDG7"
+    # shellcheck disable=SC1090
+    source "$STORAGE_SH"
+    agmsg_run_dir
+  )"
+} 2> "$SANDBOX/split-run.stderr" || rc7_run=$?
+assert_eq "split stateの失敗はrun dir resolverでも伝播する" "1" "$rc7_run"
+assert_eq "split state時にrun dirの偽pathを返さない" "" "$out7_run"
+rm -rf "$SKILL_COPY/teams" "$XDG7"
+
+# --- 8. round-trip: 解決したパスにファイルを書き、再解決して同じ内容が読める ---
 HOME6="$SANDBOX/home6"
 mkdir -p "$HOME6"
 if command -v sqlite3 >/dev/null 2>&1; then
