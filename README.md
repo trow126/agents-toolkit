@@ -4,7 +4,7 @@ AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 
 ## レイアウト
 
-`claude/`・`codex/`・`shared/` は **source 専用**のディレクトリで、`~/.claude`・`~/.codex`・`~/.agents` に丸ごと symlink されることはない。`~/.claude` 等は実ディレクトリであり、`install/manifest.tsv` に列挙された個別ファイル・サブディレクトリだけが symlink される(詳細は後述のインストーラ節を参照)。
+`claude/`・`codex/`・`shared/` は **追跡対象をsourceに限定する**ディレクトリで、`~/.claude`・`~/.codex`・`~/.agents` に丸ごと symlink されることはない。`~/.claude` 等は実ディレクトリであり、`install/manifest.tsv` に列挙された個別ファイル・サブディレクトリだけが symlink される(詳細は後述のインストーラ節を参照)。repo内での開発時に生成される `.venv`・tool cache・`__pycache__` はignore済みlocal artifactとして許容するが、vendor runtime・credentials・sessions・DBは許容しない。
 
 | ディレクトリ | 内容 | 実ディレクトリへの反映方法 |
 |---|---|---|
@@ -28,8 +28,8 @@ cd ~/agents-toolkit
 
 1. Claude Code・Codex CLI・`agmsg` のセッションをすべて終了する
 2. `./scripts/migrate-layout.sh --dry-run` で移動計画を確認する(変更なし)
-3. `./scripts/migrate-layout.sh --apply` を実行する。runtime データを実ディレクトリ/XDG state へ移し、`bootstrap.sh --apply` まで自動実行する(途中失敗時は自動 rollback)
-4. 手動で rollback する場合は、`--apply` 実行時に出力される staging ディレクトリ(`$HOME/.agents-toolkit-migration-<timestamp>/`)内の `rollback.sh` を実行する: `bash <staging>/rollback.sh`
+3. `./scripts/migrate-layout.sh --apply` を実行する。runtime データを実ディレクトリ/XDG stateへ移し、`bootstrap.sh --apply`と`--check`までを同一transactionとして実行する。ここまでの途中失敗時は自動rollbackする
+4. `bootstrap.sh --check`成功後はtransactionをcommitし、生成済みrollback scriptを無効化する。commit後のrollbackは移行後に作られたruntimeを失う危険があるため自動化しない。必要な場合は`operations.log`を確認し、新規runtimeを別途退避してから手動で戻す
 
 ## インストーラ(`bootstrap.sh`)
 
@@ -45,6 +45,8 @@ Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
 
 案件固有のルーティング設定など、公開したくない machine 固有ファイルは公開 repo に置かず、private overlay に置く。overlay root(既定: `${AGENTS_TOOLKIT_OVERLAY:-${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/overlay}`)には公開 repo と同じ schema の `manifest.tsv` を置く。overlay は公開 manifest の後に読み込まれ、target 重複・root 外参照・壊れた source があれば公開設定を上書きせず fail-fast する。**credentials は overlay にも公開 repo にも置かない**(vendor の実ディレクトリまたは keyring に残す)。
 
+既知projectのルーティング対応表は `${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/private-routing.md` に置く。旧構成の `claude/CLAUDE.local.md` はmigration時にこのpathへ移動される。project固有のClaude指示は各project rootの `CLAUDE.local.md` に置き、user-levelの `~/.claude/CLAUDE.local.md` には置かない。
+
 ## 共有ルールの更新
 
 正本 `shared/rules/*.md` を編集後、`shared/bin/sync-shared-rules.sh --write` を実行して `codex/AGENTS.md` 等の消費先マーカー区間へ同期する(Claude 側は `@~/.agents/rules/*.md` を実行時 import するため同期不要)。ドリフトの検証だけ行う場合は `--check` を使う(差分があれば非ゼロ終了)。
@@ -58,11 +60,13 @@ Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
 
 ## 既知の例外
 
-`link-dir` で個別 symlink された skill ディレクトリ配下には、Python 実行時に `__pycache__/` が生成されることがある。repo には追跡されないが自動削除もされない(`migrate-layout.sh` は best-effort で警告するのみ)。恒久的に避けたい場合は環境変数 `PYTHONDONTWRITEBYTECODE=1` を設定する。
+repo内での開発・実行により `.venv`、`.mypy_cache`、`.pytest_cache`、`.ruff_cache`、`__pycache__` が生成されることがある。これらだけをignore済みlocal開発artifactとして許容する。`scripts/validate-layout.sh` はcutover後、`claude/`・`codex/`・`shared/`配下のそれ以外のuntracked/ignored entryを違反として扱う。旧nested config候補はmigration時に削除せず、XDG stateの`agents-toolkit/migration-archive/`へ退避する。
+
+`agmsg` は同じscript sourceをCodexの `~/.agents/skills/agmsg` とClaude Codeの `~/.claude/skills/agmsg/SKILL.md` から利用する。Codex用skill本体とClaude Code用skill定義はagent typeごとに分け、runtime stateはどちらも `${XDG_STATE_HOME:-$HOME/.local/state}/agmsg` を使用する。
 
 ## CI
 
-`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON 構文検証・`scripts/validate-layout.sh`・`shared/bin/sync-shared-rules.sh --check`・`tests/test-*.sh`・全履歴 gitleaks スキャンを実行する。
+`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON構文検証・`scripts/validate-layout.sh`・`shared/bin/sync-shared-rules.sh --check`・`tests/test-*.sh`・`python-refactor-analysis`のpytest・全履歴gitleaksスキャンを実行する。
 
 ## 注意
 
