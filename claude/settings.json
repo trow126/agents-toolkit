@@ -95,10 +95,6 @@
       "Read(~/.npmrc)",
       "Read(~/.pypirc)",
       "Read(~/.ssh/**)",
-      "Write(**/.env*)",
-      "Write(./.env)",
-      "Write(./.env.*)",
-      "Write(.git/**)",
       "Bash(head **/.env*)",
       "Bash(head .env*)",
       "Bash(tail **/.env*)",
@@ -123,7 +119,8 @@
       "Bash(. **/.env*)",
       "Bash(. .env*)",
       "Bash(mkfs *)",
-      "Bash(mkfs.* *)"
+      "Bash(mkfs.* *)",
+      "Edit(.git/**)"
     ],
     "defaultMode": "bypassPermissions"
   },
