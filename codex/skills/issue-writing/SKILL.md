@@ -44,14 +44,14 @@ shows it was structured as the wrong kind of Issue.
 Check for templates in this order:
 
 1. The target repository's `.github/ISSUE_TEMPLATE/`
-2. `/home/trow126/.github/ISSUE_TEMPLATE/`
+2. `$HOME/.github/ISSUE_TEMPLATE/`
 
 When creating or updating through CLI or API, manually reproduce the exact
 heading labels from the chosen template in the Issue body. Do not rely on
 GitHub form enforcement.
 
 If you need a Markdown starter for CLI/API editing, begin from the closest
-manual skeleton under `/home/trow126/.github/ISSUE_TEMPLATE/manual/`, then add
+manual skeleton under `$HOME/.github/ISSUE_TEMPLATE/manual/`, then add
 or adjust any headings required by the chosen template.
 
 Use this mapping when selecting the closest template:

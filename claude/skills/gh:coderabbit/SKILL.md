@@ -29,12 +29,12 @@ sc:analyzeの4ドメイン分析とCodeRabbitパターン検出を統合し、Ph
 
 ### Phase 0: Setup（逐次実行）
 
-1. **LEARNINGS.md読み込み**: 既知パターンとチェックリスト取得
+1. **`~/.agents/rules/learnings.md`読み込み**: 既知パターンとチェックリスト取得
 2. **対象ファイル探索**: `Glob: **/*.py` で Python ファイル発見
 
 ```yaml
 Tools:
-  - Read: LEARNINGS.md
+  - Read: ~/.agents/rules/learnings.md
   - Glob: **/*.py (対象パス内)
 ```
 
@@ -128,7 +128,7 @@ Tools（並列実行 - ruff系とvulture系は独立）:
   
 アクション:
   1. 重要度分類（Critical > High > Medium > Low）
-  2. LEARNINGS.md との照合（既知パターンか？）
+  2. `~/.agents/rules/learnings.md` との照合（既知パターンか？）
   3. カテゴリ別グルーピング
   4. 新規パターン候補の抽出
 ```
@@ -161,9 +161,9 @@ Tools（並列実行 - ruff系とvulture系は独立）:
 ### Medium Priority
 （省略可能）
 
-### LEARNINGS.md 照合
+### `~/.agents/rules/learnings.md` 照合
 - 既知パターン一致: X件
-- 新規パターン候補: Y件（LEARNINGS.md更新推奨）
+- 新規パターン候補: Y件（`~/.agents/rules/learnings.md`更新推奨）
 
 ### 推奨アクション
 1. [最優先修正項目]
@@ -302,7 +302,7 @@ Tools（並列実行 - ruff系とvulture系は独立）:
 - `vulture` を実行してデッドコード（未使用関数/クラス/変数）を検出
 - 6ドメイン（Quality/Security/Performance/Architecture/Dead Code/Anti-Fallback）のパターン検出
 - CodeRabbitが指摘するパターンを手動で検出
-- LEARNINGS.md との照合と新規パターン提案
+- `~/.agents/rules/learnings.md` との照合と新規パターン提案
 - 重要度に基づいた優先度付け
 
 **Will Not:**
@@ -312,8 +312,8 @@ Tools（並列実行 - ruff系とvulture系は独立）:
 - Python以外の言語サポート
 - 外部サービス連携（CodeRabbit APIは使用しない）
 
-## LEARNINGS.md 連携
+## `~/.agents/rules/learnings.md` 連携
 
-1. **事前読み込み**: Phase 0 で LEARNINGS.md を読み込み
+1. **事前読み込み**: Phase 0 で `~/.agents/rules/learnings.md` を読み込み
 2. **パターン照合**: Phase 3 で既知パターンとの一致を報告
-3. **新規提案**: 頻出する未登録パターンを LEARNINGS.md 更新候補として提案
+3. **新規提案**: 頻出する未登録パターンを `~/.agents/rules/learnings.md` 更新候補として提案

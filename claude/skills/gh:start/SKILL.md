@@ -81,7 +81,7 @@ Agent(
     完了条件:
     - コードが動作すること
     - 既存テストが壊れないこと
-    - LEARNINGS.md のルールに準拠すること"
+    - ~/.agents/rules/learnings.md のルールに準拠すること"
 )
 ```
 エージェントがエラーを返した場合、ユーザーに報告して指示を待つ。
@@ -94,7 +94,7 @@ Agent(
 
 1. **差分確認**: `git status` と `git diff` で変更内容を確認
 2. **lint/format**: プロジェクトのlint/formatツールを実行（存在する場合）
-3. **自己検証** (LEARNINGS.mdゲート):
+3. **自己検証** (`~/.agents/rules/learnings.md` ゲート):
    - No Fallbackポリシー違反がないか（`except: pass`, catch-all）
    - 型安全ガード（ゼロ除算、空配列、None処理）
    - テストが存在する場合、`uv run pytest` が通るか

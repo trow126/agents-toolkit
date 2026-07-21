@@ -34,7 +34,7 @@ $ARGUMENTS
 1. 計画ファイルの内容を読み込む
 2. 以下のファイルが存在すれば読み込む（関連部分をレビュアーに渡す）:
    - CLAUDE.md（プロジェクトルートおよび .claude/）
-   - LEARNINGS.md または claudedocs/learnings.md
+   - `~/.agents/rules/learnings.md`（汎用学習事項）または `claudedocs/learnings.md`（プロジェクト固有学習事項）
    - CLAUDE.md で参照されているその他のプロジェクト規約ファイル
 
 ### Step 3: レビューモードの決定
@@ -55,7 +55,7 @@ Agent ツールを使って以下のサブエージェントを同時に起動�
    プロンプト: "この実装計画の実現可能性をレビューしてください。[計画内容] [モード固有のコンテキスト]"
 
 2. **plan-reviewer-completeness**
-   プロンプト: "この実装計画の完全性を監査してください。[計画内容] [CLAUDE.md / LEARNINGS.md の内容（見つかった場合）]"
+   プロンプト: "この実装計画の完全性を監査してください。[計画内容] [CLAUDE.md / ~/.agents/rules/learnings.md / claudedocs/learnings.md の内容（見つかった場合）]"
 
 3. **plan-reviewer-critic**
    プロンプト: "この実装計画のスコープとリスクを批評してください。[計画内容] [プロジェクト概要（利用可能な場合）]"

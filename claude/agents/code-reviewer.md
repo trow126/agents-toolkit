@@ -13,7 +13,7 @@ Python コードの品質レビューを実施する。
 2. `/gh:coderabbit` の Phase 0-4 と同等の分析を実行:
    - Ruff check/format でリント
    - Quality/Architecture/Performance ドメインのパターンスキャン（Grep）
-   - LEARNINGS.md との照合
+   - `~/.agents/rules/learnings.md` との照合
 3. 重要度順に具体的な行番号付きフィードバックを提供
 
 検出パターンは `/gh:coderabbit` コマンド定義に準拠。

@@ -37,7 +37,7 @@ model: sonnet
 
 ### プロジェクト規約
 - プロジェクトルートまたは .claude/ にCLAUDE.mdがあれば読む
-- LEARNINGS.md または claudedocs/learnings.md があれば読む
+- `~/.agents/rules/learnings.md`（汎用学習事項）または `claudedocs/learnings.md`（プロジェクト固有学習事項）があれば読む
 - 計画が確立されたパターンとルールに従っていることを確認
 
 ### ドキュメント
