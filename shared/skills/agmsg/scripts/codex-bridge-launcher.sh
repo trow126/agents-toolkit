@@ -16,8 +16,9 @@ APP_SERVER="${3:?Missing app_server}"
 PARENT_PID="${4:?Missing parent_pid}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="$SKILL_DIR/run"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+RUN_DIR="$(agmsg_run_dir)"
 PROJECT_HASH="$(printf '%s' "$PROJECT" | shasum | awk '{print $1}')"
 REQUEST_FILE="$RUN_DIR/codex-bridge-request.$PROJECT_HASH"
 

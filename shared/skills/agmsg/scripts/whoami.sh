@@ -77,7 +77,9 @@ AGENT_TYPE="${2:-$(detect_cli_type)}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEAMS_DIR="$SCRIPT_DIR/../teams"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+TEAMS_DIR="$(agmsg_teams_dir)"
 
 # Resolve the session's real project root from the passed pwd (see #92): a cd
 # into a subdir/worktree must not be treated as a fresh, unregistered project.

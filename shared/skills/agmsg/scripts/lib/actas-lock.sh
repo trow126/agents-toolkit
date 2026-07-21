@@ -9,10 +9,11 @@
 #
 # This file implements a small filesystem-based ownership protocol:
 #
-#   Lock file: $SKILL_DIR/run/actas.<team>__<agent>.session
+#   Lock file: <run_dir>/actas.<team>__<agent>.session (see agmsg_run_dir in
+#              storage.sh for how <run_dir> is resolved)
 #   Content  : one line — the owner session_id.
 #
-# A session_id is alive iff some $SKILL_DIR/run/cc-instance.<pid> file
+# A session_id is alive iff some <run_dir>/cc-instance.<pid> file
 # currently contains it AND that PID is alive. The same primitive used by
 # session-start.sh's orphan-watcher cleanup. Stale locks (owner is no
 # longer alive) are reclaimable.
@@ -32,8 +33,10 @@
 # liveness check (actas_lock_sid_alive) delegates to agmsg_instance_alive.
 # shellcheck disable=SC1091
 . "$SKILL_DIR/scripts/lib/instance-id.sh"
+# shellcheck disable=SC1091
+. "$SKILL_DIR/scripts/lib/storage.sh"
 
-_actas_lock_dir() { printf '%s/run' "$SKILL_DIR"; }
+_actas_lock_dir() { agmsg_run_dir; }
 
 # Encode a team or agent name into a filesystem-safe form. Anything outside
 # [A-Za-z0-9._-] is percent-encoded byte-by-byte (UTF-8 safe, reversible).

@@ -8,8 +8,9 @@ set -euo pipefail
 # exposes CODEX_THREAD_ID to hooks.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="$SKILL_DIR/run"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+RUN_DIR="$(agmsg_run_dir)"
 
 PROJECT="$(pwd)"
 SOCKET_PATH=""

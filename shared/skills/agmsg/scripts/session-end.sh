@@ -21,11 +21,11 @@ PROJECT="${2:?Missing project_path}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="$SKILL_DIR/run"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/actas-lock.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/resolve-project.sh"
+RUN_DIR="$(agmsg_run_dir)"
 
 # Drop project markers (#92) whose agent process has exited. Liveness-based, so
 # a session that persists across /clear keeps its marker until the process dies.

@@ -10,7 +10,9 @@ ACTION="${1:?Usage: config.sh get|set|show ...}"
 shift
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG_FILE="$SCRIPT_DIR/../db/config.yaml"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+CONFIG_FILE="$(agmsg_storage_dir)/config.yaml"
 
 # --- Helpers ---
 
@@ -127,6 +129,7 @@ yaml_set() {
 }
 
 create_default_config() {
+  mkdir -p "$(dirname "$CONFIG_FILE")"
   cat > "$CONFIG_FILE" <<'YAML'
 # agmsg configuration
 # https://agmsg.cc/

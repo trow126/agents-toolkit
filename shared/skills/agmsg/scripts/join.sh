@@ -21,7 +21,9 @@ esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEAMS_DIR="$SCRIPT_DIR/../teams"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+TEAMS_DIR="$(agmsg_teams_dir)"
 
 # Reject team names that would escape teams/ as a path segment (#140).
 # shellcheck disable=SC1091

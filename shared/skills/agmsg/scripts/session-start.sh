@@ -12,7 +12,8 @@ set -euo pipefail
 # Before emitting the directive, this script also takes care of preventing
 # duplicate watchers across `/clear` (and similar) re-fires of SessionStart
 # within the same Claude Code instance. State is kept in
-# `~/.agents/agmsg/run/cc-instance.<cc_pid>`, which records the last
+# `<run_dir>/cc-instance.<cc_pid>` (see agmsg_run_dir in storage.sh for how
+# <run_dir> is resolved), which records the last
 # session_id this CC instance attached to. On each fire we kill the watcher
 # for the previous session_id, then record the new one. Multiple CC
 # instances of the same project get their own cc_pid, so they never step
@@ -29,13 +30,13 @@ PROJECT="${2:?Missing project_path}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-RUN_DIR="$SKILL_DIR/run"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/actas-lock.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/resolve-project.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/node.sh"
+RUN_DIR="$(agmsg_run_dir)"
 
 # Identity sanity check — no point launching a watcher with an empty pair set.
 PAIRS=$("$SCRIPT_DIR/identities.sh" "$PROJECT" "$TYPE" 2>/dev/null || true)

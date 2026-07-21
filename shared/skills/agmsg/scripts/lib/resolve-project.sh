@@ -29,7 +29,10 @@
 
 : "${SKILL_DIR:?resolve-project.sh requires SKILL_DIR}"
 
-_agmsg_run_dir() { printf '%s/run' "$SKILL_DIR"; }
+# shellcheck disable=SC1091
+. "$SKILL_DIR/scripts/lib/storage.sh"
+
+_agmsg_run_dir() { agmsg_run_dir; }
 
 # Canonicalize a directory path by resolving symlinks to its physical location.
 # Portable on purpose: `cd && pwd -P` works on macOS bash 3.2 (no GNU realpath)
@@ -152,7 +155,8 @@ agmsg_marker_gc_stale() {
 
 # List distinct registered project paths for <type>, one per line.
 agmsg_registered_projects() {
-  local type="$1" teams_dir="$SKILL_DIR/teams" config_file cfg_sql
+  local type="$1" teams_dir config_file cfg_sql
+  teams_dir="$(agmsg_teams_dir)"
   [ -d "$teams_dir" ] || return 0
   for config_file in "$teams_dir"/*/config.json; do
     [ -f "$config_file" ] || continue

@@ -31,7 +31,6 @@ shift
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SKILL_NAME="$(basename "$SKILL_DIR")"
-RUN_DIR="$SKILL_DIR/run"
 # instance-id derivation (#93) for the in-session monitor directive below.
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/lib/resolve-project.sh"
@@ -39,6 +38,7 @@ RUN_DIR="$SKILL_DIR/run"
 . "$SCRIPT_DIR/lib/instance-id.sh"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/lib/node.sh"
+RUN_DIR="$(agmsg_run_dir)"
 
 resolve_hooks_file() {
   local type="$1"

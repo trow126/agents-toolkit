@@ -17,9 +17,9 @@ SESSION_ID="${4:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-TEAMS_DIR="$SKILL_DIR/teams"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/actas-lock.sh"
+TEAMS_DIR="$(agmsg_teams_dir)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/resolve-project.sh"
 

@@ -33,6 +33,9 @@
 [ -n "${_AGMSG_INSTANCE_ID_SH:-}" ] && return 0
 _AGMSG_INSTANCE_ID_SH=1
 
+# shellcheck disable=SC1091
+. "$SKILL_DIR/scripts/lib/storage.sh"
+
 # Compose from an explicit pid. Bare sid when pid is empty/non-numeric.
 agmsg_instance_id_from_pid() {
   local sid="$1" pid="$2"
@@ -106,7 +109,7 @@ agmsg_instance_alive() {
     return 1
   fi
   local run f p s
-  run="$SKILL_DIR/run"
+  run="$(agmsg_run_dir)"
   [ -d "$run" ] || return 1
   for f in "$run"/cc-instance.*; do
     [ -f "$f" ] || continue

@@ -14,6 +14,7 @@ source "$SCRIPT_DIR/lib/storage.sh"
 source "$SCRIPT_DIR/lib/actas-lock.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/resolve-project.sh"  # agmsg_agent_pid, for instance-id derivation
+RUN_DIR="$(agmsg_run_dir)"
 
 # Hook runtimes that pass JSON do so on stdin. Interactive invocations such as
 # Gemini's PostToolUse command may inherit a terminal stdin instead; reading
@@ -40,7 +41,7 @@ if [ -n "$SESSION_ID" ]; then
   # same token so this Stop-hook defers to a live watcher in `both` mode instead
   # of double-delivering.
   SESSION_ID="$(agmsg_normalize_instance_id "$SESSION_ID" "$TYPE")"
-  PIDFILE="$SKILL_DIR/run/watch.$SESSION_ID.pid"
+  PIDFILE="$RUN_DIR/watch.$SESSION_ID.pid"
   if [ -f "$PIDFILE" ]; then
     WATCH_PID=$(cat "$PIDFILE" 2>/dev/null || true)
     if [ -n "$WATCH_PID" ] && kill -0 "$WATCH_PID" 2>/dev/null; then
@@ -68,10 +69,10 @@ if [ -z "$AGENT" ] || [ -z "$TEAMS" ]; then
 fi
 
 # Cooldown check. The marker is hook runtime state, not message storage, so it
-# lives in the skill's run dir — independent of AGMSG_STORAGE_PATH. Keeping it
-# out of the store means an overridden/sandboxed store still gets delivery even
+# lives in agmsg's run dir — independent of AGMSG_STORAGE_PATH. Keeping it out
+# of the store means an overridden/sandboxed store still gets delivery even
 # when the default db dir doesn't exist.
-MARKER="$SKILL_DIR/run/.lastcheck-$AGENT"
+MARKER="$RUN_DIR/.lastcheck-$AGENT"
 
 if [ -f "$MARKER" ]; then
   if [ "$(uname)" = "Darwin" ]; then
@@ -100,7 +101,7 @@ ENDJSON
   fi
 fi
 
-mkdir -p "$SKILL_DIR/run"
+mkdir -p "$RUN_DIR"
 touch "$MARKER"
 
 # Check for unread messages and mark as read

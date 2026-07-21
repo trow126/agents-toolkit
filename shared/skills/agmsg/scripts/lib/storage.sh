@@ -1,41 +1,103 @@
 #!/usr/bin/env bash
-# storage.sh — resolve the path to the sqlite message store (messages.db).
+# storage.sh — resolve where agmsg persists runtime state: the sqlite message
+# store (messages.db), the run/ directory (pidfiles, locks, watermarks...) and
+# the teams/ directory (team configs).
 #
-# Scope: the storage axis only — where messages are persisted. This is NOT a
+# Scope: path resolution only — where state is persisted. This is NOT a
 # storage-driver interface; it just centralizes the path resolution that was
 # previously duplicated across the script set.
 #
-# Resolution order:
-#   1. AGMSG_STORAGE_PATH — directory that holds messages.db (env override)
-#   2. SKILL_DIR env var  — set by callers before sourcing (sandbox fallback)
-#   3. BASH_SOURCE[0]     — derive from this file's own path (standard case)
+# State root resolution order (agmsg_state_root):
+#   1. AGMSG_STATE_HOME              — explicit override (env)
+#   2. legacy skill-dir state        — only when AGMSG_STATE_HOME is unset, the
+#                                      XDG location has no messages.db yet, AND
+#                                      a legacy messages.db exists under the
+#                                      skill directory (pre-migration installs).
+#                                      Prints a one-line stderr warning.
+#   3. ${XDG_STATE_HOME:-$HOME/.local/state}/agmsg — default
 #
-# [seam] A config-file layer is expected to slot in between the env override
-# and the built-in default once the storage-driver work lands; the intended
-# full order is env > config > default. Keep that logic here so call sites
-# stay unchanged.
+# AGMSG_STORAGE_PATH remains a DB-directory-only override (back-compat): when
+# set, it wins for messages.db specifically but does NOT move run/ or teams/,
+# which still resolve from the state root above. Priority for the DB path is
+# therefore: AGMSG_STORAGE_PATH > AGMSG_STATE_HOME > legacy detection > XDG default.
+
+# Guard against double-source: this file is sourced both directly by entry
+# scripts and transitively via actas-lock.sh / resolve-project.sh /
+# instance-id.sh.
+[ -n "${_AGMSG_STORAGE_SH:-}" ] && return 0
+_AGMSG_STORAGE_SH=1
+
+# Internal: echo the agmsg skill directory. Used only for legacy-state
+# detection — the actual state root lives outside the skill tree.
+#
+# Resolution:
+#   1. BASH_SOURCE[0]     — derive from this file's own path (standard case)
+#   2. SKILL_DIR env var  — set by callers before sourcing (sandbox fallback;
+#                           Claude Code sandbox runs Bash via pipe/eval, so
+#                           BASH_SOURCE is not populated)
+_agmsg_skill_dir() {
+  if [ -n "${BASH_SOURCE[0]:-}" ]; then
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    printf '%s\n' "$(cd "$lib_dir/../.." && pwd)"
+    return
+  fi
+  if [ -n "${SKILL_DIR:-}" ]; then
+    printf '%s\n' "$SKILL_DIR"
+    return
+  fi
+  echo "Error: cannot resolve skill dir (BASH_SOURCE and SKILL_DIR both empty)" >&2
+  return 1
+}
+
+# Echo the state root directory — the parent of db/, run/, teams/. See the
+# resolution order above. Emits a one-line stderr warning the first time the
+# legacy branch is taken (once per process).
+_AGMSG_STATE_ROOT_WARNED=
+agmsg_state_root() {
+  if [ -n "${AGMSG_STATE_HOME:-}" ]; then
+    printf '%s\n' "${AGMSG_STATE_HOME%/}"
+    return
+  fi
+
+  local xdg_root="${XDG_STATE_HOME:-$HOME/.local/state}/agmsg"
+  local skill_dir
+  skill_dir="$(_agmsg_skill_dir)" || return 1
+  local legacy_db="$skill_dir/db/messages.db"
+  local xdg_db="$xdg_root/db/messages.db"
+
+  if [ ! -f "$xdg_db" ] && [ -f "$legacy_db" ]; then
+    if [ -z "$_AGMSG_STATE_ROOT_WARNED" ]; then
+      _AGMSG_STATE_ROOT_WARNED=1
+      echo "agmsg: legacy state を使用中 ($skill_dir)。migration script 実行後に XDG state ($xdg_root) へ移行されます。" >&2
+    fi
+    printf '%s\n' "$skill_dir"
+    return
+  fi
+
+  printf '%s\n' "$xdg_root"
+}
 
 # Echo the directory that holds (or will hold) the message store.
+# AGMSG_STORAGE_PATH is a DB-directory-only override — it does not affect
+# agmsg_run_dir/agmsg_teams_dir below.
 agmsg_storage_dir() {
   if [ -n "${AGMSG_STORAGE_PATH:-}" ]; then
     # Strip a single trailing slash for a stable join with the filename.
     printf '%s\n' "${AGMSG_STORAGE_PATH%/}"
     return
   fi
-  local lib_dir skill_dir
-  if [ -n "${BASH_SOURCE[0]:-}" ]; then
-    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    skill_dir="$(cd "$lib_dir/../.." && pwd)"
-  elif [ -n "${SKILL_DIR:-}" ]; then
-    # BASH_SOURCE empty — e.g. Claude Code sandbox runs Bash via pipe/eval
-    # so BASH_SOURCE is not populated. Fall back to SKILL_DIR which the
-    # calling script resolves from $0 (which IS populated correctly).
-    skill_dir="$SKILL_DIR"
-  else
-    echo "Error: cannot resolve storage dir (BASH_SOURCE and SKILL_DIR both empty)" >&2
-    return 1
-  fi
-  printf '%s\n' "$skill_dir/db"
+  printf '%s/db\n' "$(agmsg_state_root)"
+}
+
+# Echo the run/ directory (pidfiles, locks, watermarks, readiness sentinels).
+agmsg_run_dir() {
+  printf '%s/run\n' "$(agmsg_state_root)"
+}
+
+# Echo the teams/ directory (per-team config.json).
+agmsg_teams_dir() {
+  printf '%s/teams\n' "$(agmsg_state_root)"
 }
 
 # Echo the full path to messages.db.

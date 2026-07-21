@@ -15,7 +15,7 @@ source "$SCRIPT_DIR/lib/storage.sh"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/validate.sh"
 agmsg_validate_team_name "$TEAM" || exit 1
-TEAMS_DIR="$SCRIPT_DIR/../teams"
+TEAMS_DIR="$(agmsg_teams_dir)"
 DB="$(agmsg_db_path)"
 TEAM_CONFIG="$TEAMS_DIR/$TEAM/config.json"
 

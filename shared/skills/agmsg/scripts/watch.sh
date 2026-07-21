@@ -27,8 +27,9 @@ set -u
 #         <ts> | <team> | <from> → <to> | <body>
 #     Newlines in body are escaped to literal "\n" so each message stays a
 #     single line — easier for Monitor to deliver as one event.
-#   - Writes a pidfile at ~/.agents/agmsg/run/watch.<session_id>.pid and
-#     removes it on EXIT / SIGTERM / SIGINT.
+#   - Writes a pidfile at <run_dir>/watch.<session_id>.pid (see agmsg_run_dir
+#     in storage.sh for how <run_dir> is resolved) and removes it on
+#     EXIT / SIGTERM / SIGINT.
 
 SESSION_ID="${1:?Usage: watch.sh <session_id> <project_path> <agent_type> [active_name]}"
 PROJECT_PATH="${2:?Missing project_path}"
@@ -62,7 +63,7 @@ PROJECT_PATH="$(agmsg_resolve_project "$PROJECT_PATH" "$AGENT_TYPE")"
 SESSION_ID="$(agmsg_normalize_instance_id "$SESSION_ID" "$AGENT_TYPE")"
 
 DB="$(agmsg_db_path)"
-RUN_DIR="$SKILL_DIR/run"
+RUN_DIR="$(agmsg_run_dir)"
 PIDFILE="$RUN_DIR/watch.$SESSION_ID.pid"
 
 # Resolve poll interval. Env var wins over config, default 5s.

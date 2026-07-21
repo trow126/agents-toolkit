@@ -49,9 +49,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"  # actas-lock.sh requires SKILL_DIR
-TEAMS_DIR="$SKILL_DIR/teams"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib/actas-lock.sh"
+TEAMS_DIR="$(agmsg_teams_dir)"
 
 die() { echo "spawn: $*" >&2; exit 1; }
 

@@ -9,7 +9,9 @@ TEAM="${1:?Usage: leave.sh <team> <agent_id>}"
 AGENT_ID="${2:?Missing agent_id}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TEAMS_DIR="$SCRIPT_DIR/../teams"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/storage.sh"
+TEAMS_DIR="$(agmsg_teams_dir)"
 
 # Reject team names that would escape teams/ as a path segment (#140).
 # shellcheck disable=SC1091
