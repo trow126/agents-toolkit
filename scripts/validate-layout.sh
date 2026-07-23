@@ -255,20 +255,49 @@ done
 # =========================================================================
 echo "== 8. dangerous settings (fatal without waiver) =="
 WAIVER_FILE="$REPO_ROOT/docs/waivers/settings-waivers.tsv"
+WAIVER_ENVS="$REPO_ROOT/docs/waivers/environments.txt"
 TODAY="$(date +%F)"
+
+# waiver file 自体の schema 検査(H-008): 5列・全列非空・実在日・承認済み environment のみ許可。
+# 不正行は「使われていなくても」違反として列挙する(governance gate の腐敗防止)。
+if [[ -f "$WAIVER_FILE" ]]; then
+  wl=0
+  while IFS= read -r wrow; do
+    wl=$((wl + 1))
+    [[ "$wrow" == \#* || -z "$wrow" ]] && continue
+    wfields=$(awk -F'\t' '{print NF}' <<< "$wrow")
+    if [[ "$wfields" -ne 5 ]]; then
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 5列必須(実際: ${wfields}列)"
+      continue
+    fi
+    IFS=$'\t' read -r wfile wpattern wenv wexpires wreason <<< "$wrow"
+    [[ -z "$wfile" || -z "$wpattern" || -z "$wenv" || -z "$wexpires" || -z "$wreason" ]] && \
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 空の列がある(environment/reason 含め全列必須)"
+    if [[ ! "$wexpires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date -d "$wexpires" +%F >/dev/null 2>&1 || [[ "$(date -d "$wexpires" +%F)" != "$wexpires" ]]; then
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: expires が実在日の YYYY-MM-DD ではない: '$wexpires'"
+    fi
+    if [[ -n "$wenv" ]] && { [[ ! -f "$WAIVER_ENVS" ]] || ! grep -qxF "$wenv" <(grep -v '^#' "$WAIVER_ENVS"); }; then
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 未承認 environment '$wenv'(docs/waivers/environments.txt の allowlist に追加が必要)"
+    fi
+  done < "$WAIVER_FILE"
+fi
 declare -a DANGER_PATTERNS=(
   "bypassPermissions|bypassPermissions"
   "danger-full-access|danger-full-access"
   "skipDangerousModePermissionPrompt|\"skipDangerousModePermissionPrompt\"[[:space:]]*:[[:space:]]*true"
   "allowUnsandboxedCommands|\"allowUnsandboxedCommands\"[[:space:]]*:[[:space:]]*true"
-  "full-model-pin|\"model\"[[:space:]]*:[[:space:]]*\"claude-[a-z0-9.-]+\""
 )
 has_waiver() {
   local file="$1" pname="$2"
   [[ -f "$WAIVER_FILE" ]] || return 1
   while IFS=$'\t' read -r wfile wpattern wenv wexpires wreason; do
     [[ "$wfile" == \#* || -z "$wfile" ]] && continue
-    if [[ "$wfile" == "$file" && "$wpattern" == "$pname" && "$wexpires" > "$TODAY" ]] || [[ "$wfile" == "$file" && "$wpattern" == "$pname" && "$wexpires" == "$TODAY" ]]; then
+    # schema-valid な行だけを waiver として認める(非空5列・実在日・承認済み environment)
+    [[ -z "$wpattern" || -z "$wenv" || -z "$wexpires" || -z "$wreason" ]] && continue
+    [[ "$wexpires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || continue
+    date -d "$wexpires" +%F >/dev/null 2>&1 || continue
+    { [[ -f "$WAIVER_ENVS" ]] && grep -qxF "$wenv" <(grep -v '^#' "$WAIVER_ENVS"); } || continue
+    if [[ "$wfile" == "$file" && "$wpattern" == "$pname" ]] && ! [[ "$wexpires" < "$TODAY" ]]; then
       return 0
     fi
   done < "$WAIVER_FILE"
@@ -291,27 +320,30 @@ for f in claude/settings.json codex/config.toml codex/gh.config.toml; do
   done
 done
 
-# full model pin は agent frontmatter と TOML にも適用する(検査対象を measure-metrics.sh と揃える)
-scan_pin() {
-  local f="$1" pregex="$2"
-  local matches lineno content
-  matches="$(grep -InoE "$pregex" "$f" || true)"
-  [[ -z "$matches" ]] && return 0
-  while IFS=: read -r lineno content; do
-    if has_waiver "$f" "full-model-pin"; then
-      warn "$f:$lineno: $content (waived: see docs/waivers/settings-waivers.tsv)"
-    else
-      fail "dangerous setting without waiver: $f:$lineno: $content (add waiver row to docs/waivers/settings-waivers.tsv or remove)"
-    fi
-  done <<< "$matches"
-}
-while IFS= read -r f; do
-  scan_pin "$f" '^model:[[:space:]]*claude-[a-z0-9.-]+'
-done < <(git ls-files 'claude/agents/*.md')
-for f in codex/*.toml; do
-  [[ -f "$f" ]] || continue
-  scan_pin "$f" '^[[:space:]]*model[[:space:]]*=[[:space:]]*"claude-[a-z0-9.-]+"'
-done
+# full model pin は構造的 scanner で検査する(quoted YAML / literal TOML 対応。measure-metrics と共有 — H-001)
+PIN_SCAN="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$REPO_ROOT" 2>&1)" || fail "model pin scan failed: $PIN_SCAN"
+while IFS=: read -r pfile pline pkind pvalue; do
+  [[ "$pkind" == "pin" ]] || continue
+  if has_waiver "$pfile" "full-model-pin"; then
+    warn "$pfile:$pline: model=$pvalue (waived: see docs/waivers/settings-waivers.tsv)"
+  else
+    fail "dangerous setting without waiver: $pfile:$pline: full model pin '$pvalue' (add waiver row to docs/waivers/settings-waivers.tsv or use a tier alias)"
+  fi
+done <<< "$PIN_SCAN"
+
+# broad permission allow の検査(H-007): bare file/web tool と広域 Bash wildcard を release blocker にする
+if [[ -f claude/settings.json ]]; then
+  BROAD_ALLOWS="$(jq -r '.permissions.allow[]? | select(. == "Read" or . == "Edit" or . == "Write" or . == "Glob" or . == "Grep" or . == "WebFetch" or (test("^Bash\\((git|gh|curl|wget) \\*\\)$")))' claude/settings.json)"
+  if [[ -n "$BROAD_ALLOWS" ]]; then
+    while IFS= read -r rule; do
+      if has_waiver "claude/settings.json" "broad-allow"; then
+        warn "claude/settings.json: broad allow '$rule' (waived)"
+      else
+        fail "dangerous setting without waiver: claude/settings.json: broad permission allow '$rule' (path/subcommand-scoped rule に置換するか waiver を登録)"
+      fi
+    done <<< "$BROAD_ALLOWS"
+  fi
+fi
 
 # =========================================================================
 # 9. skill frontmatter schema(Agent Skills core spec)

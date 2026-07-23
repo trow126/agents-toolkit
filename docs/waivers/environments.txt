@@ -1,0 +1,5 @@
+# settings-waivers.tsv の environment 列に使える承認済み environment profile の allowlist。
+# validator(check 8)は未掲載の environment を持つ waiver 行を schema 違反として拒否する。
+# 追加する場合は、隔離条件(single-user / isolation boundary)を判断してから 1 行ずつ追記する。
+personal WSL2 dev machines (single-user)
+isolated devcontainer or VM

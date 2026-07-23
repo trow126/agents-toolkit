@@ -63,24 +63,13 @@ measure_tree() {
   echo "claude_rules: $(find "$root/claude/rules" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
   echo "output_styles: $(find "$root/claude/output-styles" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
 
-  local pins=0
-  [[ -f "$root/claude/settings.json" ]] && pins=$((pins + $(grep -coE '"model"[[:space:]]*:[[:space:]]*"claude-[a-z0-9.-]+"' "$root/claude/settings.json" || true)))
-  local f
-  for f in "$root"/claude/agents/*.md; do
-    [[ -f "$f" ]] || continue
-    pins=$((pins + $(grep -cE '^model:[[:space:]]*claude-' "$f" || true)))
-  done
-  for f in "$root"/codex/*.toml; do
-    [[ -f "$f" ]] || continue
-    pins=$((pins + $(grep -cE '^[[:space:]]*model[[:space:]]*=[[:space:]]*"claude-' "$f" || true)))
-  done
-  echo "full_model_pins: $pins"
-  local aliases=0
-  for f in "$root"/claude/agents/*.md; do
-    [[ -f "$f" ]] || continue
-    aliases=$((aliases + $(grep -cE '^model:[[:space:]]*(sonnet|opus|haiku|fable|inherit)[[:space:]]*$' "$f" || true)))
-  done
-  echo "tier_aliases: $aliases"
+  # model pin / tier alias は構造的 scanner で計測する(validator と共有 helper。quoted/literal 対応)
+  local scan
+  scan="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$root" 2>/dev/null || true)"
+  echo "full_model_pins: $( (grep -c ':pin:' <<< "$scan") || true)"
+  # settings.json の model は tier alias でも「常設既定」であり agent 単位の alias とは別枠のため、
+  # tier_aliases は agent frontmatter 由来のみを数える(定義は v2 レポートから不変)
+  echo "tier_aliases: $( (grep 'claude/agents/' <<< "$scan" | grep -c ':alias:') || true)"
 
   local uncond=0
   for f in "$root/claude/skills/gh:start/SKILL.md" "$root/claude/skills/gh-start/SKILL.md"; do

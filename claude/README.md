@@ -50,14 +50,25 @@ Claude Code の documented scope は user（`~/.claude/settings.json`）/ projec
 
 - project 単位の差分 → 各プロジェクトの `.claude/settings.local.json`（gitignored）
 - machine 全体の環境変数系 opt-in（Agent Teams 等） → その machine の shell profile で `export`
-- 承認プロンプトなし運用（bypassPermissions） → 共有設定は変更せず、環境検証ゲート付き launcher を使う:
+- 承認プロンプトなし運用（bypassPermissions） → 共有設定は変更せず、**全プロセス隔離付き launcher** を使う（下記）
+- 上記で表現できない user settings 自体の恒久差分 → 当該 machine で symlink を実ファイル化して編集する（`bootstrap.sh --check` が差分を報告する。意図した deviation として管理する）
+
+### claude-bypass（全プロセス隔離内の bypassPermissions）
+
+`bypassPermissions` は permission prompt を原則スキップするため、公式ガイダンスに従い **Claude Code プロセス全体（built-in tools・MCP・hooks を含む）を隔離境界内で起動する場合のみ**使う。`claude-bypass` launcher は [`@anthropic-ai/sandbox-runtime`](https://github.com/anthropic-experimental/sandbox-runtime)（srt。beta research preview）で全プロセスを Seatbelt/bubblewrap 境界に収容し、次をすべて満たすときだけ起動する（不成立なら bypass せず非ゼロ終了）:
+
+1. WSL2（kernel の `microsoft-standard` 署名。WSL1 は明示拒否）かつ非 root — 実 `/proc/version`・実 `id -u` に固定で、環境変数では差し替え不能
+2. machine-local opt-in marker（600・schema・期限 180 日。`--enable-this-machine` で作成）
+3. srt が導入済みで、machine-local の srt 設定（credential denyRead + network allowlist + 最小 allowWrite）が存在する
+4. claude へ固定 security profile（`bypass-profile.json`: sandbox pin + 外部副作用の ask gate）を CLI `--settings` で注入 — CLI scope は project/local より優先のため project 側から境界を弱められない
 
 ```bash
-~/.claude/bin/claude-bypass --enable-this-machine   # WSL2・非rootを検証して machine-local opt-in
-~/.claude/bin/claude-bypass                          # 検証成功時のみ bypassPermissions で起動（fail-closed）
+npm install -g @anthropic-ai/sandbox-runtime        # 必須依存（全プロセス隔離）
+~/.claude/bin/claude-bypass --enable-this-machine   # 環境検証 + srt 設定生成 + opt-in（期限付き）
+~/.claude/bin/claude-bypass                          # 検証成功時のみ srt 隔離内で bypass 起動
 ```
 
-- 上記で表現できない user settings 自体の恒久差分 → 当該 machine で symlink を実ファイル化して編集する（`bootstrap.sh --check` が差分を報告する。意図した deviation として管理する）
+git push・PR/issue/release 作成・`gh api`・`curl` 等の**外部副作用は ask rule により bypass 中でも明示 prompt** になる（PDF の「明示要求なしに push・PR・外部投稿をしない」の permission-layer 強制。頻用の read-only git/gh subcommand は個別 allow 済み）。
 
 ### シークレットスキャン（コミットするマシンでは必須）
 

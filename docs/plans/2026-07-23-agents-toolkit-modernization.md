@@ -2,7 +2,7 @@
 
 2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
 
-**改訂履歴**: v1（初回実装）→ レビュー1（REQUEST_CHANGES、ATK-001〜015）→ v2（全件対応）→ 再レビュー（REQUEST_CHANGES: ATK-004/006/007/011 未解消・H-001〜005）→ **v3（本版。再レビュー指摘を全件反映）**。対応内訳は末尾「レビュー対応履歴」。
+**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ **v4（本版。統合再レビュー 6 件を全件反映）**。対応内訳は末尾「レビュー対応履歴」。
 
 ## Baseline（変更前の検証記録）
 
@@ -51,10 +51,13 @@
 | 9 | model alias: sonnet = daily coding、低 effort = 低コスト | code.claude.com/docs/en/model-config | 共有既定 `sonnet` + `medium` | 高 |
 | 10 | Codex user skills は `~/.agents/skills`、AGENTS.md 連結 32KiB 上限 | developers.openai.com/codex/* | python-quality を同所へ、AGENTS.md 15.3KB | 高 |
 | 11 | 発想均質化・novelty 監査・実験変換の実証研究 | break-consensus references/evidence.md | Stage 設計根拠 | 高 |
+| 12 | bare `Read`/`Edit`/`WebFetch` は全対象に match。`Bash(git *)` は push も match。ask rule は bypassPermissions 中も prompt を強制。`--dangerously-skip-permissions` 相当のセッションは container/VM/sandbox-runtime 内で起動すべき | code.claude.com/docs/en/permissions, /permission-modes, /sandbox-environments | H-007 の permission 全面縮小 + ask gate。bypass は srt 隔離必須化 | 高 |
+| 13 | `@anthropic-ai/sandbox-runtime`（srt）は Claude Code プロセス全体（tools・MCP・hooks）を隔離。`srt [--settings file] <command>`、設定は network.allowedDomains / filesystem.{denyRead,allowWrite} 等。beta research preview | code.claude.com/docs/en/sandbox-environments + sandbox-runtime README | claude-bypass の隔離 runtime に採用（設定 template 同梱） | 高 |
+| 14 | settings の array-valued settings は一般にスコープ間で連結・重複排除（permissions に限らず sandbox filesystem/credentials/network arrays も）。scalar は高優先 override | code.claude.com/docs/en/settings, /sandboxing | settings-syntax.md を修正（ATK-006） | 高 |
 
 未検証事項: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法（ユーザー実設定の注記として維持）。(c) issue #16180 の現況。(d) sandbox fail-closed 構成の WSL2 実機動作（bubblewrap/socat 導入が前提。README に導入手順を明記）。
 
-## 縮約の実施内容（Phase 3、v3 時点の最終状態）
+## 縮約の実施内容（Phase 3、v4 時点の最終状態）
 
 ### 3.1 常時コンテキスト
 
@@ -62,17 +65,19 @@
 - claude/rules: workflow.md / workspace.md を統合削除。settings-syntax.md は公式の scope・マージ仕様に合わせて全面修正
 - codex/AGENTS.md: python-guidelines / issue-completeness / learnings を遅延化。−33.9%
 
-### 3.2 実行時既定値（ATK-002/004/006 最終形）
+### 3.2 実行時既定値と permission policy（ATK-002/004/006・H-006/007 最終形）
 
 `claude/settings.json`（source of truth と本節は一致する）:
 
-- `model: "sonnet"` / `effortLevel: "medium"`（完全モデル名 pin 0。validator check 8 が settings・agent frontmatter・TOML を横断検査 — H-001）
-- `permissions.defaultMode: "default"`（**無条件 bypass なし**）
-- `sandbox`: `enabled: true` / **`failIfUnavailable: true`（fail-closed: sandbox 不可なら警告続行ではなく起動拒否）** / `allowUnsandboxedCommands: false` / `credentials.files` で `~/.ssh`・`~/.aws`・`~/.gnupg`・`~/.kube`・`~/.docker/config.json`・`~/.git-credentials`・`~/.npmrc`・`~/.pypirc` の read を deny
-- Agent Teams 環境変数なし（opt-in は当該 machine の shell profile で `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`）
-- 危険設定を共有既定へ戻す場合は `docs/waivers/settings-waivers.tsv` の期限付き waiver が必須（期限切れ・無 waiver は validator FAIL。fixture テスト付き）
+- `model: "sonnet"` / `effortLevel: "medium"`（full model pin 0。validator が構造的 scanner で settings・agent frontmatter・TOML を横断検査 — quoted/literal 形式も検出）
+- `permissions.defaultMode: "default"`（無条件 bypass なし）
+- **permissions.allow（H-007 対応で全面縮小）**: bare の `Read`/`Edit`/`Write`/`Glob`/`Grep`/`WebFetch` と `Bash(git *)`/`Bash(gh *)`/`Bash(curl *)` を全廃。file tools は workspace 限定の `Read(**)`/`Edit(**)`/`Write(**)`（project 外は prompt/deny）、git/gh は read-only・local subcommand の個別 allow、WebFetch はドメイン限定（github.com 等 5 domain）
+- **permissions.ask（新設）**: `git push` / `gh pr|issue|release|repo` の作成・変更系 / `gh api` / `gh workflow` / `curl` / `npm publish` 等 25 rule。**deny > ask > allow のため bypassPermissions 中でも明示 prompt を強制**する（PDF「明示要求なしに push・PR 作成・外部投稿をしない」の permission-layer 強制）
+- `sandbox`: `enabled: true` / `failIfUnavailable: true`（fail-closed） / `allowUnsandboxedCommands: false` / `credentials.files` で `~/.ssh` 等 8 path の read deny / **`credentials.envVars` で GITHUB_TOKEN・GH_TOKEN・NPM_TOKEN・ANTHROPIC_API_KEY・AWS_* 等 9 変数を sandboxed subprocess から deny** / `network.allowedDomains` で sandboxed Bash の egress を 6 domain に限定
+- Agent Teams 環境変数なし（opt-in は shell profile の `export`）
+- 危険設定・broad allow を共有既定へ戻す場合は waiver 必須。**waiver 自体も schema 検査**（5 列非空・実在日・`docs/waivers/environments.txt` の承認済み environment のみ。不正行は未使用でも FAIL — H-008）
 
-**bypassPermissions の扱い（要件所有者の要求「bypassPermissions は必要」への v3 回答）**: 共有既定には置かず、**環境検証ゲート付き launcher `claude/bin/claude-bypass`** に隔離した。`--enable-this-machine` が (1) WSL2（/proc/version の microsoft 署名）と (2) 非 root を検証して machine-local marker（`${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/bypass-approved`。untracked・配布されない）を作成し、以後 `claude-bypass` が同じ検証を**毎回実行時に**行った上で `claude --permission-mode bypassPermissions` を exec する。検証不成立時は bypass せず非ゼロ終了（fail-closed）。テスト: `tests/test-claude-bypass.sh`（marker なし / 非 WSL / root / 正常系の 6 ケース）。これは意図しない bypass 配布を防ぐ policy gate であり、ローカル攻撃者への security boundary ではない（そちらは sandbox / VM の責務）。
+**bypassPermissions の扱い（v4 = 全プロセス隔離。ATK-004/H-006 対応）**: 公式ガイダンス（bypass セッションは container/VM/sandbox-runtime 内で起動する）に従い、`claude-bypass` は `@anthropic-ai/sandbox-runtime`（srt）で **Claude Code プロセス全体（built-in tools・MCP・hooks を含む）** を Seatbelt/bubblewrap 境界に収容して起動する。ゲートは (1) WSL2 判定を `microsoft-standard` 署名に厳格化（**WSL1 を明示拒否**）、(2) 非 root、(3) 600 権限・schema・期限 180 日付き marker、(4) srt + machine-local srt 設定（credential denyRead・network allowlist・最小 allowWrite）の存在 — いずれも**実 `/proc/version`・実 `id -u` に固定で、環境変数 seam を持たない**（検証ロジックは `lib/bypass-gate.sh` に分離し、テストは dependency injection で fixture を渡す）。claude には固定 profile（`bypass-profile.json`: sandbox scalar pin + ask gate）を CLI `--settings` で注入する — CLI scope は project/local より優先のため **project/local settings から境界を解除できない**（ask/deny はスコープ間マージのため除去も不可）。全条件不成立時は bypass せず非ゼロ終了（fail-closed）。テスト: `tests/test-claude-bypass.sh`（WSL1 拒否・spoof 環境変数の無効・root 拒否・marker 権限/schema/期限・exec 構成の 17 assertion）。保証範囲の限界: srt は beta research preview であり、隔離は「意図しない bypass と誤起動の防止 + FS/network 境界」を提供する。ホスト上の悪意ある同一ユーザープロセスへの万能防壁ではない。
 
 ### 3.3 agents（14 → 9）/ 3.4 skills（21 → 13）/ 3.5 hooks（9 → 7）
 
@@ -98,12 +103,12 @@ v2 から変更なし（fast-worker / project-orchestrator 削除、plan-reviewe
 
 v2 から変更なし（手動起動限定、Stage 1-7、standard/deep は別 context の独立 novelty auditor 必須 + rationale 不渡しの入力契約、light は独立性なしを明示）。
 
-## 検証（v3 時点）
+## 検証（v4 時点）
 
 - shell 構文（bash -n 全 .sh）/ JSON（jq）: PASS
-- `scripts/validate-layout.sh`（10 検査 + H-001 の pin 横断検査。WARN 0 件）: PASS
+- `scripts/validate-layout.sh`（10 検査。構造的 pin scan・broad-allow 検査・waiver schema 検査を含む。WARN 0 件）: PASS
 - `sync-shared-rules.sh --check`: OK
-- `tests/test-*.sh` **10 本**（新規: test-claude-bypass / test-private-routing-contract / test-measure-metrics）: PASS
+- `tests/test-*.sh` **10 本**: PASS（negative fixture: WSL1 署名 / spoof 環境変数 / root / marker 改変・期限切れ / quoted YAML・literal TOML pin / broad allow / waiver schema 4 種 をすべて拒否することを含む）
 - `python-refactor-analysis` pytest: 20 passed
 - bootstrap e2e（clean HOME、test-gh-start-contract 内）: PASS
 - `scripts/package-release.sh --check`: PASS
@@ -114,7 +119,7 @@ v2 から変更なし（手動起動限定、Stage 1-7、standard/deep は別 co
 1. スラッシュコマンド改名: `/gh:pr` → `/gh-pr` 等
 2. **patch の適用は `git am` を使う**（H-002）: `git am agents-toolkit-modernization-final.patch`。mailbox 形式の複数 commit series のため、`git apply` は rename を跨ぐ 2 通目以降で失敗する（正常動作）。単一 diff が必要なら `git diff <baseline>..HEAD` を生成する
 3. **settings 既定値**: sonnet / medium / defaultMode default / sandbox fail-closed。Linux・WSL2 では `sudo apt-get install bubblewrap socat` が必要（未導入だと起動拒否 = 仕様どおりの fail-closed）
-4. **承認プロンプトなし運用**: `~/.claude/bin/claude-bypass --enable-this-machine` → 以後 `claude-bypass` で起動（WSL2・非 root を毎回検証）。shell alias 化する場合は `alias claude=claude-bypass` 相当を当該 machine の shell profile に置く
+4. **承認プロンプトなし運用**: `npm install -g @anthropic-ai/sandbox-runtime` → `~/.claude/bin/claude-bypass --enable-this-machine` → 以後 `claude-bypass` で起動（srt 全プロセス隔離内。WSL2・非 root・marker を毎回検証）。**bypass 中も git push / PR・issue 作成 / `gh api` / `curl` 等の外部副作用は ask rule により明示 prompt になる**。shell alias 化は `alias claude=claude-bypass` 相当を当該 machine の shell profile に置く
 5. machine 固有差分の置き場: project 差分 = `<project>/.claude/settings.local.json` / machine 全体の env 系 = shell profile / user settings の恒久差分 = symlink の実ファイル化（`bootstrap.sh --check` が deviation を報告）。**`~/.claude/settings.local.json` は Claude Code に読まれないため使わない**
 6. 削除 agent を参照する private 設定があれば更新。復元は `docs/archive/skills/` + git 履歴から可能
 
@@ -132,8 +137,19 @@ ATK-001 parser 復帰 + e2e / ATK-002 sonnet+medium / ATK-003 単一 owner 化 /
 | ATK-006 | `~/.claude/settings.local.json`（非 documented scope）への参照を README / CLAUDE.md / classification.md から全廃し、documented scope（user / project / project local）と正しい置き場を明記。Agent Teams opt-in は shell 環境変数へ。settings-syntax.md を「permission rules はマージ・他はスカラー置換」の公式仕様に修正 |
 | ATK-007 | measure-metrics.sh を before/after 比較対応（--before-ref/--after-ref、改名前後の両 layout 認識、find ベースで .git 不要）に書き換え。**tier alias を 14→9 に訂正**。重複原則は greppable 3 組を script 判定 + 2 組を手動評価と明記。fixture 期待値テスト（test-measure-metrics.sh）を追加 |
 | ATK-011 | 優先順位 5 段を CLAUDE.md に明文化。resolver（private-routing-locate）を追加して消費契約を実行可能にし、契約 5 項目 + 欠落 fixture + dummy mapping resolver 選択のテストを追加。XDG fallback の tilde 展開バグを修正 |
-| H-001 | validator check 8 の full-model-pin 検査を agent frontmatter（`model: claude-*`）と TOML（`model = "claude-*"`）へ拡張し、fixture テストを追加 |
+| H-001 | validator check 8 の full-model-pin 検査を agent frontmatter と TOML へ拡張し、fixture テストを追加（v4 で構造的 scanner に置換） |
 | H-002 | patch 適用方法（`git am`）を本レポート運用上の注意 2 に明記 |
 | H-003 | baseline 証跡を「要約証跡で受入」とする明示例外を Baseline 節に記録 |
 | H-004 | test-gh-start-contract の実体（runtime smoke + 静的契約検査）へ記述を訂正 |
 | H-005 | 本レポートを v3 として全面改訂し、settings・metrics・テスト名の記述を source of truth と一致させた |
+
+### 統合再レビュー → v4（H-007・ATK-004・H-006・H-001・ATK-006・H-008）
+
+| ID | v4 対応 |
+|---|---|
+| H-007 | permissions.allow を全面縮小: bare file/web tool と `Bash(git\|gh\|curl *)` を全廃し、workspace 限定 `Read(**)`/`Edit(**)`/`Write(**)`・read-only/local subcommand の個別 allow・ドメイン限定 WebFetch へ。外部副作用 25 種を ask 化（bypass 中も prompt 強制）。`sandbox.credentials.envVars`（9 secret 変数 deny）と `sandbox.network.allowedDomains` を追加。validator に broad-allow 検査 + negative fixture を追加 |
+| ATK-004 | claude-bypass を srt（sandbox-runtime）による**全プロセス隔離起動**に変更（tools・MCP・hooks を同一 OS 境界へ）。srt 不在・設定不在は起動拒否。claude へ CLI `--settings` で固定 profile（sandbox pin + ask gate）を注入し、project/local からの境界解除を防止。srt 設定 template（credential denyRead・network allowlist・最小 allowWrite）を同梱 |
+| H-006 | WSL 判定を `microsoft-standard` 署名に厳格化し WSL1 を明示拒否。環境変数 seam（AGENTS_TOOLKIT_BYPASS_*）を production から全廃し、検証ロジックを `lib/bypass-gate.sh` へ分離（テストは dependency injection）。marker を umask 077（600）+ schema=1 + 期限 180 日で作成し、使用時に所有者・権限・schema・期限を検査。WSL1/spoof/root/tampered marker の negative test を追加 |
+| H-001 | model pin/alias 検査を構造的 scanner（`scripts/lib/scan-model-pins.py`: YAML frontmatter・JSON・tomllib による TOML parse + quote/comment 正規化）へ統一し、validator と measure-metrics で共有。quoted YAML・literal TOML の fixture を両テストに追加 |
+| ATK-006 | settings-syntax.md と本レポートを「scalar は高優先 override / array-valued settings は一般に連結・重複排除（permissions・sandbox filesystem/credentials/network arrays）」へ修正 |
+| H-008 | waiver TSV の schema 検査を validator に追加: 5 列非空・実在日（YYYY-MM-DD の正規化一致）・`docs/waivers/environments.txt` allowlist 内の environment のみ有効。不正行は未使用でも FAIL。列数不足・空 reason・不正日付・未承認 environment の negative fixture を追加 |

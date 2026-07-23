@@ -9,14 +9,38 @@
       "Agent",
       "Bash(bun *)",
       "Bash(cat *)",
-      "Bash(curl *)",
       "Bash(echo *)",
       "Bash(env PYTHONDONTWRITEBYTECODE=1 UV_CACHE_DIR=/tmp/uv-cache uv run *)",
       "Bash(env UV_CACHE_DIR=/tmp/uv-cache uv run *)",
       "Bash(file *)",
       "Bash(find *)",
-      "Bash(gh *)",
-      "Bash(git *)",
+      "Bash(gh auth status)",
+      "Bash(gh issue list *)",
+      "Bash(gh issue view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr view *)",
+      "Bash(gh repo view *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(gh search *)",
+      "Bash(git add *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git commit *)",
+      "Bash(git diff *)",
+      "Bash(git fetch *)",
+      "Bash(git log *)",
+      "Bash(git ls-files *)",
+      "Bash(git pull *)",
+      "Bash(git rev-parse *)",
+      "Bash(git show *)",
+      "Bash(git stash *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git switch *)",
+      "Bash(git worktree *)",
       "Bash(grep *)",
       "Bash(head *)",
       "Bash(ls *)",
@@ -32,13 +56,15 @@
       "Bash(uv run *)",
       "Bash(wc *)",
       "Bash(which *)",
-      "Edit",
-      "Glob",
-      "Grep",
-      "Read",
-      "WebFetch",
-      "WebSearch",
-      "Write"
+      "Edit(**)",
+      "Read(**)",
+      "Write(**)",
+      "WebFetch(domain:agentskills.io)",
+      "WebFetch(domain:code.claude.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebSearch"
     ],
     "deny": [
       "Bash(> /dev/sd*)",
@@ -119,7 +145,34 @@
       "Bash(mkfs.* *)",
       "Edit(.git/**)"
     ],
-    "defaultMode": "default"
+    "defaultMode": "default",
+    "ask": [
+      "Bash(curl *)",
+      "Bash(gh api *)",
+      "Bash(gh gist *)",
+      "Bash(gh issue close *)",
+      "Bash(gh issue comment *)",
+      "Bash(gh issue create *)",
+      "Bash(gh issue edit *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr edit *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr ready *)",
+      "Bash(gh pr review *)",
+      "Bash(gh release *)",
+      "Bash(gh repo create *)",
+      "Bash(gh repo delete *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh repo fork *)",
+      "Bash(gh run cancel *)",
+      "Bash(gh run rerun *)",
+      "Bash(gh workflow *)",
+      "Bash(git push *)",
+      "Bash(npm publish *)",
+      "Bash(pnpm publish *)"
+    ]
   },
   "hooks": {
     "ConfigChange": [
@@ -250,14 +303,86 @@
     },
     "credentials": {
       "files": [
-        { "path": "~/.ssh", "mode": "deny" },
-        { "path": "~/.aws", "mode": "deny" },
-        { "path": "~/.gnupg", "mode": "deny" },
-        { "path": "~/.kube", "mode": "deny" },
-        { "path": "~/.docker/config.json", "mode": "deny" },
-        { "path": "~/.git-credentials", "mode": "deny" },
-        { "path": "~/.npmrc", "mode": "deny" },
-        { "path": "~/.pypirc", "mode": "deny" }
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gnupg",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.kube",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.docker/config.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.npmrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.pypirc",
+          "mode": "deny"
+        }
+      ],
+      "envVars": [
+        {
+          "name": "GITHUB_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "NPM_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SESSION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "HF_TOKEN",
+          "mode": "deny"
+        }
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "*.github.com",
+        "*.githubusercontent.com",
+        "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org"
       ]
     }
   },

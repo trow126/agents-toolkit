@@ -62,6 +62,8 @@ build_fixture() {
 
   cp "$VALIDATE_SCRIPT" "$repo/scripts/validate-layout.sh"
   chmod +x "$repo/scripts/validate-layout.sh"
+  mkdir -p "$repo/scripts/lib"
+  cp "$REPO_ROOT/scripts/lib/scan-model-pins.py" "$repo/scripts/lib/scan-model-pins.py"
 
   cat > "$repo/install/manifest.tsv" <<'EOF'
 # fixture manifest
@@ -189,8 +191,9 @@ out="$(run_validate "$REPO7" 2>&1)" || rc=$?
 assert_exit_nonzero "危険設定はwaiverなしで失敗する" "$rc"
 assert_contains "危険設定が違反として列挙される" "$out" "dangerous setting without waiver: claude/settings.json:1: bypassPermissions"
 
-# 有効期限内のwaiver行を追加するとWARNのみでPASSする
+# 有効期限内のwaiver行を追加するとWARNのみでPASSする(environmentはallowlist登録が必要)
 mkdir -p "$REPO7/docs/waivers"
+printf 'fixture-env\n' > "$REPO7/docs/waivers/environments.txt"
 FUTURE_DATE="$(date -d '+30 days' +%F 2>/dev/null || date -v+30d +%F)"
 printf 'claude/settings.json\tbypassPermissions\tfixture-env\t%s\ttest waiver\n' "$FUTURE_DATE" > "$REPO7/docs/waivers/settings-waivers.tsv"
 git -C "$REPO7" add -A
@@ -207,6 +210,20 @@ out=""
 rc=0
 out="$(run_validate "$REPO7" 2>&1)" || rc=$?
 assert_exit_nonzero "期限切れwaiverは失敗する" "$rc"
+
+# waiver schema違反はそれ自体が失敗する(H-008): 列数不足・空reason・不正日付・未承認environment
+for bad in \
+  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-01-01' \
+  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-01-01\t' \
+  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-13-45\treason' \
+  'claude/settings.json\tbypassPermissions\tunknown-env\t2099-01-01\treason'; do
+  printf "%b\n" "$bad" > "$REPO7/docs/waivers/settings-waivers.tsv"
+  git -C "$REPO7" add -A
+  out=""
+  rc=0
+  out="$(run_validate "$REPO7" 2>&1)" || rc=$?
+  assert_exit_nonzero "waiver schema違反行($bad)は失敗する" "$rc"
+done
 
 # =========================================================================
 # 8. generic agent内のproject固有sectionは非ゼロ+対象列挙
@@ -270,15 +287,34 @@ assert_contains "comma区切りallowed-toolsが列挙される" "$out" "allowed-
 REPO11B="$SANDBOX/repo11b"
 build_fixture "$REPO11B"
 printf -- '---\nname: sample\nmodel: claude-foo-1\n---\n' > "$REPO11B/claude/agents/sample.md"
+printf -- '---\nname: quoted\nmodel: "claude-foo-2"\n---\n' > "$REPO11B/claude/agents/quoted.md"
 mkdir -p "$REPO11B/codex"
 printf 'model = "claude-foo-1"\n' > "$REPO11B/codex/example.toml"
+printf "model = 'claude-foo-3'\n" > "$REPO11B/codex/literal.toml"
 git -C "$REPO11B" add -A
 out=""
 rc=0
 out="$(run_validate "$REPO11B" 2>&1)" || rc=$?
 assert_exit_nonzero "agent frontmatterのfull model pinは失敗する" "$rc"
-assert_contains "agent pinが列挙される" "$out" "claude/agents/sample.md:3: model: claude-foo-1"
-assert_contains "TOML pinが列挙される" "$out" "codex/example.toml:1: model = \"claude-foo-1\""
+assert_contains "plain YAML pinが列挙される" "$out" "claude/agents/sample.md:3: full model pin 'claude-foo-1'"
+assert_contains "quoted YAML pinが列挙される" "$out" "claude/agents/quoted.md:3: full model pin 'claude-foo-2'"
+assert_contains "TOML basic string pinが列挙される" "$out" "codex/example.toml:1: full model pin 'claude-foo-1'"
+assert_contains "TOML literal string pinが列挙される" "$out" "codex/literal.toml:1: full model pin 'claude-foo-3'"
+
+# =========================================================================
+# 11c. broad permission allow(bare tool / 広域Bash wildcard)は非ゼロ(H-007)
+# =========================================================================
+REPO11C="$SANDBOX/repo11c"
+build_fixture "$REPO11C"
+printf '{"permissions": {"allow": ["Read", "Bash(git *)"]}}\n' > "$REPO11C/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11C/install/manifest.tsv"
+git -C "$REPO11C" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11C" 2>&1)" || rc=$?
+assert_exit_nonzero "broad permission allowは失敗する" "$rc"
+assert_contains "bare Read allowが列挙される" "$out" "broad permission allow 'Read'"
+assert_contains "広域Bash wildcardが列挙される" "$out" "broad permission allow 'Bash(git *)'"
 
 # =========================================================================
 # 12. active treeのstale reference(旧slash command等)は非ゼロ

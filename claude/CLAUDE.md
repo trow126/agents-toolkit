@@ -43,4 +43,4 @@
 # 起動運用
 
 - `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
-- 承認プロンプトなし運用が必要な machine では、共有設定を緩めず `claude-bypass` launcher を使う（`--enable-this-machine` で opt-in。WSL2・非 root を実行時検証し、不成立なら bypass せず終了する fail-closed 設計）
+- 承認プロンプトなし運用が必要な machine では、共有設定を緩めず `claude-bypass` launcher を使う（sandbox-runtime による**全プロセス隔離内でのみ** bypass 起動。WSL2・非 root・opt-in marker を毎回実行時検証し、不成立なら bypass せず終了する fail-closed 設計。外部副作用は ask rule により bypass 中も明示 prompt）

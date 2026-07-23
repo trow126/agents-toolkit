@@ -1,26 +1,33 @@
 #!/usr/bin/env bash
-# claude-bypass — 環境検証ゲート付きの bypassPermissions launcher
+# claude-bypass — 全プロセス隔離（sandbox-runtime）内でのみ bypassPermissions を許可する launcher
 #
-# 共有 settings.json は defaultMode: default（fail-closed）を維持し、承認プロンプトなし運用が
-# 必要な machine だけが本 launcher を使う。実行時に次の環境制約を決定論的に検証し、
-# 1 つでも不成立なら bypass せず非ゼロ終了する（fail-closed）:
-#   1. machine-local opt-in marker が存在する（--enable-this-machine で作成。共有 repo では配布しない）
-#   2. WSL2 環境である（/proc/version に microsoft。waiver 対象環境 = personal WSL2 dev machines）
-#   3. root で実行していない
+# 設計（fail-closed）:
+#   1. 環境検証: WSL2（microsoft-standard 署名。WSL1 拒否）かつ非 root。判定は実 /proc/version と
+#      実 id -u に固定し、環境変数による差し替えは受け付けない（検証ロジックは lib/bypass-gate.sh）
+#   2. machine-local opt-in marker（--enable-this-machine で作成。600・schema・期限付き）を検証
+#   3. `@anthropic-ai/sandbox-runtime`（srt）で **Claude Code プロセス全体**（built-in tools・
+#      MCP・hooks を含む）を Seatbelt/bubblewrap 境界に収容して起動する。srt 不在なら起動しない
+#   4. claude には固定 security profile（~/.claude/bypass-profile.json）を CLI `--settings` で渡す。
+#      CLI scope は project/local scope より優先されるため、project 側から sandbox 境界を
+#      弱められない。permission の ask/deny rules は scope 間マージのため除去もできない
+#
+# いずれかが不成立なら bypass せず非ゼロ終了する。これは「意図しない bypass 起動」を防ぐ
+# policy gate + 隔離起動 wrapper であり、単体でホスト攻撃者への万能防壁ではない。
 #
 # 使い方:
-#   claude-bypass --enable-this-machine   # 環境検証に成功した場合のみ、この machine で opt-in する
-#   claude-bypass [claude の引数...]      # 検証成功時のみ `claude --permission-mode bypassPermissions` を exec
-#
-# 注意: これは local operator の意図しない bypass 配布を防ぐ policy gate であり、
-# ローカル攻撃者に対する security boundary ではない（そのための隔離は sandbox / VM が担う）。
+#   claude-bypass --enable-this-machine   # 環境検証 + srt 設定生成 + marker 作成（期限 180 日）
+#   claude-bypass [claude の引数...]      # 検証成功時のみ srt 内で bypassPermissions 起動
 set -euo pipefail
 
-MARKER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit"
-MARKER="$MARKER_DIR/bypass-approved"
-# テスト用 seam（既定は実環境。deterministic test のためだけに上書き可能）
-PROC_VERSION="${AGENTS_TOOLKIT_BYPASS_PROC_VERSION:-/proc/version}"
-EFFECTIVE_UID="${AGENTS_TOOLKIT_BYPASS_UID:-$(id -u)}"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=lib/bypass-gate.sh
+source "$SCRIPT_DIR/lib/bypass-gate.sh"
+
+CONF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit"
+MARKER="$CONF_DIR/bypass-approved"
+SRT_SETTINGS="$CONF_DIR/srt-bypass-settings.json"
+SRT_TEMPLATE="$SCRIPT_DIR/../srt-bypass-settings.template.json"
+BYPASS_PROFILE="$SCRIPT_DIR/../bypass-profile.json"
 
 fail() {
   echo "claude-bypass: $*" >&2
@@ -28,26 +35,39 @@ fail() {
   exit 1
 }
 
-check_environment() {
-  if [[ ! -r "$PROC_VERSION" ]] || ! grep -qi microsoft "$PROC_VERSION"; then
-    fail "WSL2 環境を確認できません（$PROC_VERSION に microsoft 署名なし）。承認済み環境は personal WSL2 dev machines のみです"
+resolve_srt() {
+  if command -v srt >/dev/null 2>&1; then
+    echo "srt"
+    return 0
   fi
-  if [[ "$EFFECTIVE_UID" -eq 0 ]]; then
-    fail "root での bypass 実行は禁止です"
+  if npx --no-install @anthropic-ai/sandbox-runtime --help >/dev/null 2>&1; then
+    echo "npx --no-install @anthropic-ai/sandbox-runtime"
+    return 0
   fi
+  return 1
 }
 
 if [[ "${1:-}" == "--enable-this-machine" ]]; then
-  check_environment
-  mkdir -p "$MARKER_DIR"
-  printf 'enabled-by=%s\nenabled-at=%s\nenvironment=personal WSL2 dev machine (single-user)\n' \
-    "$(id -un)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
-  echo "claude-bypass: この machine で opt-in しました: $MARKER"
-  echo "claude-bypass: 以後 \`claude-bypass\` が bypassPermissions で起動します（無効化は marker 削除）"
+  bypass_env_check /proc/version "$(id -u)" || fail "環境検証に失敗しました"
+  resolve_srt >/dev/null || fail "sandbox-runtime が見つかりません。\`npm install -g @anthropic-ai/sandbox-runtime\` を先に実行してください（全プロセス隔離の必須依存）"
+  ( umask 077 && mkdir -p "$CONF_DIR" )
+  if [[ ! -f "$SRT_SETTINGS" ]]; then
+    ( umask 077 && cp "$SRT_TEMPLATE" "$SRT_SETTINGS" )
+    echo "claude-bypass: srt 設定を生成しました: $SRT_SETTINGS（allowWrite/network は必要最小から拡張可）"
+  fi
+  ( umask 077 && printf 'schema=1\nenabled-by=%s\nenabled-at=%s\nexpires=%s\nenvironment=personal WSL2 dev machine (single-user)\n' \
+    "$(id -un)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(date -d '+180 days' +%F)" > "$MARKER" )
+  echo "claude-bypass: opt-in しました（期限: $(date -d '+180 days' +%F)、marker: $MARKER）"
+  echo "claude-bypass: 以後 \`claude-bypass\` が sandbox-runtime 隔離内で bypassPermissions 起動します"
   exit 0
 fi
 
-[[ -f "$MARKER" ]] || fail "machine-local opt-in がありません。意図的に有効化する場合は \`claude-bypass --enable-this-machine\` を実行してください"
-check_environment
+bypass_env_check /proc/version "$(id -u)" || fail "環境検証に失敗しました"
+bypass_marker_check "$MARKER" "$(id -u)" || fail "opt-in marker の検証に失敗しました"
+SRT_BIN="$(resolve_srt)" || fail "sandbox-runtime が見つかりません。\`npm install -g @anthropic-ai/sandbox-runtime\` を実行してください"
+[[ -f "$SRT_SETTINGS" ]] || fail "srt 設定がありません（$SRT_SETTINGS）。\`claude-bypass --enable-this-machine\` を再実行してください"
+[[ -f "$BYPASS_PROFILE" ]] || fail "固定 security profile がありません（$BYPASS_PROFILE）"
 
-exec claude --permission-mode bypassPermissions "$@"
+# srt が Claude Code プロセス全体（tools・MCP・hooks）を FS/network 境界へ収容し、
+# claude 側は CLI --settings の固定 profile で sandbox 設定と ask gate を pin する
+exec $SRT_BIN --settings "$SRT_SETTINGS" claude --permission-mode bypassPermissions --settings "$BYPASS_PROFILE" "$@"
