@@ -333,7 +333,7 @@ done <<< "$PIN_SCAN"
 
 # broad permission allow の検査(H-007): bare file/web tool と広域 Bash wildcard を release blocker にする
 if [[ -f claude/settings.json ]]; then
-  BROAD_ALLOWS="$(jq -r '.permissions.allow[]? | select(. == "Read" or . == "Edit" or . == "Write" or . == "Glob" or . == "Grep" or . == "WebFetch" or (test("^Bash\\((git|gh|curl|wget) \\*\\)$")))' claude/settings.json)"
+  BROAD_ALLOWS="$(jq -r '.permissions.allow[]? | select(. == "Read" or . == "Edit" or . == "Write" or . == "Glob" or . == "Grep" or . == "WebFetch" or (test("^Bash\\((git|gh|curl|wget|npm|pnpm|bun|npx|bunx) \\*\\)$")) or (test("^Bash\\(uv run \\*\\)$")) or (test("^Bash\\(env .* \\*\\)$")))' claude/settings.json)"
   if [[ -n "$BROAD_ALLOWS" ]]; then
     while IFS= read -r rule; do
       if has_waiver "claude/settings.json" "broad-allow"; then
@@ -342,6 +342,14 @@ if [[ -f claude/settings.json ]]; then
         fail "dangerous setting without waiver: claude/settings.json: broad permission allow '$rule' (path/subcommand-scoped rule に置換するか waiver を登録)"
       fi
     done <<< "$BROAD_ALLOWS"
+  fi
+  # H-010: 現行 Claude Code の file permission check にmatchしない path rule 形式を拒否する
+  # (path rule が有効なのは Read()/Edit() のみ。Write()/NotebookEdit()/Glob() の path 形式は unmatched)
+  UNSUPPORTED_RULES="$(jq -r '(.permissions.allow[]?, .permissions.ask[]?, .permissions.deny[]?) | select(test("^(Write|NotebookEdit|Glob)\\("))' claude/settings.json | sort -u)"
+  if [[ -n "$UNSUPPORTED_RULES" ]]; then
+    while IFS= read -r rule; do
+      fail "unsupported path-scoped permission rule (matches nothing in current Claude Code): '$rule' — use Edit(path) for file-edit policy"
+    done <<< "$UNSUPPORTED_RULES"
   fi
 fi
 
@@ -417,6 +425,7 @@ STALE_PATTERNS=(
   "fast-worker|project-orchestrator|plan-reviewer-(completeness|critic|feasibility)|security-reviewer"
   "rules/(scope-discipline|framework-respect|git-safety)\.md"
   "test-quality-hook|user-prompt-submit-hook"
+  "claude-bypass|bypass-profile|srt-bypass|bypass-gate"
 )
 while IFS= read -r f; do
   case "$f" in

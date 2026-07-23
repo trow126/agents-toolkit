@@ -63,9 +63,13 @@ measure_tree() {
   echo "claude_rules: $(find "$root/claude/rules" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
   echo "output_styles: $(find "$root/claude/output-styles" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
 
-  # model pin / tier alias は構造的 scanner で計測する(validator と共有 helper。quoted/literal 対応)
+  # model pin / tier alias は共有 scanner で計測する(対応構文限定 parser。validator と共有)
+  # scanner 失敗は隠さず metrics 全体を非ゼロ終了させる(fail-closed — H-001)
   local scan
-  scan="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$root" 2>/dev/null || true)"
+  if ! scan="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$root")"; then
+    echo "ERROR: model scanner failed for $root — metrics を継続しない(fail-closed)" >&2
+    exit 1
+  fi
   echo "full_model_pins: $( (grep -c ':pin:' <<< "$scan") || true)"
   # settings.json の model は tier alias でも「常設既定」であり agent 単位の alias とは別枠のため、
   # tier_aliases は agent frontmatter 由来のみを数える(定義は v2 レポートから不変)

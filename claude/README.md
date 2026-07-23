@@ -50,25 +50,19 @@ Claude Code の documented scope は user（`~/.claude/settings.json`）/ projec
 
 - project 単位の差分 → 各プロジェクトの `.claude/settings.local.json`（gitignored）
 - machine 全体の環境変数系 opt-in（Agent Teams 等） → その machine の shell profile で `export`
-- 承認プロンプトなし運用（bypassPermissions） → 共有設定は変更せず、**全プロセス隔離付き launcher** を使う（下記）
-- 上記で表現できない user settings 自体の恒久差分 → 当該 machine で symlink を実ファイル化して編集する（`bootstrap.sh --check` が差分を報告する。意図した deviation として管理する）
+- user settings 自体の恒久差分 → 当該 machine で symlink を実ファイル化して編集する（`bootstrap.sh --check` が差分を報告する。意図した deviation として管理する）
 
-### claude-bypass（全プロセス隔離内の bypassPermissions）
+### 低プロンプト運用と bypassPermissions の方針
 
-`bypassPermissions` は permission prompt を原則スキップするため、公式ガイダンスに従い **Claude Code プロセス全体（built-in tools・MCP・hooks を含む）を隔離境界内で起動する場合のみ**使う。`claude-bypass` launcher は [`@anthropic-ai/sandbox-runtime`](https://github.com/anthropic-experimental/sandbox-runtime)（srt。beta research preview）で全プロセスを Seatbelt/bubblewrap 境界に収容し、次をすべて満たすときだけ起動する（不成立なら bypass せず非ゼロ終了）:
+bypassPermissions モードは、公式ガイダンス上 container / VM / sandbox-runtime 等の隔離環境向けであり、host 常用に必要な条件（隔離境界の信頼できる bootstrap・workspace 限定 read/write・最小 egress・live 統合検証）を個人 dotfiles で維持し続けるのは過剰なため、**本 toolkit では配布せず、共有設定で無効化している**（`disableBypassPermissionsMode: "disable"`。2026-07-23 レビュー H-009/ATK-004 を受けた要件所有者の決定）。
 
-1. WSL2（kernel の `microsoft-standard` 署名。WSL1 は明示拒否）かつ非 root — 実 `/proc/version`・実 `id -u` に固定で、環境変数では差し替え不能
-2. machine-local opt-in marker（600・schema・期限 180 日。`--enable-this-machine` で作成）
-3. srt が導入済みで、machine-local の srt 設定（credential denyRead + network allowlist + 最小 allowWrite）が存在する
-4. claude へ固定 security profile（`bypass-profile.json`: sandbox pin + 外部副作用の ask gate）を CLI `--settings` で注入 — CLI scope は project/local より優先のため project 側から境界を弱められない
+日常の低プロンプト運用は bypass なしで成立する:
 
-```bash
-npm install -g @anthropic-ai/sandbox-runtime        # 必須依存（全プロセス隔離）
-~/.claude/bin/claude-bypass --enable-this-machine   # 環境検証 + srt 設定生成 + opt-in（期限付き）
-~/.claude/bin/claude-bypass                          # 検証成功時のみ srt 隔離内で bypass 起動
-```
+- **sandbox auto-allow**（sandbox 有効時の既定）: sandbox 内で実行できる Bash は prompt なしで走る（FS は workspace 限定、network は allowlist + 初回 prompt）
+- **workspace 限定の file 許可**（`Read(**)` / `Edit(**)`）: project 内の読み書きは prompt なし（project 外は通常フロー）
+- prompt が出るのは、**外部副作用**（`git push`・PR/issue 作成・`gh api`・`curl`・registry 操作・`npx` 等の任意 package 実行）と**破壊的 git 操作**（checkout/switch/stash/worktree/pull/`branch -D`/`commit --amend`）の ask rule のみ — PDF の「明示要求なしに push・PR・外部投稿・破壊的操作をしない」の permission-layer 強制
 
-git push・PR/issue/release 作成・`gh api`・`curl` 等の**外部副作用は ask rule により bypass 中でも明示 prompt** になる（PDF の「明示要求なしに push・PR・外部投稿をしない」の permission-layer 強制。頻用の read-only git/gh subcommand は個別 allow 済み）。
+bypass が不可欠な作業（完全無人運用など）は、公式の [dev container](https://code.claude.com/docs/en/devcontainer)（default-deny firewall 付き）等の隔離環境で行う。
 
 ### シークレットスキャン（コミットするマシンでは必須）
 

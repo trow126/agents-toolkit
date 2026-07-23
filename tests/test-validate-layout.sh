@@ -306,7 +306,7 @@ assert_contains "TOML literal string pinが列挙される" "$out" "codex/litera
 # =========================================================================
 REPO11C="$SANDBOX/repo11c"
 build_fixture "$REPO11C"
-printf '{"permissions": {"allow": ["Read", "Bash(git *)"]}}\n' > "$REPO11C/claude/settings.json"
+printf '{"permissions": {"allow": ["Read", "Bash(git *)", "Bash(npm *)", "Bash(uv run *)", "Write(**)"]}}\n' > "$REPO11C/claude/settings.json"
 printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11C/install/manifest.tsv"
 git -C "$REPO11C" add -A
 out=""
@@ -315,6 +315,22 @@ out="$(run_validate "$REPO11C" 2>&1)" || rc=$?
 assert_exit_nonzero "broad permission allowは失敗する" "$rc"
 assert_contains "bare Read allowが列挙される" "$out" "broad permission allow 'Read'"
 assert_contains "広域Bash wildcardが列挙される" "$out" "broad permission allow 'Bash(git *)'"
+assert_contains "runner wildcard(npm)が列挙される" "$out" "broad permission allow 'Bash(npm *)'"
+assert_contains "runner wildcard(uv run)が列挙される" "$out" "broad permission allow 'Bash(uv run *)'"
+assert_contains "unsupported path rule(Write)が列挙される" "$out" "unsupported path-scoped permission rule (matches nothing in current Claude Code): 'Write(**)'"
+
+# =========================================================================
+# 11d. model scanner は非対応YAML構文で fail-closed になる(H-001)
+# =========================================================================
+REPO11D="$SANDBOX/repo11d"
+build_fixture "$REPO11D"
+printf -- '---\nname: quoted-key\n"model": "claude-x-1"\n---\n' > "$REPO11D/claude/agents/sample.md"
+git -C "$REPO11D" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11D" 2>&1)" || rc=$?
+assert_exit_nonzero "非対応YAML構文(quoted key)でvalidatorが失敗する" "$rc"
+assert_contains "scanner失敗が明示される" "$out" "model pin scan failed"
 
 # =========================================================================
 # 12. active treeのstale reference(旧slash command等)は非ゼロ

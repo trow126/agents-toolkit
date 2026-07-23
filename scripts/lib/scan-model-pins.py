@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""scan-model-pins.py — model 指定の構造的スキャン（validator と metrics の共有 helper）。
+"""scan-model-pins.py — model 指定のスキャン（validator と metrics の共有 helper）。
 
-quoted / plain / single-quoted / 前後空白 / inline comment を正規化して分類する
-（grep の literal 前提による検査漏れ対策。2026-07-23 再々レビュー H-001）。
+対応構文を限定した parser である（実 YAML parser ではない）:
+  - agent frontmatter は canonical block-style（`key: value` 行）のみ対応。
+    quoted key（`"model":`）・flow mapping（`{...}`）等の非対応構文を検出した場合は
+    **明示エラーで非ゼロ終了**する（fail-closed。黙って 0 件と報告しない — H-001）。
+  - 値側は plain / single-quoted / double-quoted / 前後空白 / inline comment を正規化する。
+  - decode 不能・parse 不能も明示エラーで非ゼロ終了する。
 
 usage: scan-model-pins.py <repo-root>
 output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ（kind = pin | alias | other）
@@ -39,21 +43,34 @@ def main() -> int:
     root = Path(sys.argv[1])
     results = []
 
-    # 1. agent frontmatter（YAML の model: 行。quoted scalar 対応）
+    # 1. agent frontmatter（canonical block-style のみ。非対応構文は fail-closed）
     for f in sorted(root.glob("claude/agents/*.md")):
-        text = f.read_text(encoding="utf-8")
+        try:
+            text = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            print(f"ERROR: {f.relative_to(root)}: not valid UTF-8: {exc}", file=sys.stderr)
+            return 1
         m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
         if not m:
             continue
         offset = 1
         for i, line in enumerate(m.group(1).split("\n"), start=offset + 1):
+            stripped = line.strip()
+            if re.match(r"^[\"']", stripped) or stripped.startswith("{") or stripped.startswith("["):
+                print(
+                    f"ERROR: {f.relative_to(root)}:{i}: non-canonical YAML frontmatter "
+                    f"(quoted key / flow style は本 parser の対応範囲外。block-style 'key: value' に書き換えるか、"
+                    f"実 YAML parser 対応が必要): {stripped[:60]}",
+                    file=sys.stderr,
+                )
+                return 1
             km = re.match(r"^model:\s*(.+)$", line)
             if km:
                 v = normalize(km.group(1))
                 results.append(f"{f.relative_to(root)}:{i}:{classify(v)}:{v}")
 
-    # 2. claude/settings.json と claude/bypass-profile.json（JSON parse）
-    for name in ("claude/settings.json", "claude/bypass-profile.json"):
+    # 2. claude/settings.json（JSON parse）
+    for name in ("claude/settings.json",):
         f = root / name
         if not f.is_file():
             continue
@@ -75,7 +92,11 @@ def main() -> int:
 
     # 3. codex/*.toml（tomllib。parse 不能時は正規表現 fallback で quoted/literal string 両対応）
     for f in sorted(root.glob("codex/*.toml")):
-        text = f.read_text(encoding="utf-8")
+        try:
+            text = f.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            print(f"ERROR: {f.relative_to(root)}: not valid UTF-8: {exc}", file=sys.stderr)
+            return 1
         values = []
         try:
             import tomllib

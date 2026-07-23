@@ -62,6 +62,23 @@ assert_metric "改名後 layout の full pin" "$out" "full_model_pins" "0"
 assert_metric "改名後 layout(gh-start)の無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "改名後 layout の learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"
 
+# ---- scanner 失敗時は metrics 全体が fail-closed(非ゼロ・0件出力なし)になる ----
+F="$SANDBOX/failclosed"
+mkdir -p "$F/claude/agents"
+printf -- '---\nname: bad\n"model": "claude-x-1"\n---\n' > "$F/claude/agents/bad.md"
+rc=0
+out="$("$MEASURE" --repo "$F" 2>&1)" || rc=$?
+if [[ "$rc" -ne 0 ]]; then
+  ok "非対応構文で measure-metrics が非ゼロ終了(fail-closed)"
+else
+  ng "scanner失敗が隠されて exit 0 になった"
+fi
+if ! grep -q "full_model_pins: 0" <<< "$out"; then
+  ok "失敗時に pin 0 件を出力しない"
+else
+  ng "失敗時に pin 0 件が出力された(fail-open)"
+fi
+
 # ---- 実 repo(current checkout)への適用が主要指標で after 状態を示す ----
 out="$("$MEASURE" --repo "$REPO_ROOT")"
 assert_metric "実 repo: full pin 0" "$out" "full_model_pins" "0"

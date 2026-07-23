@@ -6,8 +6,6 @@
 # "#" 始まりの行と空行は無視する。
 link-file	claude/CLAUDE.md	.claude/CLAUDE.md
 link-file	claude/settings.json	.claude/settings.json
-link-file	claude/bypass-profile.json	.claude/bypass-profile.json
-link-file	claude/srt-bypass-settings.template.json	.claude/srt-bypass-settings.template.json
 link-file	claude/statusline.sh	.claude/statusline.sh
 link-file	claude/.claudeignore	.claude/.claudeignore
 link-dir	claude/rules	.claude/rules

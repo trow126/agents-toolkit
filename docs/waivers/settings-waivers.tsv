@@ -3,5 +3,5 @@
 # pattern は check 8 の pattern 名: bypassPermissions / danger-full-access /
 #   skipDangerousModePermissionPrompt / allowUnsandboxedCommands / full-model-pin
 # 有効期限内の行がある場合のみ、該当 file×pattern は FAIL ではなく WARN になる。
-# 危険設定は共有既定に残さない。bypassPermissions が必要な machine は環境検証ゲート付きの
-# `claude-bypass` launcher（claude/bin/claude-bypass。--enable-this-machine で machine-local opt-in）を使う。
+# 危険設定は共有既定に残さない。bypassPermissions モードは共有設定で無効化済み
+# （disableBypassPermissionsMode）。bypass が不可欠な作業は公式 devcontainer 等の隔離環境で行う。
