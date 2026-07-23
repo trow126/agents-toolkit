@@ -3,5 +3,5 @@
 # pattern は check 8 の pattern 名: bypassPermissions / danger-full-access /
 #   skipDangerousModePermissionPrompt / allowUnsandboxedCommands / full-model-pin
 # 有効期限内の行がある場合のみ、該当 file×pattern は FAIL ではなく WARN になる。
-# 危険設定は原則 machine-local の settings.local.json に置き、共有設定には残さない。
-claude/settings.json	bypassPermissions	personal WSL2 dev machines (single-user)	2027-07-23	owner 承認 2026-07-23: 対話コスト削減のため共有既定に維持。sandbox 有効化(allowUnsandboxedCommands: false)は併存させ、防御は sandbox 側で担保。期限到来時に再判断
+# 危険設定は共有既定に残さない。bypassPermissions が必要な machine は環境検証ゲート付きの
+# `claude-bypass` launcher（claude/bin/claude-bypass。--enable-this-machine で machine-local opt-in）を使う。

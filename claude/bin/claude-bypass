@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# claude-bypass — 環境検証ゲート付きの bypassPermissions launcher
+#
+# 共有 settings.json は defaultMode: default（fail-closed）を維持し、承認プロンプトなし運用が
+# 必要な machine だけが本 launcher を使う。実行時に次の環境制約を決定論的に検証し、
+# 1 つでも不成立なら bypass せず非ゼロ終了する（fail-closed）:
+#   1. machine-local opt-in marker が存在する（--enable-this-machine で作成。共有 repo では配布しない）
+#   2. WSL2 環境である（/proc/version に microsoft。waiver 対象環境 = personal WSL2 dev machines）
+#   3. root で実行していない
+#
+# 使い方:
+#   claude-bypass --enable-this-machine   # 環境検証に成功した場合のみ、この machine で opt-in する
+#   claude-bypass [claude の引数...]      # 検証成功時のみ `claude --permission-mode bypassPermissions` を exec
+#
+# 注意: これは local operator の意図しない bypass 配布を防ぐ policy gate であり、
+# ローカル攻撃者に対する security boundary ではない（そのための隔離は sandbox / VM が担う）。
+set -euo pipefail
+
+MARKER_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit"
+MARKER="$MARKER_DIR/bypass-approved"
+# テスト用 seam（既定は実環境。deterministic test のためだけに上書き可能）
+PROC_VERSION="${AGENTS_TOOLKIT_BYPASS_PROC_VERSION:-/proc/version}"
+EFFECTIVE_UID="${AGENTS_TOOLKIT_BYPASS_UID:-$(id -u)}"
+
+fail() {
+  echo "claude-bypass: $*" >&2
+  echo "claude-bypass: bypass せず終了します（fail-closed）。通常の \`claude\` を使用してください。" >&2
+  exit 1
+}
+
+check_environment() {
+  if [[ ! -r "$PROC_VERSION" ]] || ! grep -qi microsoft "$PROC_VERSION"; then
+    fail "WSL2 環境を確認できません（$PROC_VERSION に microsoft 署名なし）。承認済み環境は personal WSL2 dev machines のみです"
+  fi
+  if [[ "$EFFECTIVE_UID" -eq 0 ]]; then
+    fail "root での bypass 実行は禁止です"
+  fi
+}
+
+if [[ "${1:-}" == "--enable-this-machine" ]]; then
+  check_environment
+  mkdir -p "$MARKER_DIR"
+  printf 'enabled-by=%s\nenabled-at=%s\nenvironment=personal WSL2 dev machine (single-user)\n' \
+    "$(id -un)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$MARKER"
+  echo "claude-bypass: この machine で opt-in しました: $MARKER"
+  echo "claude-bypass: 以後 \`claude-bypass\` が bypassPermissions で起動します（無効化は marker 削除）"
+  exit 0
+fi
+
+[[ -f "$MARKER" ]] || fail "machine-local opt-in がありません。意図的に有効化する場合は \`claude-bypass --enable-this-machine\` を実行してください"
+check_environment
+
+exec claude --permission-mode bypassPermissions "$@"

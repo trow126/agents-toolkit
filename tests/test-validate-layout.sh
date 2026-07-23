@@ -265,6 +265,22 @@ assert_contains "name不一致が列挙される" "$out" "name 'Wrong:Name' != d
 assert_contains "comma区切りallowed-toolsが列挙される" "$out" "allowed-tools must be space-separated"
 
 # =========================================================================
+# 11b. agent frontmatter / TOML の full model pin はwaiverなしで非ゼロ(H-001)
+# =========================================================================
+REPO11B="$SANDBOX/repo11b"
+build_fixture "$REPO11B"
+printf -- '---\nname: sample\nmodel: claude-foo-1\n---\n' > "$REPO11B/claude/agents/sample.md"
+mkdir -p "$REPO11B/codex"
+printf 'model = "claude-foo-1"\n' > "$REPO11B/codex/example.toml"
+git -C "$REPO11B" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11B" 2>&1)" || rc=$?
+assert_exit_nonzero "agent frontmatterのfull model pinは失敗する" "$rc"
+assert_contains "agent pinが列挙される" "$out" "claude/agents/sample.md:3: model: claude-foo-1"
+assert_contains "TOML pinが列挙される" "$out" "codex/example.toml:1: model = \"claude-foo-1\""
+
+# =========================================================================
 # 12. active treeのstale reference(旧slash command等)は非ゼロ
 # =========================================================================
 REPO12="$SANDBOX/repo12"

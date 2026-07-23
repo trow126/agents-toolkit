@@ -28,15 +28,19 @@
 - 独立検証が必要な場合だけ reviewer（`code-reviewer` / `plan-reviewer`）を分離する
 - subagent からの再委任は原則禁止。タスクのステップ数を委任基準にしない
 - 完了判定は deterministic なテスト・lint・CI で行う
-- Agent Teams / `ultracode` は experimental のため共有設定では無効。3 本以上の独立 workstream で並列化の利点が調整コストを明確に上回る大型タスクに限り、machine-local の `settings.local.json` で opt-in してから使う
+- Agent Teams / `ultracode` は experimental のため共有設定では無効。3 本以上の独立 workstream で並列化の利点が調整コストを明確に上回る大型タスクに限り、当該 machine の shell 環境変数（`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`）で opt-in してから使う
 
 詳細手順（高リスク判断の並列諮問・Codex peer 連携・routing 検証）は `model-routing` スキルを参照。
 
 # private routing（machine 固有の project→specialist 対応）
 
-- 配置: untracked の `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/private-routing.md`（公開リポジトリに固有名を書かない）
-- 消費契約: specialist を選択する際、owner がこのファイルの存在を確認し、存在する場合のみ該当 project 節を読んで routing に反映する（opt-in active config）。存在しない・該当節がない場合は本ファイルなしとして上記の原則だけで判断し、エラーにしない
+- status: opt-in active config（deprecated archive ではない）
+- 配置: untracked の `${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/private-routing.md`（公開リポジトリに固有名を書かない）
+- 消費者と起動条件: specialist を選択する際、owner が `~/.claude/bin/private-routing-locate` で存在を確認し、exit 0 の場合のみ該当 project 節を読んで routing に反映する
+- 優先順位（上が優先。競合時は上位が勝つ）: 1. 安全制約・permission・tool restriction → 2. ユーザーの明示指定 → 3. private routing の project mapping → 4. 上記の汎用ドメイン routing 原則 → 5. 標準の単一 owner 既定
+- 不在時挙動: resolver が exit 1 の場合は本ファイルなしとして汎用原則（4→5）だけで判断し、エラーにしない。private 内容を成果物・ログ・外部サービスへ出力しない
 
 # 起動運用
 
-`claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
+- `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
+- 承認プロンプトなし運用が必要な machine では、共有設定を緩めず `claude-bypass` launcher を使う（`--enable-this-machine` で opt-in。WSL2・非 root を実行時検証し、不成立なら bypass せず終了する fail-closed 設計）

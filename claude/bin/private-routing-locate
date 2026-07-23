@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# private-routing-locate — private routing file の deterministic resolver
+#
+# CLAUDE.md「private routing」節の消費契約の実装。存在すれば path を stdout に出力して exit 0、
+# 不在なら exit 1（不在はエラーではなく「既定 routing で判断する」という契約上の正常分岐）。
+# 内容は読まない・出力しない（private 内容の漏洩防止）。
+set -euo pipefail
+
+TARGET="${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/private-routing.md"
+
+if [[ -f "$TARGET" ]]; then
+  echo "$TARGET"
+  exit 0
+fi
+exit 1

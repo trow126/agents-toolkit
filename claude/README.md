@@ -38,11 +38,26 @@
 
 agents-toolkit モノレポのルートで `./bootstrap.sh --apply` を実行すると、`install/manifest.tsv` に従って `~/.claude` 配下の各ファイル・ディレクトリが `claude/` 配下の対応 source へ個別 symlink される（詳細はルート [README.md](../README.md) 参照）。
 
+sandbox（既定で有効・`failIfUnavailable: true` の fail-closed 構成）のため、Linux / WSL2 では依存パッケージが必要:
+
 ```bash
-# マシン固有の設定（任意）
-cp ~/.claude/settings.json ~/.claude/settings.local.json
-# settings.local.json を環境に合わせて編集
+sudo apt-get install bubblewrap socat   # Ubuntu/Debian。未導入だと Claude Code が起動を拒否する
 ```
+
+### マシン固有の設定差分
+
+Claude Code の documented scope は user（`~/.claude/settings.json`）/ project（`<project>/.claude/settings.json`）/ project local（`<project>/.claude/settings.local.json`）で、**user-level の `settings.local.json` は存在しない**。machine 固有の差分は次のいずれかで扱う:
+
+- project 単位の差分 → 各プロジェクトの `.claude/settings.local.json`（gitignored）
+- machine 全体の環境変数系 opt-in（Agent Teams 等） → その machine の shell profile で `export`
+- 承認プロンプトなし運用（bypassPermissions） → 共有設定は変更せず、環境検証ゲート付き launcher を使う:
+
+```bash
+~/.claude/bin/claude-bypass --enable-this-machine   # WSL2・非rootを検証して machine-local opt-in
+~/.claude/bin/claude-bypass                          # 検証成功時のみ bypassPermissions で起動（fail-closed）
+```
+
+- 上記で表現できない user settings 自体の恒久差分 → 当該 machine で symlink を実ファイル化して編集する（`bootstrap.sh --check` が差分を報告する。意図した deviation として管理する）
 
 ### シークレットスキャン（コミットするマシンでは必須）
 

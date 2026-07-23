@@ -16,6 +16,6 @@ paths:
 ## Settings 階層
 
 - 評価順: deny > ask > allow
-- 配列設定はスコープ間でマージされる（仕様）
-- プロジェクト `settings.local.json` に permissions があるとグローバルを置換する
-- 運用方針: 許可はグローバル `~/.claude/settings.json` に一元管理、プロジェクト側は permissions なしで運用
+- documented scope: managed > CLI 引数 > project local（`<project>/.claude/settings.local.json`）> project > user（`~/.claude/settings.json`）。**user-level の `~/.claude/settings.local.json` という scope は存在しない**
+- permission rules（allow/ask/deny）はスコープ間で**マージ（連結）**される。それ以外の大半の設定はスカラー値として高優先スコープが**置換**する
+- 運用方針: 許可は user settings `~/.claude/settings.json` に一元管理、プロジェクト側は permissions なしで運用

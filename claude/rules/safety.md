@@ -4,7 +4,7 @@
 
 ## Claude Code 運用
 
-- `~/.claude/settings.json` と `~/.claude/settings.local.json` は Claude セッション内で直接編集しない。shell で編集してから Claude を再起動する
+- `~/.claude/settings.json` および各プロジェクトの `.claude/settings.local.json` は Claude セッション内で直接編集しない。shell で編集してから Claude を再起動する
 
 ## 複合コマンド
 

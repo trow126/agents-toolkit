@@ -291,6 +291,28 @@ for f in claude/settings.json codex/config.toml codex/gh.config.toml; do
   done
 done
 
+# full model pin は agent frontmatter と TOML にも適用する(検査対象を measure-metrics.sh と揃える)
+scan_pin() {
+  local f="$1" pregex="$2"
+  local matches lineno content
+  matches="$(grep -InoE "$pregex" "$f" || true)"
+  [[ -z "$matches" ]] && return 0
+  while IFS=: read -r lineno content; do
+    if has_waiver "$f" "full-model-pin"; then
+      warn "$f:$lineno: $content (waived: see docs/waivers/settings-waivers.tsv)"
+    else
+      fail "dangerous setting without waiver: $f:$lineno: $content (add waiver row to docs/waivers/settings-waivers.tsv or remove)"
+    fi
+  done <<< "$matches"
+}
+while IFS= read -r f; do
+  scan_pin "$f" '^model:[[:space:]]*claude-[a-z0-9.-]+'
+done < <(git ls-files 'claude/agents/*.md')
+for f in codex/*.toml; do
+  [[ -f "$f" ]] || continue
+  scan_pin "$f" '^[[:space:]]*model[[:space:]]*=[[:space:]]*"claude-[a-z0-9.-]+"'
+done
+
 # =========================================================================
 # 9. skill frontmatter schema(Agent Skills core spec)
 #    name: 親directory名と一致・^[a-z0-9]+(-[a-z0-9]+)*$・64字以内
@@ -366,7 +388,8 @@ STALE_PATTERNS=(
 )
 while IFS= read -r f; do
   case "$f" in
-    docs/* | tests/* | scripts/validate-layout.sh) continue ;;
+    # measure-metrics.sh は改名前 layout の計測のため旧 path を意図的に参照する
+    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh) continue ;;
   esac
   [[ -f "$f" ]] || continue
   for pat in "${STALE_PATTERNS[@]}"; do

@@ -1,161 +1,139 @@
 # agents-toolkit 近代化（2026-07-23）
 
-2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 初期エージェントの弱さを補うために継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
+2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
 
-**改訂履歴**: v1（初回実装）→ 独立レビュー（REQUEST_CHANGES、指摘 ATK-001〜015）→ **v2（本版。全 15 件対応済み）**。対応内容は末尾「レビュー対応（v2）」を参照。
+**改訂履歴**: v1（初回実装）→ レビュー1（REQUEST_CHANGES、ATK-001〜015）→ v2（全件対応）→ 再レビュー（REQUEST_CHANGES: ATK-004/006/007/011 未解消・H-001〜005）→ **v3（本版。再レビュー指摘を全件反映）**。対応内訳は末尾「レビュー対応履歴」。
 
 ## Baseline（変更前の検証記録）
 
-- 変更前 commit: `baseline: pristine agents-toolkit-master from zip`（本作業はその後続コミットとして記録）
-- 変更前テスト: `scripts/validate-layout.sh` PASS / `sync-shared-rules.sh --check` OK / `tests/test-*.sh` 6 本 PASS / `python-refactor-analysis` pytest 20 passed
-- **証跡**: [docs/reports/baseline-2026-07-23.txt](../reports/baseline-2026-07-23.txt)（実行コマンド・環境・exit code 付き。SHA-256: `7ec80713c1b631a5add4b03f4f4acd12bbe77f0b24dd896e3f39e94c94e27a58`）
+- 変更前 commit: `baseline: pristine agents-toolkit-master from zip`
+- **証跡**: [docs/reports/baseline-2026-07-23.txt](../reports/baseline-2026-07-23.txt)（SHA-256: `7ec80713c1b631a5add4b03f4f4acd12bbe77f0b24dd896e3f39e94c94e27a58`）
+- 証跡の範囲に関する明示例外（H-003）: baseline 証跡は「実行コマンド・環境・exit code・各テスト末尾 3 行」の**要約証跡として受入**とする。全 stdout/stderr が必要な調査では、baseline commit を checkout して同コマンドを再実行する（テストは冪等・自己完結）
 - 検証環境: Claude Code 2.1.218 / node v22 / Codex CLI 未導入（Codex 側は公式ドキュメントでのみ検証）
 
 ## 計測（before → after）
 
-**再計測は `scripts/measure-metrics.sh` を clean checkout で実行する**（定義はスクリプト冒頭に記載。バイト数は `wc -c`、対象は git 追跡ファイル、docs/・tests/ 除外）。トークン数は直接計測できないため文字数を代理指標とする（推定）。
+**再現手順（1 コマンド）**: `scripts/measure-metrics.sh --before-ref <baseline-commit> --after-ref HEAD`（改名前 `gh:start` / 改名後 `gh-start` 両 layout を自動認識。単一 tree は `--repo <dir>`。期待値テスト: `tests/test-measure-metrics.sh`）。以下の表は同スクリプトの実測値（バイト数 = `wc -c`、推定トークンの代理指標）。
 
-| 指標 | before | after | 削減 |
+| 指標（script の出力 key） | before | after | 削減 |
 |---|---|---|---|
-| 常時ロード合計（両エージェント） | 43,068 bytes | 31,673 bytes | **−26.5%** |
-| 　└ Codex（AGENTS.md） | 23,116 | 15,271 | **−33.9%** |
-| 　└ Claude 合計¹ | 19,952 | 16,402 | −17.8% |
-| 　　　CLAUDE.md | 3,980 | 3,444² | −13% |
-| 　　　常時ロード rules（paths なし） | 3,667（4 file） | 2,104（2 file） | −43% |
-| 　　　import される共有ルール | 12,305（13 本） | 10,854（9 本） | −12% |
-| custom agent 数 | 14 | 9 | **−36%** |
-| claude skill 数（active） | 21 | 13（break-consensus 込み） | **−38%** |
-| hook script 数 / 登録数 | 9 / 9 | 7 / 8 | −22% / −11% |
-| rule ファイル数（shared+claude） | 16 + 7 = 23 | 13 + 5 = 18 | −22% |
-| **full model pin**（完全モデル名。settings + agents） | 1（settings の `claude-fable-5` + `effortLevel: high`） | **0**（`sonnet` / `medium` へ） | −100% |
-| **tier alias**（agents frontmatter の sonnet/opus。pin と別指標） | 9 | 9（維持: version 非依存の役割指定） | ±0 |
-| **無条件委譲**（gh-start タスクループの強制 Agent 呼び出し） | 1（タスク数 = handoff 数） | **0**（単一 owner 既定 + 条件付き委譲） | −100 % |
-| 常時ロードされる learnings | 2 経路（CLAUDE.md import + AGENTS.md 埋め込み） | **0**（必要時参照 + knowledge-audit 遅延同期） | −100% |
-| 同一原則の重複記述³ | 5 組 | 0 | −100% |
+| combined_always_on_total | 43,068 | 32,464 | **−24.6%** |
+| 　codex_agents_md_bytes | 23,116 | 15,271 | **−33.9%** |
+| 　claude_always_on_total | 19,952 | 17,193¹ | −13.8% |
+| custom_agents | 14 | 9 | **−36%** |
+| claude_skills | 21 | 13 | **−38%** |
+| codex_skills | 4 | 5² | +1 |
+| hook_scripts / hook_registrations | 9 / 9 | 7 / 8 | −22% / −11% |
+| shared_rules + claude_rules | 16 + 7 | 13 + 5 | −22% |
+| **full_model_pins**（settings + agent frontmatter + TOML の完全モデル名） | 1 | **0** | −100% |
+| **tier_aliases**（agent frontmatter の sonnet/opus 等。pin と別指標） | **14** | 9 | −36% |
+| **unconditional_delegation_gh_start**（タスクループの無条件 Agent 委譲） | 1 | **0** | −100% |
+| **always_on_learnings_paths**（常時ロードされる learnings 経路） | 2 | **0** | −100% |
+| duplicated_principles_greppable（script 判定 3 シグネチャ） | 3 | **0** | −100% |
+| 同・手動評価分³ | 2 | 0 | −100% |
 
-¹ CLAUDE.md + paths なし rules + import 共有ルール。² v2 で private routing 消費契約・learnings 参照条件を明文化したため v1（2,909）より微増。³ YAGNI、テスト網羅、テスト無効化禁止、No-Fallback、git 安全の各重複。
+¹ v3 で private routing 契約・claude-bypass 運用の明文化により CLAUDE.md は 4,207 bytes（v1 の 2,909 から増）。削減は rules 統合・import 削減・learnings 遅延化による。² python-quality は AGENTS.md からの移設（3.6 の承認済み例外）。³ grep で機械判定できない 2 組 = YAGNI の意味重複（karpathy §2 vs 旧 scope-discipline）と git 安全（旧 git-safety の rule 文 vs settings deny list）。統合・削除済みだが判定は手動評価であることを明記する。
 
-**典型 task の handoff 定義**: 「明確な小規模 Issue を `/gh-start` で処理する際の実装委譲回数」。before = タスクごとに `general-purpose` へ委譲（N タスク = N handoff、SKILL.md が無条件強制）。after = 0（owner 完遂。委譲は context isolation / specialist / independent verification / parallelism の明示該当時のみで、理由を checkpoint に記録）。静的検証: `tests/test-gh-start-contract.sh`。
+**典型 task の handoff 定義**: 「明確な小規模 Issue を `/gh-start` で処理する際の実装委譲回数」。before = SKILL.md がタスクごとの `general-purpose` 委譲を無条件強制（N タスク = N handoff。script の unconditional_delegation_gh_start = 1 が該当テンプレートの存在を示す）。after = 0（owner 完遂既定。委譲は 4 条件の明示該当時のみ + checkpoint に理由記録）。検証: `tests/test-gh-start-contract.sh`（**内容: gh-issue-fetch の runtime smoke + gh-start SKILL の静的契約検査**。Claude Code 本体の skill 起動〜実装までを駆動する integration test ではない — H-004 対応の正確な名称）。
 
-## Evidence matrix（Phase 2 調査の要約）
-
-情報源優先順位は公式 docs > 公式 repo > Agent Skills 一次仕様 > OSS > 記事。
+## Evidence matrix（要約）
 
 | # | 判断 | 一次情報（確認日 2026-07-23） | 結論・採否 | 確信度 |
 |---|---|---|---|---|
-| 1 | CLAUDE.md は 200 行以下推奨、@import・path-scoped rules は公式機能 | code.claude.com/docs/en/memory | 常時ロードを縮約 | 高 |
-| 2 | skill `name` は `a-z0-9-`・64 字以内・親 dir 名一致（コロン不可） | agentskills.io/specification | `gh:*` 5 skill を `gh-*` へ改名 | 高 |
-| 3 | SKILL.md ≤500 行、description ≤1024 字。`allowed-tools` は **space 区切り文字列**（experimental） | agentskills.io/specification | 全 active skill を space 区切りへ統一し、validator check 9 で機械検査（core spec 準拠の検査対象: name/description/allowed-tools 形式。`argument-hint` 等は Claude Code vendor extension として別扱い） | 高 |
-| 4 | `disable-model-invocation: true` で手動起動限定にできる | code.claude.com/docs/en/skills | break-consensus に採用 | 高 |
-| 5 | `skillOverrides: off` は実在する設定 | 同上 | off の 8 skill は「利用しない判断済み」の実測証拠 → archive | 高 |
-| 6 | TodoWrite は廃止（TaskCreate/TaskUpdate へ）、MultiEdit は現行 docs に存在しない | 公式 docs + GitHub issues | 依存記述・skill を archive/削除 | 中〜高 |
-| 7 | subagent frontmatter の tier alias（sonnet/opus 等）・isolation・maxTurns は公式 | code.claude.com/docs/en/sub-agents | tier alias は version 非依存のため維持（full pin とは区別して計測） | 高 |
-| 8 | built-in agents: Explore / Plan / general-purpose | 同上 | routing-only orchestrator は不要 | 高 |
-| 9 | Agent Teams は experimental・既定無効・token 消費大 | code.claude.com/docs/en/agent-teams | **共有設定の常時有効化を撤去**。settings.local.json での opt-in に変更 | 高 |
-| 10 | `bypassPermissions` は prompt injection への保護なし。sandbox は `allowUnsandboxedCommands: false` で hard gate | code.claude.com/docs/en/permission-modes, /sandboxing | **共有既定を default + sandbox 有効 + unsandboxed 禁止へ変更**。危険設定は waiver 必須の fatal 検査に | 高 |
-| 11 | model alias: sonnet = daily coding、opus = complex reasoning。低 effort = 低コスト | code.claude.com/docs/en/model-config | **共有既定を `sonnet` + `medium` へ**。完全モデル名 pin は共有設定から排除 | 高 |
-| 12 | auto memory は GA | code.claude.com/docs/en/memory | learnings の常時注入を全廃（必要時参照 + auto memory） | 高 |
-| 13 | Codex user skills は `~/.agents/skills`、hooks.json 公式サポート、AGENTS.md は連結 32KiB 上限 | developers.openai.com/codex/* | python-quality skill を同所へ。AGENTS.md 15.3KB へ縮約 | 高 |
-| 14 | output styles は現行サポート | code.claude.com/docs/en/output-styles | opt-in のまま維持（常時コスト 0） | 高 |
-| 15 | 発想均質化・novelty 監査・実験変換の実証研究 | break-consensus references/evidence.md | 各 Stage の設計根拠 | 高 |
+| 1 | CLAUDE.md ≤200 行推奨、@import・path-scoped rules は公式 | code.claude.com/docs/en/memory | 常時ロード縮約 | 高 |
+| 2 | skill name は `a-z0-9-`（コロン不可） | agentskills.io/specification | `gh:*` → `gh-*` 改名 | 高 |
+| 3 | `allowed-tools` は space 区切り文字列（experimental） | 同上 | 全 active skill 統一 + validator check 9 | 高 |
+| 4 | `disable-model-invocation: true` は公式 | code.claude.com/docs/en/skills | break-consensus の手動起動保証 | 高 |
+| 5 | TodoWrite 廃止・MultiEdit 非掲載 | 公式 docs + GitHub issues | 依存 skill を archive | 中〜高 |
+| 6 | Agent Teams は experimental・既定無効・token 消費大 | code.claude.com/docs/en/agent-teams | 共有有効化を撤去。opt-in は shell 環境変数 | 高 |
+| 7 | `bypassPermissions` は prompt injection 保護なし。`failIfUnavailable: false` は**警告後に unsandboxed 実行**（fail-open）、`true` は起動拒否（fail-closed）。`sandbox.credentials.files` の deny が公式（v2.1.187+）。既定 read policy は credential file を読める | code.claude.com/docs/en/sandboxing, /permission-modes | 共有既定を default + failIfUnavailable: true + credentials deny へ。bypass は環境検証ゲート付き launcher に隔離 | 高 |
+| 8 | documented scope に user-level `settings.local.json` は**存在しない**（user は `~/.claude/settings.json`、local は `<project>/.claude/settings.local.json`）。permission rules はスコープ間**マージ**、他はスカラー置換 | code.claude.com/docs/en/settings | 誤った scope 記述を全修正（README / rules / classification） | 高 |
+| 9 | model alias: sonnet = daily coding、低 effort = 低コスト | code.claude.com/docs/en/model-config | 共有既定 `sonnet` + `medium` | 高 |
+| 10 | Codex user skills は `~/.agents/skills`、AGENTS.md 連結 32KiB 上限 | developers.openai.com/codex/* | python-quality を同所へ、AGENTS.md 15.3KB | 高 |
+| 11 | 発想均質化・novelty 監査・実験変換の実証研究 | break-consensus references/evidence.md | Stage 設計根拠 | 高 |
 
-未検証事項: (a) TodoWrite→TaskCreate の公式移行文書は未発見（第三者情報 + 実装観察、確信度 85%）。(b) AGENTS.md 内の Codex plugin `approval_mode = "approve"` 記法は公式 docs で確認できず（ユーザー環境の実設定注記として現状維持）。(c) `claude/rules/safety.md` の複合コマンド権限バイパス（issue #16180）の現在状態は未確認のため保持。(d) sandbox 有効化後の WSL2 実機での動作は本環境では検証不能（不可時は failIfUnavailable: false により通常 permission flow へフォールバック）。
+未検証事項: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法（ユーザー実設定の注記として維持）。(c) issue #16180 の現況。(d) sandbox fail-closed 構成の WSL2 実機動作（bubblewrap/socat 導入が前提。README に導入手順を明記）。
 
-## 縮約の実施内容と根拠（Phase 3）
+## 縮約の実施内容（Phase 3、v3 時点の最終状態）
 
 ### 3.1 常時コンテキスト
 
-- **CLAUDE.md**: モデル名固定の役割表・「main は直接作業しない」規定・「>3 step→Agent」規定・communication style 節を撤去し、「必要十分な最小コストの単一 owner が完遂」原則へ置換。learnings の常時 import を廃止（必要時参照 + `/knowledge-audit` 遅延同期）
-- **claude/rules**: `workflow.md`（TodoWrite/MultiEdit 前提・step 数委任）と `workspace.md` を削除し、生存項目を `code-quality.md` へ統合
-- **codex/AGENTS.md**: python-guidelines → `python-quality` skill、issue-completeness → `issue-writing` skill、learnings → 必要時参照へ遅延化。scope-discipline / framework-respect / git-safety は統合により除去
+- CLAUDE.md: モデル固定表・常時委任規定を撤去し「最小コスト単一 owner」原則へ。learnings の常時 import 廃止（必要時参照 + `/knowledge-audit` 遅延同期）
+- claude/rules: workflow.md / workspace.md を統合削除。settings-syntax.md は公式の scope・マージ仕様に合わせて全面修正
+- codex/AGENTS.md: python-guidelines / issue-completeness / learnings を遅延化。−33.9%
 
-### 3.2 default routing と実行時既定値
+### 3.2 実行時既定値（ATK-002/004/006 最終形）
 
-規則（CLAUDE.md）と実行時既定（settings.json）を一致させた:
+`claude/settings.json`（source of truth と本節は一致する）:
 
-- settings.json: `model: sonnet`（旧: `claude-fable-5`）、`effortLevel: medium`（旧: high）、`permissions.defaultMode: default`（旧: bypassPermissions）、sandbox 有効 + `allowUnsandboxedCommands: false`、`skipDangerousModePermissionPrompt` 削除、Agent Teams 環境変数削除
-- 高価モデル・高 effort への昇格は `model-routing` skill の条件（反復失敗・根本原因不明・競合仮説）でのみ行い、実装は標準モデルの owner に戻す
-- 危険設定を共有既定に残す場合は `docs/waivers/settings-waivers.tsv` の期限付き waiver 行が必須（なければ `validate-layout.sh` が FAIL）。machine-local の緩和は untracked の `settings.local.json` で行う
+- `model: "sonnet"` / `effortLevel: "medium"`（完全モデル名 pin 0。validator check 8 が settings・agent frontmatter・TOML を横断検査 — H-001）
+- `permissions.defaultMode: "default"`（**無条件 bypass なし**）
+- `sandbox`: `enabled: true` / **`failIfUnavailable: true`（fail-closed: sandbox 不可なら警告続行ではなく起動拒否）** / `allowUnsandboxedCommands: false` / `credentials.files` で `~/.ssh`・`~/.aws`・`~/.gnupg`・`~/.kube`・`~/.docker/config.json`・`~/.git-credentials`・`~/.npmrc`・`~/.pypirc` の read を deny
+- Agent Teams 環境変数なし（opt-in は当該 machine の shell profile で `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`）
+- 危険設定を共有既定へ戻す場合は `docs/waivers/settings-waivers.tsv` の期限付き waiver が必須（期限切れ・無 waiver は validator FAIL。fixture テスト付き）
 
-### 3.3 agents（14 → 9）
+**bypassPermissions の扱い（要件所有者の要求「bypassPermissions は必要」への v3 回答）**: 共有既定には置かず、**環境検証ゲート付き launcher `claude/bin/claude-bypass`** に隔離した。`--enable-this-machine` が (1) WSL2（/proc/version の microsoft 署名）と (2) 非 root を検証して machine-local marker（`${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/bypass-approved`。untracked・配布されない）を作成し、以後 `claude-bypass` が同じ検証を**毎回実行時に**行った上で `claude --permission-mode bypassPermissions` を exec する。検証不成立時は bypass せず非ゼロ終了（fail-closed）。テスト: `tests/test-claude-bypass.sh`（marker なし / 非 WSL / root / 正常系の 6 ケース）。これは意図しない bypass 配布を防ぐ policy gate であり、ローカル攻撃者への security boundary ではない（そちらは sandbox / VM の責務）。
 
-| agent | 処置 | 根拠 |
-|---|---|---|
-| fast-worker / project-orchestrator | 削除 | 単なる worker / routing-only orchestrator。単一 owner 既定で不要 |
-| plan-reviewer-{completeness,critic,feasibility} | 1 体へ統合（plan-reviewer） | 同一対象への 3 視点 reviewer。3 handoff → 1。観点は統合定義に保持 |
-| security-reviewer | code-reviewer へ統合 | 検出パターンの正本が archive 対象 skill だった。自己完結の統合基準に置換 |
-| deep-reasoner | 維持 | reasoning model が判断し標準モデルが実装する経路の判断役 |
-| ドメインスペシャリスト 6 体 | 維持 | 実在する専門領域（Python ML/データ + Solidity DeFi）。数合わせで削除しない |
+### 3.3 agents（14 → 9）/ 3.4 skills（21 → 13）/ 3.5 hooks（9 → 7）
 
-### 3.4 skills（claude 21 → 13、codex 4 → 5）
+v2 から変更なし（fast-worker / project-orchestrator 削除、plan-reviewer 3→1、security-reviewer 統合、9 skill archive、`gh:*`→`gh-*`、test-quality / user-prompt-submit hook 削除）。`parse_issue.py` は runtime utility として `claude/bin/` に存置（ATK-001）。
 
-- archive（9 本 → `docs/archive/skills/`）: off 済み 8 本 + deep-research-mode。決定論的パーサー `parse_issue.py` は skill ではなく**ランタイム utility として `claude/bin/` に存置**（`gh-issue-fetch.sh` の実行時依存。ATK-001）
-- 改名: `gh:*` → `gh-*`（Agent Skills 仕様準拠。呼び出しは `/gh-pr` 等に変わる）
-- gh-start: 単一 owner 既定 + 条件付き委譲（理由の checkpoint 記録必須）に改訂
-- 追加: `break-consensus`（新規挙動）、`python-quality`（AGENTS.md からの移設。3.6 参照）
+### 3.6 skill directory 純増 2 件の例外記録（ATK-010 — ACCEPTED EXCEPTION）
 
-### 3.5 hooks（9 → 7）
+- `claude/skills/break-consensus`（new behavior — PDF Phase 4 指定の 1 件）
+- `codex/skills/python-quality`（relocated content — AGENTS.md 常時インラインの遅延ロード先。新規挙動なし）
 
-- 削除: `test-quality-hook.sh`（助言のみ・CI と重複・repo 外依存）、`user-prompt-submit-hook.sh`（毎ターン learnings 注入 = 廃止対象パターン。未登録 dead code）
-- 維持: pre-bash-validate / config-change（モデル指示では保証できない決定論的制約）、session-init / post-compact（最小状態注入）、pr-review（ライフサイクル検出）、slack-notify（確定イベント通知）、herdr-agent-state（外部ツール管理・自己無効化ガード付き）
+分類: added directory 2 / relocated 1 / new behavior 1。**要件所有者が 2026-07-23 に承認**（「例外で良い」）。再レビューでも ACCEPTED EXCEPTION と判定。
 
-### 3.6 skill directory 純増 2 件の例外記録（ATK-010）
+### 3.7 private routing の消費契約（ATK-011 最終形）
 
-PDF の「新しい skill を 1 つだけ追加」に対し、active skill directory の純増は 2 件:
-
-- `claude/skills/break-consensus`（**新規挙動** — PDF Phase 4 が指定する 1 件）
-- `codex/skills/python-quality`（**既存指示の移設** — AGENTS.md に常時インラインだった python-guidelines の遅延ロード先。新規挙動なし。Codex に path-scoped rules 機構がないため、skill が唯一の遅延ロード単位）
-
-分類: added directory 2 / relocated content 1 / **new behavior 1**。python-quality を AGENTS.md へ戻すと常時ロード +3.2KB（縮約目標と衝突）のため、移設例外として記録する。**承認: 要件所有者が 2026-07-23 に例外を承認済み**（「例外で良い」）。
-
-### 3.7 private routing の消費契約（ATK-011）
-
-- status: **opt-in active config**（deprecated archive ではない）
-- 配置: untracked `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/private-routing.md`（migration が旧 `claude/CLAUDE.local.md` から移動）
-- 消費者: owner（main セッション）。契約は claude/CLAUDE.md「private routing」節に定義 — specialist 選択時に存在確認し、存在する場合のみ該当 project 節を参照。不在時はエラーにせず原則ベースで判断
-- 検証: 移動は `tests/test-migration.sh`、参照契約の文書存在は validator check 10 の対象 tree に含まれる CLAUDE.md 本文で担保
+- status: **opt-in active config**
+- 配置: `${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/private-routing.md`（tilde 展開バグを修正し `$HOME` 表記へ）
+- 消費者・起動条件: specialist 選択時に owner が resolver `claude/bin/private-routing-locate`（存在時 path + exit 0 / 不在時 exit 1・無出力）で確認し、存在時のみ該当 project 節を参照
+- **優先順位**: 1. 安全制約・permission・tool restriction → 2. ユーザー明示指定 → 3. private routing の project mapping → 4. 汎用ドメイン routing 原則 → 5. 標準の単一 owner 既定
+- 不在時挙動: 非エラーで 4→5 に fallback。private 内容を成果物・ログ・外部へ出力しない
+- テスト: `tests/test-private-routing-contract.sh` — 契約 5 項目の静的検査（priority 欠落 fixture で非ゼロ終了することも検証）+ dummy mapping fixture で resolver が migration 後 path を選択すること + 不在時の非エラー分岐
 
 ## Phase 4: break-consensus skill
 
-`claude/skills/break-consensus/`（SKILL.md + references/evidence.md）。手動起動限定（`disable-model-invocation: true` + 禁止場面明記）。新規常設 agent なし（built-in Explore / deep-reasoner / plan-reviewer を再利用）。
+v2 から変更なし（手動起動限定、Stage 1-7、standard/deep は別 context の独立 novelty auditor 必須 + rationale 不渡しの入力契約、light は独立性なしを明示）。
 
-Stage 構成: 1 Problem Frame → 2 Consensus Map（合意領域を封鎖 baseline 化） → 3 Assumption Destruction → 4 Remote Mechanism Transfer（構造対応 6 項目が採用条件） → 5 Forced Heterogeneity（生成原理タグ重複禁止） → 6 **Novelty Audit（standard/deep は別 context の独立 auditor 必須。入力契約でアンカリング防止: 動作原理・入出力・主張・観測可能差分のみを渡し、生成 rationale・期待評価は渡さない。light は「独立性なし」を成果物に明示）** → 7 Falsifiable Experiment（事前固定の反証条件） → 採用候補のみ通常実装経路へ。
-
-## 検証（v2 時点）
+## 検証（v3 時点）
 
 - shell 構文（bash -n 全 .sh）/ JSON（jq）: PASS
-- `scripts/validate-layout.sh`（check 8 危険設定 fatal・check 9 skill schema・check 10 stale reference を含む 10 検査）: PASS
+- `scripts/validate-layout.sh`（10 検査 + H-001 の pin 横断検査。WARN 0 件）: PASS
 - `sync-shared-rules.sh --check`: OK
-- `tests/test-*.sh` 7 本（新規 `test-gh-start-contract.sh` 含む）: PASS
+- `tests/test-*.sh` **10 本**（新規: test-claude-bypass / test-private-routing-contract / test-measure-metrics）: PASS
 - `python-refactor-analysis` pytest: 20 passed
-- bootstrap e2e（clean HOME `--apply` → `--check`）: PASS（`test-gh-start-contract.sh` 内で fake gh による `/gh-start` 経路の end-to-end も検証）
-- `scripts/package-release.sh --check`（release lint）: PASS
-- `scripts/measure-metrics.sh`: 本レポートの表と一致
+- bootstrap e2e（clean HOME、test-gh-start-contract 内）: PASS
+- `scripts/package-release.sh --check`: PASS
+- `scripts/measure-metrics.sh --before-ref <baseline> --after-ref HEAD`: 本レポートの表と一致
 
-## 運用上の注意（breaking changes）
+## 運用上の注意（breaking changes / 導入手順）
 
 1. スラッシュコマンド改名: `/gh:pr` → `/gh-pr` 等
-2. **settings.json の既定値変更**: model `sonnet` / effort `medium` / sandbox 有効（`allowUnsandboxedCommands: false`）/ Agent Teams 無効 / `skipDangerousModePermissionPrompt` 削除。`defaultMode: bypassPermissions` は**要件所有者の決定（2026-07-23）により期限付き waiver（`docs/waivers/settings-waivers.tsv`、expires 2027-07-23）とともに共有既定へ復帰** — validator check 8 は waiver 有効期間中 WARN 扱い、期限切れで FAIL に転じ再判断を強制する。旧構成と異なり sandbox が有効なため、防御レイヤーは以前より厚い。sandbox が有効に動作する machine で unsandboxable なコマンドの拒否が実務を妨げる場合は、`allowUnsandboxedCommands` の waiver 追加または `settings.local.json` での調整を検討する
-3. 削除 agent（fast-worker / project-orchestrator / plan-reviewer-* / security-reviewer）を参照する private 設定があれば更新が必要
-4. Codex の Python 品質ゲートは `python-quality` skill の自動発火に依存（明示起動は `$python-quality`）
-5. 復元はすべて `docs/archive/skills/` + git 履歴から可能
+2. **patch の適用は `git am` を使う**（H-002）: `git am agents-toolkit-modernization-final.patch`。mailbox 形式の複数 commit series のため、`git apply` は rename を跨ぐ 2 通目以降で失敗する（正常動作）。単一 diff が必要なら `git diff <baseline>..HEAD` を生成する
+3. **settings 既定値**: sonnet / medium / defaultMode default / sandbox fail-closed。Linux・WSL2 では `sudo apt-get install bubblewrap socat` が必要（未導入だと起動拒否 = 仕様どおりの fail-closed）
+4. **承認プロンプトなし運用**: `~/.claude/bin/claude-bypass --enable-this-machine` → 以後 `claude-bypass` で起動（WSL2・非 root を毎回検証）。shell alias 化する場合は `alias claude=claude-bypass` 相当を当該 machine の shell profile に置く
+5. machine 固有差分の置き場: project 差分 = `<project>/.claude/settings.local.json` / machine 全体の env 系 = shell profile / user settings の恒久差分 = symlink の実ファイル化（`bootstrap.sh --check` が deviation を報告）。**`~/.claude/settings.local.json` は Claude Code に読まれないため使わない**
+6. 削除 agent を参照する private 設定があれば更新。復元は `docs/archive/skills/` + git 履歴から可能
 
-## レビュー対応（v2）
+## レビュー対応履歴
 
-| ID | 対応 |
+### レビュー1 → v2（ATK-001〜015）
+
+ATK-001 parser 復帰 + e2e / ATK-002 sonnet+medium / ATK-003 単一 owner 化 / ATK-005 learnings 遅延化 / ATK-008 auditor 分離 / ATK-009 allowed-tools 統一 + schema 検査 / ATK-012 baseline 証跡 / ATK-013 stale 参照修正 + check 10 / ATK-014 checksum 照合 / ATK-015 git archive 配布（再レビューで CLOSED 判定）。ATK-010 は承認済み例外。
+
+### 再レビュー → v3（残存 4 件 + H-001〜005）
+
+| ID | v3 対応 |
 |---|---|
-| ATK-001 | `parse_issue.py` を `claude/bin/` へ復帰、`gh-issue-fetch.sh` を SCRIPT_DIR 相対解決に変更、gh-start Technical Details / `gtr-start` の旧参照更新、`tests/test-gh-start-contract.sh` で fake gh e2e + パーサー欠落時の非ゼロ終了 + 旧参照ゼロを検証 |
-| ATK-002 | settings を `sonnet` + `medium` へ。full pin は validator check 8 の検査対象（full-model-pin）に追加。エスカレーション条件は model-routing に集約 |
-| ATK-003 | gh-start Phase 2 を単一 owner 既定に改訂。委譲は 4 条件の明示該当時のみ + checkpoint に理由記録。無条件テンプレート 0 を静的テストで担保 |
-| ATK-004 | skipDangerousModePermissionPrompt / allowUnsandboxedCommands / sandbox 無効を共有設定から除去し、check 8 を waiver 必須の fatal に変更（期限付き waiver TSV、fixture テスト付き）。bypassPermissions のみ要件所有者の決定（2026-07-23）で期限付き waiver とともに共有既定へ復帰（sandbox 有効化は維持） |
-| ATK-005 | learnings の CLAUDE.md import と AGENTS.md 埋め込みを廃止。必要時参照 + knowledge-audit skill への遅延同期に変更（計測: 常時ロード learnings 0） |
-| ATK-006 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` を共有設定から削除。settings.local.json での opt-in を CLAUDE.md に明記 |
-| ATK-007 | `scripts/measure-metrics.sh` を同梱（定義付き）。full pin / tier alias / 無条件委譲を分離計測し、本レポートの表を再計測値で更新 |
-| ATK-008 | Stage 6 を別 context auditor 必須（standard/deep）に改訂。入力契約（rationale 不渡し）と出力要件（検索式・範囲・最近傍・根拠・未検証範囲）を明記。light は独立性なしを明示 |
-| ATK-009 | 全 active skill の `allowed-tools` を space 区切りへ統一。validator check 9（name/dir 一致・名前規則・description 長・allowed-tools 形式）を追加、fixture テスト付き。「適合」主張を core spec 検査範囲と vendor extension に分離 |
-| ATK-010 | 純増 2 件を「new behavior 1 + relocated content 1」として本レポート 3.6 に例外記録。要件所有者が 2026-07-23 に承認済み |
-| ATK-011 | private-routing を opt-in active config と一意定義し、消費者・起動条件・不在時挙動を CLAUDE.md に明文化。classification.md の旧記述を更新 |
-| ATK-012 | baseline 証跡を `docs/reports/baseline-2026-07-23.txt` として同梱（SHA-256 記載） |
-| ATK-013 | safety.md / gtr-start / gh-start / classification.md の stale 参照を修正。validator check 10（stale reference、fixture テスト付き）を追加し再発を CI で検出 |
-| ATK-014 | gitleaks 導入手順を「保存 → 公式 checksums 照合 → 成功時のみ展開」に変更 |
-| ATK-015 | `scripts/package-release.sh`（git archive + 禁止 entry lint）を追加し CI に組込み。配布 archive から .git/・cache を排除 |
+| ATK-004 | 共有既定から bypassPermissions を除去（waiver 行も削除）。`failIfUnavailable: true` で fail-open を排除。`sandbox.credentials.files` で credential read を deny。bypass は環境検証ゲート付き `claude-bypass` launcher（machine-local marker + WSL2 + 非 root を毎回実行時検証、fail-closed）に隔離し、6 ケースのテストを追加 |
+| ATK-006 | `~/.claude/settings.local.json`（非 documented scope）への参照を README / CLAUDE.md / classification.md から全廃し、documented scope（user / project / project local）と正しい置き場を明記。Agent Teams opt-in は shell 環境変数へ。settings-syntax.md を「permission rules はマージ・他はスカラー置換」の公式仕様に修正 |
+| ATK-007 | measure-metrics.sh を before/after 比較対応（--before-ref/--after-ref、改名前後の両 layout 認識、find ベースで .git 不要）に書き換え。**tier alias を 14→9 に訂正**。重複原則は greppable 3 組を script 判定 + 2 組を手動評価と明記。fixture 期待値テスト（test-measure-metrics.sh）を追加 |
+| ATK-011 | 優先順位 5 段を CLAUDE.md に明文化。resolver（private-routing-locate）を追加して消費契約を実行可能にし、契約 5 項目 + 欠落 fixture + dummy mapping resolver 選択のテストを追加。XDG fallback の tilde 展開バグを修正 |
+| H-001 | validator check 8 の full-model-pin 検査を agent frontmatter（`model: claude-*`）と TOML（`model = "claude-*"`）へ拡張し、fixture テストを追加 |
+| H-002 | patch 適用方法（`git am`）を本レポート運用上の注意 2 に明記 |
+| H-003 | baseline 証跡を「要約証跡で受入」とする明示例外を Baseline 節に記録 |
+| H-004 | test-gh-start-contract の実体（runtime smoke + 静的契約検査）へ記述を訂正 |
+| H-005 | 本レポートを v3 として全面改訂し、settings・metrics・テスト名の記述を source of truth と一致させた |
