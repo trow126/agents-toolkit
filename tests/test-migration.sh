@@ -88,15 +88,30 @@ setup_sandbox() {
   mkdir -p "$repo/scripts"
   cp "$MIGRATE" "$repo/scripts/migrate-layout.sh"
   chmod +x "$repo/scripts/migrate-layout.sh"
+  # bootstrap は check/apply で doctor(scripts/check-runtime.sh)を強制するため実物を配置する
+  cp "$REPO_ROOT/scripts/check-runtime.sh" "$repo/scripts/check-runtime.sh"
+  chmod +x "$repo/scripts/check-runtime.sh"
 }
+
+# doctor の version 検査を host の claude 有無・version に依存させない(hermetic stub)。
+# doctor 自体の分岐は tests/test-check-runtime.sh が網羅する
+STUB_CLAUDE_BIN="$(mktemp -d)/stub-claude-bin"
+trap 'rm -rf "$(dirname "$STUB_CLAUDE_BIN")"' EXIT
+mkdir -p "$STUB_CLAUDE_BIN"
+printf '#!/usr/bin/env bash\necho "2.1.218 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
+chmod +x "$STUB_CLAUDE_BIN/claude"
 
 run_migrate() {
   local sandbox="$1"
   shift
+  # 本テストは fixture の XDG を明示指定する(= doctor の custom XDG 検査対象)。
+  # custom XDG を受容した machine を模擬するため acceptance env を与える(H-013)
+  PATH="$STUB_CLAUDE_BIN:$PATH" \
   AGENTS_TOOLKIT_REPO="$sandbox/agents-toolkit" \
   AGENTS_TOOLKIT_HOME="$sandbox/home" \
   XDG_STATE_HOME="$sandbox/state" \
   XDG_CONFIG_HOME="$sandbox/config" \
+  AGENTS_TOOLKIT_ACCEPT_CUSTOM_XDG=1 \
   AGENTS_TOOLKIT_MIGRATE_FORCE=1 \
   "$sandbox/agents-toolkit/scripts/migrate-layout.sh" "$@"
 }
@@ -200,7 +215,7 @@ test_apply_success() {
 
   # bootstrap.sh --check がPASSする(個別symlinkが検証を通る)
   local check_rc=0
-  HOME="$home" AGENTS_TOOLKIT_REPO="$repo" "$repo/bootstrap.sh" --check >"$sandbox/check.log" 2>&1 || check_rc=$?
+  PATH="$STUB_CLAUDE_BIN:$PATH" HOME="$home" AGENTS_TOOLKIT_REPO="$repo" "$repo/bootstrap.sh" --check >"$sandbox/check.log" 2>&1 || check_rc=$?
   assert_eq "bootstrap.sh --check はPASS" "0" "$check_rc"
 
   rm -rf "$sandbox"

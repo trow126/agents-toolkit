@@ -2,7 +2,7 @@
 
 2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
 
-**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ v5 → 統合再レビュー3（REQUEST_CHANGES: H-012・H-013・H-007・H-011・H-014・H-015・H-016・H-017）→ **v6（本版。live 実機検証を除く全件を実装反映）**。対応内訳は末尾「レビュー対応履歴」。**本文は現在状態（current state）を記述し、過去版の設計は「レビュー対応履歴」に SUPERSEDED として残す。**
+**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ v5 → 統合再レビュー3（REQUEST_CHANGES: H-012・H-013・H-007・H-011・H-014・H-015・H-016・H-017）→ v6 → 統合再レビュー4（REQUEST_CHANGES: H-018・H-019・H-007・H-011・H-014・H-013・H-016・H-017 — 合成後の実効ポリシー検査）→ **v7（本版。live 実機検証を除く全件を実装反映）**。対応内訳は末尾「レビュー対応履歴」。**本文は現在状態（current state）を記述し、過去版の設計は「レビュー対応履歴」に SUPERSEDED として残す。**
 
 ## Baseline（変更前の検証記録）
 
@@ -17,9 +17,9 @@
 
 | 指標（script の出力 key） | before | after | 削減 |
 |---|---|---|---|
-| combined_always_on_total | 43,068 | 32,863 | **−23.7%** |
+| combined_always_on_total | 43,068 | 33,813 | **−21.5%** |
 | 　codex_agents_md_bytes | 23,116 | 15,271 | **−33.9%** |
-| 　claude_always_on_total | 19,952 | 17,592¹ | −11.8% |
+| 　claude_always_on_total | 19,952 | 18,542¹ | −7.1% |
 | custom_agents | 14 | 9 | **−36%** |
 | claude_skills | 21 | 13 | **−38%** |
 | codex_skills | 4 | 5² | +1 |
@@ -36,11 +36,11 @@
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4447
-claude_always_rules_bytes: 2291
-claude_always_on_total: 17592
+claude_md_bytes: 4874
+claude_always_rules_bytes: 2814
+claude_always_on_total: 18542
 codex_agents_md_bytes: 15271
-combined_always_on_total: 32863
+combined_always_on_total: 33813
 custom_agents: 9
 claude_skills: 13
 codex_skills: 5
@@ -50,16 +50,17 @@ shared_rules: 13
 claude_rules: 5
 full_model_pins: 0
 tier_aliases: 9
-permissions_allow_count: 53
-permissions_ask_count: 51
-permissions_deny_count: 77
+permissions_allow_count: 48
+permissions_ask_count: 56
+permissions_deny_count: 87
 bypass_lockout_ok: yes
+effective_preallowed_domains_count: 0
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 ```
 <!-- END metrics:after -->
 
-¹ v3-v6 で private routing 契約・permission/sandbox 方針の明文化により CLAUDE.md は 4,447 bytes（v1 の 2,909 から増）。削減は rules 統合・import 削減・learnings 遅延化による。² python-quality は AGENTS.md からの移設（3.6 の承認済み例外）。³ 手動評価 2 組の内訳は v2 と同じ。
+¹ v3-v7 で private routing 契約・permission/sandbox 方針・sandbox/uv 運用制約の明文化により CLAUDE.md は 4,874 bytes（v1 の 2,909 から増）。レビュー主導の安全契約文書化を優先し、縮約は rules 統合・import 削減・learnings 遅延化で確保した（combined −21.5% は「約 30% は方向性・数合わせで価値ある機構を削らない」の範囲内と判断）。² python-quality は AGENTS.md からの移設（3.6 の承認済み例外）。³ 手動評価 2 組の内訳は v2 と同じ。
 
 **典型 task の handoff 定義**: 「明確な小規模 Issue を `/gh-start` で処理する際の実装委譲回数」。before = SKILL.md がタスクごとの `general-purpose` 委譲を無条件強制（N タスク = N handoff。script の unconditional_delegation_gh_start = 1 が該当テンプレートの存在を示す）。after = 0（owner 完遂既定。委譲は 4 条件の明示該当時のみ + checkpoint に理由記録）。検証: `tests/test-gh-start-contract.sh`（**内容: gh-issue-fetch の runtime smoke + gh-start SKILL の静的契約検査**。Claude Code 本体の skill 起動〜実装までを駆動する integration test ではない — H-004 対応の正確な名称）。
 
@@ -82,9 +83,9 @@ always_on_learnings_paths: 0
 | 13 | `@anthropic-ai/sandbox-runtime`（srt）は Claude Code プロセス全体（tools・MCP・hooks）を隔離。`srt [--settings file] <command>`、設定は network.allowedDomains / filesystem.{denyRead,allowWrite} 等。beta research preview | code.claude.com/docs/en/sandbox-environments + sandbox-runtime README | **SUPERSEDED**: v4 で採用したが v5 で launcher ごと廃止（歴史的記録として保持） | 高 |
 | 14 | settings の array-valued settings は一般にスコープ間で連結・重複排除（permissions に限らず sandbox filesystem/credentials/network arrays も）。scalar は高優先 override | code.claude.com/docs/en/settings, /sandboxing | settings-syntax.md を修正（ATK-006） | 高 |
 
-未検証事項（すべて実機依存。`scripts/check-runtime.sh` + README の手動チェックリストで補完）: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法。(c) **live Claude Code での lockout 実挙動**（`--permission-mode bypassPermissions` の拒否・startup warning 0 件）。(d) **WSL2 実機での sandbox denyRead/egress の OS-level 強制**。(c)(d) は本環境（Claude Code 実行不可・非 WSL2）では検証不能のため、導入時に実機で確認する。
+未検証事項（すべて実機依存。`scripts/check-runtime.sh`（bootstrap --check/--apply が自動実行）+ README の手動チェックリストで補完）: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法。(c) **live Claude Code での lockout 実挙動**（`--permission-mode bypassPermissions` の拒否・startup warning 0 件）。(d) **WSL2 実機での sandbox denyRead/egress の OS-level 強制**。(e) **実 sandbox 内の workflow 統合検証**: `git add`/通常 `git commit` の成功（.git 狭域 deny との共存）・`~/.claude/bin/uvw run --frozen pytest -q` の成功・`Read(//**/.env)` deny の OS-level 遮断（literal 以外の動的 path 構築を含む）・全 domain の初回 prompt（child process の egress 含む）。(c)(d)(e) は本環境（Claude Code sandbox 実行不可・非 WSL2）では検証不能のため、導入時に実機で確認する（再レビュー受入テスト手順は final_4 レビュー §9 に対応）。
 
-## 縮約の実施内容（Phase 3、v5 時点の最終状態）
+## 縮約の実施内容（Phase 3、v7 時点の最終状態）
 
 ### 3.1 常時コンテキスト
 
@@ -92,16 +93,20 @@ always_on_learnings_paths: 0
 - claude/rules: workflow.md / workspace.md を統合削除。settings-syntax.md は公式の scope・マージ仕様に合わせて全面修正
 - codex/AGENTS.md: python-guidelines / issue-completeness / learnings を遅延化。−33.9%
 
-### 3.2 実行時既定値と permission / sandbox policy（v6 最終形。source of truth と一致）
+### 3.2 実行時既定値と permission / sandbox policy（v7 最終形。source of truth と一致）
+
+前提となる合成 semantics（final_4 レビューで検証。公式 sandboxing docs）: **`Read()`/`Edit()` の deny path は sandbox filesystem へ統合され OS-level で child process にも適用される**。**`WebFetch(domain:...)` allow は sandbox Bash の network domain も pre-allow する**。個別 rule ではなくこの合成後の実効ポリシーを validator と metrics block が恒久検査する。
 
 - `model: "sonnet"` / `effortLevel: "medium"`。model pin/alias は共有 scanner（**対応構文限定 parser** — 非対応構文・decode 不能は明示エラーで fail-closed）で検査
 - **bypass lockout（H-012）**: `permissions.disableBypassPermissionsMode: "disable"` を **documented path（permissions 配下）** に配置。旧 root 配置と非公式 root キー（`skipAutoPermissionPrompt` 等）は撤去。validator が「permissions 配下・値 disable・root 誤配置なし」を構造検査し、欠落/誤配置/誤値の negative fixture 付き
-- **permissions.allow（53 rule）**: read-only git/gh・`git add`/`git commit`・`uv run pytest|ruff|mypy`（space-star）・安全 utility・workspace 限定 `Read(**)`/`Edit(**)`・ドメイン限定 WebFetch。**npm run 系はゼロ**（no-space wildcard `npm run test*` は任意 script 名 `test:publish` 等に match するため全廃し、validator が no-space runner wildcard を拒否 — H-007）
-- **permissions.ask（51 rule）**: 外部副作用（push・PR/issue/release/repo/api/workflow・curl・registry mutation）・任意 package 実行（npx/npm exec/pnpm dlx/bunx）・破壊的 git（checkout/switch/stash/worktree/pull/rebase/branch -D 等）
-- **deterministic hook（H-011/H-014）**: `pre-bash-validate-hook` を fail-closed 化（jq 欠落・malformed JSON・schema 不一致 = exit 2 で block）。`.env` 遮断は path-aware（`config/.env` 等の nested path・subprocess reader・redirection を含む）。**`git commit --amend` は option 順序非依存の argv 判定で deny**（`git -c`/`-C` 前置・`-S --amend` 順も検出。通常 commit は対象外）。テスト: `tests/test-pre-bash-hook.sh`（21 assertion）
-- **sandbox（H-013。read と write を区別）**: write = workspace + session temp（OS-level）。**read は既定 host-wide のため** `filesystem.denyRead` で `~/.config`・`~/.local/state|share`・`~/.cache`・`~/.claude`・`~/.claude.json`・`~/.codex`・`~/.agents` を deny（private routing・XDG state・agent config・session 履歴を遮断）+ `credentials.files` 8 path + `credentials.envVars` 9 変数。**`~/.config/gh` の一般 allowRead を撤去**し、`gh` は `excludedCommands` で sandbox 外実行（permission rule で gate）。**workspace-only read が必要な project は同梱 template（docs/templates/project-sandbox-settings.json: denyRead ~/ + allowRead .）を project 設定へ**（user 設定の `.` は ~/.claude に解決されるため project 側にのみ置ける — 公式 recipe）
-- **network egress（H-007）**: 事前許可 domain を全廃（`sandbox.network` なし = 未知 domain は初回 prompt）。repo 管理の child process が外部送信する場合も domain 承認を経る。known-domain 常時許可による「private read → 許可 domain へ exfil」chain を遮断
-- 危険設定・broad allow の再導入は waiver 必須（schema 検査付き）。**runtime 互換（H-017）**: 検証済み下限 2.1.218 を `scripts/check-runtime.sh`（doctor）が検査し、下限未満は明示エラー
+- **permissions.allow（48 rule）**: read-only git/gh・`git add`/`git commit`・`~/.claude/bin/uvw run pytest|ruff|mypy`（sandbox 互換 uv wrapper — H-019）・安全 utility・workspace 限定 `Read(**)`/`Edit(**)`・WebSearch。**`WebFetch(domain:)` allow はゼロ**（network pre-allow に連動するため — H-007）。**素の `uv run` allow もゼロ**（sandbox 下で cache 初期化に失敗する経路を推奨しない。validator が拒否）
+- **permissions.ask（56 rule）**: 外部副作用（push・PR/issue/release/repo/api/workflow・curl・registry mutation）・任意 package 実行（npx/npm exec/pnpm dlx/bunx）・破壊的 git（checkout/switch/stash/worktree/pull/rebase/branch -D 等）・**permission 前置迂回になり得る形（`git -c*`・`git -C*`・`git --git-dir*`・`git --work-tree*`・`git config` — H-011）**
+- **permissions.deny（87 rule）**: 従来の破壊的操作・credential read に加え、**`.git` は狭域保護**（`Edit(.git/config)`・`Edit(.git/hooks/**)` のみ。旧 `Edit(.git/**)` は sandbox 統合で `git add`/`git commit` の index.lock 書込を阻害するため撤去 — H-018。linked worktree の共有 `.git` も公式仕様が commit write を許可し hooks/config を deny）、**`.env` は machine 全域の OS-level read 境界**（`Read(//**/.env)`・`Read(//**/.env.*)` 等の絶対 path deny → sandbox 統合。動的 path 構築や sibling repo の secret も実アクセスで拒否 — H-014）、**shell 再評価の遮断**（既存 `bash *` に加え `sh *`・`zsh *`・`dash *`）
+- **hook の位置づけ（H-011/H-014 再定義）**: `pre-bash-validate-hook` は **quote 正規化つき raw-string heuristic の「事故・平易迂回の防止層」であり security boundary ではない**（argv parser ではない — 旧記述を訂正）。fail-closed（jq 欠落・malformed JSON・schema 不一致 = exit 2）。`git commit --amend` は「git 語と `--amend` token の共起」で deny し、final_4 の回避 7 形（command/variable substitution・quote 分割・git alias・nested shell）を全て block（fixture 付き）。literal が現れない runtime 構築（base64 復号等）は hook の対象外で、`.env` は OS 境界・history 保護は push の ask/deny が最終防衛（公開履歴が保護対象。local amend は reflog で復元可能）。テスト: `tests/test-pre-bash-hook.sh`（33 assertion。scope 明示テスト含む）
+- **sandbox（H-013。read と write を区別）**: write = workspace + session temp（OS-level）。**read は既定 host-wide のため** `filesystem.denyRead` で `~/.config`・`~/.local/state|share`・`~/.cache`・`~/.claude`・`~/.claude.json`・`~/.codex`・`~/.agents` を deny + `credentials.files` 8 path + `credentials.envVars` 9 変数。**custom XDG は fail-closed で非対応**（denyRead は literal path のため。`scripts/check-runtime.sh` が bootstrap --check/--apply で XDG 既定値を検査し、逸脱は明示エラー。受容は `--accept-custom-xdg` + waiver 記録 + denyRead への絶対 path 追加）。workspace-only read が必要な project は同梱 template を project 設定へ（user 設定の `.` は ~/.claude に解決されるため project 側にのみ置ける — 公式 recipe）
+- **uv の sandbox 互換（H-019）**: uv の既定 cache/data/config（`~/.cache/uv`・`~/.local/share/uv`・`~/.config/uv`）は write 境界外かつ denyRead 下のため、**`~/.claude/bin/uvw`** が可変 state（UV_CACHE_DIR / UV_PYTHON_INSTALL_DIR / UV_TOOL_DIR / XDG_CONFIG_HOME）を session temp（sandbox 内 `$TMPDIR`）へ固定して exec する。**denyRead は緩和しない**。rules/skills/テスト手順は uvw 経由へ統一（skill 同梱 script・Makefile は portability のため同一前処理を vendoring。CI 等 sandbox 外は素の uv で可）。テスト: `tests/test-uvw.sh`
+- **network egress（H-007 最終形）**: **effective pre-allowed domain = 0 件**（`sandbox.network.allowedDomains` なし **かつ** `WebFetch(domain:)` allow なし。validator が和集合を計測し 0 件を強制、metrics block の `effective_preallowed_domains_count` で機械照合）。全 domain（github.com 含む）が session 内初回 prompt を経て、child process の外部送信も同様。broad domain 常時許可による domain-fronting/exfil 経路（公式 docs の警告）を残さない
+- 危険設定・broad allow の再導入は waiver 必須（schema 検査付き）。**runtime 互換（H-017）**: `scripts/check-runtime.sh` を bootstrap --check/--apply が自動実行（claude 欠落のみ NOTE 続行）。検証済み下限 2.1.218 **stable**（prerelease は拒否・future major は NOTE）。user settings に version floor の documented key は存在しない（`minimumVersion` は settings 参照に無く、managed の `requiredMinimumVersion` は fail-open 設計）ため、この doctor が version gate である
 
 **bypassPermissions の経緯（履歴）**: v3 で waiver 付き共有既定 → v4 で srt launcher 隔離 → **v5 で launcher 廃止 + lockout（現在状態）**。詳細は「レビュー対応履歴」。
 
@@ -129,25 +134,26 @@ v2 から変更なし（fast-worker / project-orchestrator 削除、plan-reviewe
 
 v2 から変更なし（手動起動限定、Stage 1-7、standard/deep は別 context の独立 novelty auditor 必須 + rationale 不渡しの入力契約、light は独立性なしを明示）。
 
-## 検証（v5 時点）
+## 検証（v7 時点）
 
 - shell 構文（bash -n 全 .sh）/ JSON（jq）: PASS
-- `scripts/validate-layout.sh`（10 検査。構造的 pin scan・broad-allow 検査・waiver schema 検査を含む。WARN 0 件）: PASS
+- `scripts/validate-layout.sh`（10 検査。構造的 pin scan・broad-allow 検査・waiver schema 検査・**実効ポリシー検査（.git 全体 deny 拒否 / effective pre-allowed domain 0 件 / 素の uv allow 拒否 / .git 狭域・.env OS 境界の presence contract）** を含む。WARN 0 件）: PASS
 - `sync-shared-rules.sh --check`: OK
-- `tests/test-*.sh` **11 本**（新規: test-pre-bash-hook）: PASS（negative fixture: lockout 欠落/誤配置/誤値 / no-space runner wildcard / quoted・literal pin / scanner fail-closed / broad allow / waiver schema 4 種 / stale report 数値 / hook の malformed input・jq 欠落・nested .env・amend 順序 variant をすべて拒否することを含む）
+- `tests/test-*.sh` **13 本**（新規: test-uvw / test-check-runtime）: PASS（negative fixture: lockout 欠落/誤配置/誤値 / no-space runner wildcard / quoted・literal pin / scanner fail-closed / broad allow / **`Edit(.git/**)` deny / WebFetch 由来 pre-allow / 素の uv allow / presence contract 欠落** / waiver schema 4 種 / stale report 数値 / hook の malformed input・jq 欠落・nested .env・**quote 分割・amend 回避 7 形** / **doctor の下限未満・prerelease・custom XDG 拒否** をすべて検出することを含む）
 - `python-refactor-analysis` pytest: 20 passed
-- bootstrap e2e（clean HOME、test-gh-start-contract 内）: PASS
+- bootstrap e2e（clean HOME、test-gh-start-contract 内。doctor 統合込み）: PASS
 - `scripts/package-release.sh --check`: PASS
 - `scripts/measure-metrics.sh --before-ref <baseline> --after-ref HEAD`: 本レポートの表と一致
 
 ## 運用上の注意（breaking changes / 導入手順）
 
 1. スラッシュコマンド改名: `/gh:pr` → `/gh-pr` 等
-2. **patch の適用は `git am` を使う**（H-002）: `git am agents-toolkit-modernization-final.patch`。mailbox 形式の複数 commit series のため、`git apply` は rename を跨ぐ 2 通目以降で失敗する（正常動作）。単一 diff が必要なら `git diff <baseline>..HEAD` を生成する
+2. **patch の適用は `git am` を使う**（H-002）: `git am agents-toolkit-modernization-final.patch`。mailbox 形式の複数 commit series のため、`git apply` は rename を跨ぐ 2 通目以降で失敗する（正常動作）。単一 diff が必要なら `git diff <baseline>..HEAD` を生成する。**配布名の正**: 配布 artifact は常に固定名 `agents-toolkit-modernization-final.patch` / `agents-toolkit-modernized-final.zip` / `modernization-report-final.md` で、受領側の保存時 rename（`final_4` 等の連番付与）があり得る。同一性は本レポートではなく SHA-256 で照合する（H-016）
 3. **settings 既定値**: sonnet / medium / defaultMode default / sandbox fail-closed。Linux・WSL2 では `sudo apt-get install bubblewrap socat` が必要（未導入だと起動拒否 = 仕様どおりの fail-closed）
-4. **低プロンプト運用（bypass なし）**: bypassPermissions は共有設定で無効（v5 決定）。日常の Bash は sandbox auto-allow で prompt なし、project 内の読み書きは `Read(**)`/`Edit(**)` で prompt なし。prompt が出るのは外部副作用（push・PR/issue 作成・`gh api`・`curl`・registry 操作・`npx` 等）と破壊的 git 操作の ask のみ。特定の ask を恒常的に allow へ移す場合は意図の記録を伴う（waiver 相当のコミット履歴）。無人運用が必要な場合は公式 devcontainer 等の隔離環境を使う
-5. machine 固有差分の置き場: project 差分 = `<project>/.claude/settings.local.json` / machine 全体の env 系 = shell profile / user settings の恒久差分 = symlink の実ファイル化（`bootstrap.sh --check` が deviation を報告）。**`~/.claude/settings.local.json` は Claude Code に読まれないため使わない**
-6. 削除 agent を参照する private 設定があれば更新。復元は `docs/archive/skills/` + git 履歴から可能
+4. **低プロンプト運用（bypass なし）**: bypassPermissions は共有設定で無効（v5 決定）。日常の Bash は sandbox auto-allow で prompt なし、project 内の読み書きは `Read(**)`/`Edit(**)` で prompt なし。prompt が出るのは外部副作用（push・PR/issue 作成・`gh api`・`curl`・registry 操作・`npx` 等）・破壊的 git 操作・`git -c*` 等の前置形の ask・**network domain の session 内初回**のみ（WebFetch 含め事前許可 domain ゼロのため、docs 参照等も初回 1 回 prompt される）。特定の ask を恒常的に allow へ移す場合は意図の記録を伴う（waiver 相当のコミット履歴）。無人運用が必要な場合は公式 devcontainer 等の隔離環境を使う
+5. **sandbox 内の運用制約（v7）**: uv は `~/.claude/bin/uvw` 経由（素の `uv run` は cache 初期化で失敗する）。`git config`（local）・`git init`・`git remote add` は `.git/config`・`.git/hooks` の deny により sandbox 内で失敗するため手動 shell で行う（`git add`/`git commit`/`git fetch` は影響なし）。`.env` 系 file（`.env.example` 含む）は machine 全域で read deny — 参照が必要なら `env.example` へ改名するか waiver を登録する。`git commit --amend` は hook が deny（手動操作）。commit message 等に literal `--amend` を含む git コマンドも over-block 側に倒して deny される（安全側の設計判断）
+6. machine 固有差分の置き場: project 差分 = `<project>/.claude/settings.local.json` / machine 全体の env 系 = shell profile / user settings の恒久差分 = symlink の実ファイル化（`bootstrap.sh --check` が deviation を報告）。**`~/.claude/settings.local.json` は Claude Code に読まれないため使わない**。**custom XDG は非対応**（doctor が fail-closed で検出。受容は waiver + denyRead 絶対 path 追加 + `--accept-custom-xdg`）
+7. 削除 agent を参照する private 設定があれば更新。復元は `docs/archive/skills/` + git 履歴から可能
 
 ## レビュー対応履歴
 
@@ -204,3 +210,16 @@ ATK-001 parser 復帰 + e2e / ATK-002 sonnet+medium / ATK-003 単一 owner 化 /
 | H-015 | safety.md の複合コマンド根拠を現行仕様（separator ごとに独立判定）へ修正し style 方針と明記。settings-syntax.md の `:*` を「末尾でのみ space-star と同等の legacy-equivalent」へ修正 |
 | H-016 | classification.md の claude-bypass 案内を REMOVED 注記へ置換。evidence matrix の launcher 採用行に SUPERSEDED を明記し、本文=現在状態 / 履歴=SUPERSEDED の分離方針を宣言。permission 件数・bypass lockout を metrics block（機械照合対象）に追加し、prose の件数は block を正とする |
 | H-017 | `scripts/check-runtime.sh`（doctor）を追加: 検証済み下限 2.1.218 を `claude --version` で検査し、下限未満は明示エラー（silent continuation なし）。startup warning 0 件の目視確認を案内。README の導入手順に組込み |
+
+### 統合再レビュー4 → v7（H-018・H-019・H-007/H-011/H-014/H-013/H-016/H-017 — 合成後の実効ポリシー）
+
+| ID | v7 対応 |
+|---|---|
+| H-018 | `Edit(.git/**)` deny を撤去（Read/Edit deny → sandbox filesystem 統合により `git add`/`git commit` の `.git/index.lock` 作成を OS-level で阻害していた）。保護は `Edit(.git/config)`・`Edit(.git/hooks/**)` の狭域 deny に置換（公式の linked-worktree built-in 保護と同じ stance）。validator に「broad .git deny 拒否 + 狭域 deny presence contract」検査と negative fixture を追加。副作用（`git config`/`git init`/`git remote add` の sandbox 内失敗）は運用制約として文書化。実 sandbox 内の add/commit 成功は実機検証項目（未検証事項 (e)） |
+| H-019 | sandbox 互換 uv wrapper `claude/bin/uvw` を新設: UV_CACHE_DIR / UV_PYTHON_INSTALL_DIR / UV_TOOL_DIR / XDG_CONFIG_HOME を session temp（sandbox 内 `$TMPDIR`）配下へ固定して `exec uv`（既存環境変数は尊重・denyRead は緩和しない）。allow rule・rules・skills・テスト手順を uvw 経由へ統一し、素の `uv run` allow は validator が拒否。skill 同梱 script / Makefile は同一前処理を vendoring（portability）。専用テスト `tests/test-uvw.sh` を追加 |
+| H-007 | `WebFetch(domain:...)` allow 5 件を全撤去（WebFetch allow が sandbox Bash の network domain も pre-allow するため「事前許可 domain ゼロ」と矛盾していた）。validator が effective pre-allowed domains（`sandbox.network.allowedDomains` ∪ `WebFetch(domain:)` allow）の和集合 0 件を強制し、metrics block に `effective_preallowed_domains_count` を追加（report consistency test の照合対象） |
+| H-011 | amend gate を「argv parser」と呼ぶ誤記述を訂正し、**quote 正規化つき heuristic（事故・平易迂回の防止層）** として再定義。判定を「git 語 × `--amend` token の共起」（over-block 側）へ書き換え、final_4 の回避 7 形（substitution・変数・quote 分割・alias 2 形・nested shell）を全て deny（fixture 化）。加えて `sh *`/`zsh *`/`dash *` deny と `git -c*`/`-C*`/`--git-dir*`/`--work-tree*`/`git config` ask で shell 再評価・前置迂回の permission 層 gate を追加。security boundary は push の ask/deny（公開履歴の保護）と sandbox に置く |
+| H-014 | `.env` 保護の最終境界を filesystem policy へ移動: `Read(//**/.env)`・`Read(//**/.env.*)`・`Edit(//**/.env)`・`Edit(//**/.env.*)` の絶対 path deny → sandbox 統合により、動的 path 構築（base64/chr/変数連結）や sibling repo の secret も OS-level で read 拒否。hook は quote 正規化により literal 分割形（`.e""nv`）まで担当し、対象外領域を scope テストとして明示。validator に presence contract を追加 |
+| H-013 | custom XDG を fail-closed で非対応化: doctor が XDG_CONFIG/STATE/DATA/CACHE_HOME の既定値逸脱を検出しエラー（受容は `--accept-custom-xdg` + waiver + denyRead 絶対 path 追加）。bootstrap --check/--apply が doctor を自動実行。workspace-only read template は導入契約として README/レポートに明記（scope: user-wide denyRead = 既定 XDG の private tree / workspace 相対境界 = project 設定のみ） |
+| H-016 | 「v5 時点」見出し・「事前許可 domain なし」保証・「argv 判定」表現・metrics 件数を v7 実効ポリシーへ同期。配布名の固定と受領側 rename の扱い（SHA-256 照合が正）を明記。metrics block に effective_preallowed_domains_count を追加し consistency test の対象へ |
+| H-017 | doctor を bootstrap --check/--apply へ統合（claude 欠落のみ `--soft-missing` NOTE 続行）。prerelease（`-beta` 等）を semver 識別で拒否・future major は NOTE。専用テスト `tests/test-check-runtime.sh` を追加。user settings への `minimumVersion` 追加は**採用しない**: 当該 key は settings 参照に存在せず（2026-07-24 確認）、unknown key は startup warning 0 件契約に反する。managed 配備では `requiredMinimumVersion`（fail-open 設計である点に注意）が利用可能。startup warning 0 件・lockout 拒否の実機 smoke は未検証事項 (c) |

@@ -343,6 +343,40 @@ out="$(run_validate "$REPO11E" 2>&1)" || rc=$?
 assert_exit_nonzero "誤値の lockout は失敗する" "$rc"
 
 # =========================================================================
+# 11f. .git 全体 deny(sandbox 統合で git workflow を破壊)と
+#      sandbox 有効時の presence contract 欠落は非ゼロ(H-018/H-014)
+# =========================================================================
+REPO11F="$SANDBOX/repo11f"
+build_fixture "$REPO11F"
+printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "deny": ["Edit(.git/**)"]}, "sandbox": {"enabled": true}}\n' > "$REPO11F/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11F/install/manifest.tsv"
+git -C "$REPO11F" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11F" 2>&1)" || rc=$?
+assert_exit_nonzero ".git 全体 deny は失敗する" "$rc"
+assert_contains "git-workflow-breaking deny が列挙される" "$out" "git-workflow-breaking deny: 'Edit(.git/**)'"
+assert_contains "狭域 .git 保護の欠落が列挙される" "$out" "missing required deny rule for sandboxed settings: 'Edit(.git/config)'"
+assert_contains ".env OS 境界の欠落が列挙される" "$out" "missing required deny rule for sandboxed settings: 'Read(//**/.env)'"
+
+# =========================================================================
+# 11g. WebFetch(domain:) allow / sandbox.network.allowedDomains による
+#      effective pre-allow と、素の uv allow は非ゼロ(H-007/H-019)
+# =========================================================================
+REPO11G="$SANDBOX/repo11g"
+build_fixture "$REPO11G"
+printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "allow": ["WebFetch(domain:github.com)", "Bash(uv run pytest *)"]}, "sandbox": {"network": {"allowedDomains": ["example.com"]}}}\n' > "$REPO11G/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11G/install/manifest.tsv"
+git -C "$REPO11G" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11G" 2>&1)" || rc=$?
+assert_exit_nonzero "effective pre-allowed domain は失敗する" "$rc"
+assert_contains "WebFetch 由来の domain が列挙される" "$out" "pre-allowed egress domain: 'github.com'"
+assert_contains "allowedDomains 由来の domain が列挙される" "$out" "pre-allowed egress domain: 'example.com'"
+assert_contains "素の uv allow が列挙される" "$out" "sandbox-incompatible uv allow: 'Bash(uv run pytest *)'"
+
+# =========================================================================
 # 11d. model scanner は非対応YAML構文で fail-closed になる(H-001)
 # =========================================================================
 REPO11D="$SANDBOX/repo11d"

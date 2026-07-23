@@ -80,7 +80,7 @@ Issueタスクは暗黙的な順序依存を持つことが多い（タスク2�
 3. **自己検証** (`~/.agents/rules/learnings.md` ゲート):
    - No Fallbackポリシー違反がないか（`except: pass`, catch-all）
    - 型安全ガード（ゼロ除算、空配列、None処理）
-   - テストが存在する場合、`uv run pytest` が通るか
+   - テストが存在する場合、`~/.claude/bin/uvw run pytest` が通るか（sandbox 互換 uv wrapper）
 4. **ステージング**: 変更ファイルを `git add` でステージング
 5. **コミット**: Conventional Commits形式でコミット
    - コミットメッセージにIssue番号を含める

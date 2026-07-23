@@ -98,7 +98,7 @@ Display the audit report. Ask user to confirm before proceeding to Phase 2.
 
 ### Phase 2: Compression (Write)
 
-**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use UTF-8-safe `uv run python` transforms or **Bash** `sed`. Verify output after editing Japanese files.
+**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use UTF-8-safe Python transforms (`~/.claude/bin/uvw run python` in the Claude Code sandbox) or **Bash** `sed`. Verify output after editing Japanese files.
 
 #### Step 0: Backup
 

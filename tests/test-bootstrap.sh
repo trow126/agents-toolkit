@@ -91,6 +91,10 @@ build_fixture_repo() {
   echo "# sample rule (fixture)" > "$repo/claude/rules/sample.md"
   echo "# AGENTS.md (fixture)" > "$repo/codex/AGENTS.md"
   echo "# agmsg SKILL.md (fixture)" > "$repo/shared/skills/agmsg/SKILL.md"
+  # bootstrap は check/apply で doctor(scripts/check-runtime.sh)を強制するため実物を配置する
+  mkdir -p "$repo/scripts"
+  cp "$REPO_ROOT/scripts/check-runtime.sh" "$repo/scripts/check-runtime.sh"
+  chmod +x "$repo/scripts/check-runtime.sh"
 
   printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\n' > "$repo/install/manifest.tsv"
   printf 'link-dir\tclaude/rules\t.claude/rules\n' >> "$repo/install/manifest.tsv"
@@ -101,10 +105,18 @@ build_fixture_repo() {
 # NO_OVERLAY: 存在しないoverlay rootを指す(overlayなしケースの既定に使う)
 NO_OVERLAY="$SANDBOX/no-such-overlay"
 
+# doctor の version 検査を host の claude 有無・version に依存させない(hermetic):
+# 検証済み下限と同値を返す stub claude を PATH 先頭へ置く。doctor 自体の分岐は
+# tests/test-check-runtime.sh が網羅する
+STUB_CLAUDE_BIN="$SANDBOX/stub-claude-bin"
+mkdir -p "$STUB_CLAUDE_BIN"
+printf '#!/usr/bin/env bash\necho "2.1.218 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
+chmod +x "$STUB_CLAUDE_BIN/claude"
+
 run_bootstrap() {
   local repo="$1" home="$2" overlay="$3"
   shift 3
-  AGENTS_TOOLKIT_REPO="$repo" HOME="$home" AGENTS_TOOLKIT_OVERLAY="$overlay" "$BOOTSTRAP" "$@"
+  PATH="$STUB_CLAUDE_BIN:$PATH" AGENTS_TOOLKIT_REPO="$repo" HOME="$home" AGENTS_TOOLKIT_OVERLAY="$overlay" "$BOOTSTRAP" "$@"
 }
 
 # =========================================================================

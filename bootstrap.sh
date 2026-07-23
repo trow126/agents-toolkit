@@ -8,14 +8,16 @@ MANIFEST="$REPO_DIR/install/manifest.tsv"
 OVERLAY_ROOT="${AGENTS_TOOLKIT_OVERLAY:-${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/overlay}"
 
 MODE="apply"
+ACCEPT_CUSTOM_XDG="false"
 
 usage() {
   cat <<'EOF'
-Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
+Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH] [--accept-custom-xdg]
   --check    manifest(+overlay)通りの symlink 状態を検証する(変更なし)
   --dry-run  --apply が行う操作を実行せず列挙する(変更なし)
   --apply    symlink を作成する(既定。引数なしも同じ)
   --overlay PATH  overlay root を明示指定する
+  --accept-custom-xdg  doctor の custom XDG 検査を明示受容する(waiver 記録が前提)
 EOF
 }
 
@@ -24,6 +26,7 @@ while [[ $# -gt 0 ]]; do
     --check) MODE="check"; shift ;;
     --dry-run) MODE="dry-run"; shift ;;
     --apply) MODE="apply"; shift ;;
+    --accept-custom-xdg) ACCEPT_CUSTOM_XDG="true"; shift ;;
     --overlay)
       if [[ $# -lt 2 ]]; then
         echo "ERROR: --overlay には PATH を指定してください" >&2
@@ -289,8 +292,22 @@ run_check() {
   return 1
 }
 
+# runtime / 環境前提の doctor(H-013/H-017)。check・apply の両経路で強制する。
+# claude CLI 欠落は --soft-missing により NOTE 続行(codex 専用マシン)、
+# custom XDG・下限未満 version・prerelease は fail-closed で非ゼロ終了する。
+# custom XDG の明示受容: --accept-custom-xdg または AGENTS_TOOLKIT_ACCEPT_CUSTOM_XDG=1
+# (waiver を docs/waivers/settings-waivers.tsv へ記録し denyRead へ絶対 path を追加すること)
+run_doctor() {
+  local args=(--soft-missing)
+  if [[ "$ACCEPT_CUSTOM_XDG" == "true" || "${AGENTS_TOOLKIT_ACCEPT_CUSTOM_XDG:-0}" == "1" ]]; then
+    args+=(--accept-custom-xdg)
+  fi
+  "$REPO_DIR/scripts/check-runtime.sh" "${args[@]}"
+}
+
 case "$MODE" in
   check)
+    run_doctor
     rc=0
     run_check || rc=$?
     exit "$rc"
@@ -300,6 +317,7 @@ case "$MODE" in
     exit 0
     ;;
   apply)
+    run_doctor
     run_apply_or_dryrun "true"
     # gitleaks pre-commit hook の有効化(core.hooksPath は .git/config 保存のためマシンごとに必要)
     # -e: worktree 等で .git がファイルの場合も対応

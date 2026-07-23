@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-pre-bash-hook.sh — pre-bash-validate-hook の fail-closed / path-aware / amend-gate テスト
-# (2026-07-23 H-014 / H-011)
+# (2026-07-23 H-014 / H-011, 2026-07-24 quote 正規化・共起判定へ改訂)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,17 +65,34 @@ expect_block "perl による nested .env open を block" 'perl -e "open(F, q{con
 expect_block "ruby による nested .env read を block" 'ruby -e "puts File.read(%q{config/.env})"'
 expect_block "redirection wc -c < config/.env を block" 'wc -c < config/.env'
 expect_block "command substitution の .env を block" 'echo $(cat config/.env)'
+expect_block "quote 分割 .env(cat config/.e\"\"nv)を block" 'cat config/.e""nv'
+expect_block "quote 分割 .env(single quote)を block" "cat config/.'e'nv"
 expect_allow ".env の existence check(ls)は許可" 'ls .env'
 expect_allow ".env の existence check(stat)は許可" 'stat .env'
 expect_allow "無関係な command は許可" 'echo hello'
 
-# ---- 3. git commit --amend の order 非依存 gate(H-011) ----
+# hook 層の対象外(literal が現れない runtime 構築)を明示する scope テスト。
+# これらは OS-level 境界(Read(//**/.env) deny → sandbox filesystem 統合)が実アクセスを
+# 遮断する担当であり、hook は block しない(= exit 0 が本 hook の仕様)
+expect_allow "scope: base64 復号 path は hook 層の対象外(OS 境界の担当)" 'cat "$(printf Y29uZmlnLy5lbnY= | base64 -d)"'
+expect_allow "scope: 変数連結 path は hook 層の対象外(OS 境界の担当)" 'a=config/.e; b=nv; cat "$a$b"'
+
+# ---- 3. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
 expect_block "--amend(標準順)を block" 'git commit --amend -m x'
 expect_block "--amend(option 先行: -S)を block" 'git commit -S --amend -m x'
 expect_block "--amend(git -c 前置)を block" 'git -c user.name=x commit --amend'
 expect_block "--amend(git -C 前置)を block" 'git -C repo commit --amend --no-edit'
+# 再レビュー(final_4)の回避 7 形: すべて literal を含むか quote 正規化で復元されるため block
+expect_block "回避形: command substitution 引数を block" 'git commit "$(printf -- --amend)" -m x'
+expect_block "回避形: quote 分割 --am\"\"end を block" 'git commit --am""end -m x'
+expect_block "回避形: 変数代入 x=--amend を block" 'x=--amend; git commit "$x" -m x'
+expect_block "回避形: 変数 + substitution を block" 'x=$(printf -- --amend); git commit "$x" -m x'
+expect_block "回避形: git alias(-c alias.ci)を block" 'git -c alias.ci=commit ci --amend -m x'
+expect_block "回避形: shell alias(!git commit --amend)を block" 'git -c alias.x="!git commit --amend" x'
+expect_block "回避形: nested shell(sh -c)を block" 'sh -c "git commit --amend -m x"'
 expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
+expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 
 # ---- 4. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'

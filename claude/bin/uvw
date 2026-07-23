@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# uvw — Claude Code sandbox 互換の uv wrapper(2026-07-24 H-019)
+#
+# 背景: sandbox の write 境界は workspace + session temp のみで、read も denyRead が
+# ~/.cache / ~/.local/share / ~/.config を遮断する。一方 uv の既定 path は
+#   cache:  $XDG_CACHE_HOME/uv または ~/.cache/uv
+#   data:   $XDG_DATA_HOME/uv または ~/.local/share/uv(managed Python / tools)
+#   config: $XDG_CONFIG_HOME/uv または ~/.config/uv
+# のため、素の `uv run` は sandbox 内で cache 初期化に失敗する(起動前エラー)。
+# 本 wrapper は uv の可変 state を session temp($TMPDIR は sandbox 内で session temp を
+# 指す: 公式 sandboxing docs)配下へ固定してから uv を exec する。private tree の
+# denyRead / write 境界は一切緩和しない(review H-019 受入条件)。
+#
+# 設計:
+# - 既に環境変数が明示設定されている場合はそれを尊重する(上書きしない)
+# - user-level uv config(~/.config/uv)は denyRead 下で EACCES になり得るため、
+#   XDG_CONFIG_HOME 未設定時は空 dir へ向けて「設定なし」の決定的動作に変換する。
+#   project の uv.toml / pyproject.toml の解決には影響しない
+# - sandbox 外(CI・直接 shell)でもそのまま動作する($TMPDIR 不在時は /tmp/uvw-state-<uid>)
+set -euo pipefail
+
+command -v uv >/dev/null 2>&1 || { echo "ERROR: uv が見つかりません。https://docs.astral.sh/uv/ に従い導入してください" >&2; exit 1; }
+
+base="${TMPDIR:-/tmp/uvw-state-$(id -u)}"
+state="$base/uvw"
+mkdir -p "$state/cache" "$state/python" "$state/tools" "$state/xdg-config"
+
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$state/cache}"
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$state/python}"
+export UV_TOOL_DIR="${UV_TOOL_DIR:-$state/tools}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$state/xdg-config}"
+
+exec uv "$@"

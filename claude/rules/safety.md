@@ -5,6 +5,7 @@
 ## Claude Code 運用
 
 - `~/.claude/settings.json` および各プロジェクトの `.claude/settings.local.json` は Claude セッション内で直接編集しない。shell で編集してから Claude を再起動する
+- pre-bash hook（`--amend` 共起 deny・`.env` literal 遮断）は **quote 正規化つき heuristic の事故防止層**であり security boundary ではない。boundary は決定論的レイヤが担う: filesystem は permission deny → sandbox 統合（OS-level）、外部反映は `git push` 等の ask/deny、shell 再評価は `bash *`/`sh *` deny と `git -c*` ask。history rewrite の保護対象は公開済み履歴であり、push gate がそれを守る（local の amend は reflog で復元可能）
 
 ## 複合コマンド
 

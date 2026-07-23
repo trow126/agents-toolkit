@@ -326,19 +326,19 @@
 
 ```yaml
 14. Lint チェック:
-    uv run ruff check src/ scripts/
+    ~/.claude/bin/uvw run ruff check src/ scripts/
 
     エラー時:
-    - 自動修正可能 → uv run ruff check --fix
+    - 自動修正可能 → ~/.claude/bin/uvw run ruff check --fix
     - 手動修正必要 → 該当箇所を表示
 
 15. フォーマットチェック:
-    uv run ruff format --check src/ scripts/
+    ~/.claude/bin/uvw run ruff format --check src/ scripts/
 
-    差分あり → uv run ruff format src/ scripts/
+    差分あり → ~/.claude/bin/uvw run ruff format src/ scripts/
 
 16. テスト実行:
-    uv run pytest tests/ -v
+    ~/.claude/bin/uvw run pytest tests/ -v
 
     失敗時:
     - 失敗テストを表示

@@ -370,6 +370,47 @@ if [[ -f claude/settings.json ]]; then
       fail "unsupported path-scoped permission rule (matches nothing in current Claude Code): '$rule' — use Edit(path) for file-edit policy"
     done <<< "$UNSUPPORTED_RULES"
   fi
+
+  # H-018: Read/Edit deny path は sandbox filesystem へ統合され OS-level で child process にも
+  # 適用される(公式 sandboxing docs)。.git 全体の deny は git add/commit の index.lock 書き込みを
+  # 阻害し通常 workflow を停止させるため拒否する(保護は .git/config・.git/hooks/** に限定する)
+  GIT_BROAD_DENIES="$(jq -r '.permissions.deny[]? | select(test("^(Read|Edit)\\(\\.git/\\*\\*?\\)$"))' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$GIT_BROAD_DENIES" ]]; then
+    while IFS= read -r rule; do
+      fail "git-workflow-breaking deny: '$rule'(sandbox 統合で .git/index.lock 書込を阻害し git add/commit が失敗する。Edit(.git/config)・Edit(.git/hooks/**) の狭い deny に置換する — H-018)"
+    done <<< "$GIT_BROAD_DENIES"
+  fi
+
+  # H-007: effective pre-allowed egress domain は 0 件であること。
+  # WebFetch(domain:...) allow は WebFetch だけでなく sandbox Bash の network domain も
+  # pre-allow する(公式 sandboxing docs)ため、和集合で計測する
+  EFFECTIVE_DOMAINS="$(jq -r '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")) | sub("^WebFetch\\(domain:"; "") | sub("\\)$"; ""))] | .[]' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$EFFECTIVE_DOMAINS" ]]; then
+    while IFS= read -r dom; do
+      fail "pre-allowed egress domain: '$dom'(sandbox.network.allowedDomains と WebFetch(domain:) allow の和集合は 0 件が contract。child process が無 prompt で外部接続可能になる — H-007)"
+    done <<< "$EFFECTIVE_DOMAINS"
+  fi
+
+  # H-019: 素の uv 実行 allow は sandbox 下で cache 初期化に失敗する経路の推奨になるため拒否する
+  # (uv の可変 state を session temp へ固定する ~/.claude/bin/uvw を経由させる)
+  DIRECT_UV_ALLOWS="$(jq -r '.permissions.allow[]? | select(test("^Bash\\(uv (run|tool|pip|sync|add)"))' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$DIRECT_UV_ALLOWS" ]]; then
+    while IFS= read -r rule; do
+      fail "sandbox-incompatible uv allow: '$rule'(既定 cache path が sandbox write 境界外。~/.claude/bin/uvw 経由の rule に置換する — H-019)"
+    done <<< "$DIRECT_UV_ALLOWS"
+  fi
+
+  # sandbox 有効な settings への presence contract(H-018/H-014):
+  # - .git の狭域保護(Edit(.git/config)・Edit(.git/hooks/**))が存在すること
+  # - .env の OS-level read 境界(Read(//**/.env)・Read(//**/.env.*))が存在すること
+  #   (hook は literal heuristic 層であり、runtime 構築 path はこの deny → sandbox 統合が遮断する)
+  if jq -e '.sandbox.enabled == true' claude/settings.json >/dev/null 2>&1; then
+    for required in 'Edit(.git/config)' 'Edit(.git/hooks/**)' 'Read(//**/.env)' 'Read(//**/.env.*)' 'Edit(//**/.env)' 'Edit(//**/.env.*)'; do
+      if ! jq -e --arg r "$required" '.permissions.deny | index($r) != null' claude/settings.json >/dev/null 2>&1; then
+        fail "missing required deny rule for sandboxed settings: '$required'(H-018/H-014 contract)"
+      fi
+    done
+  fi
 fi
 
 # =========================================================================

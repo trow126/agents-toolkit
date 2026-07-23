@@ -14,8 +14,13 @@ The tool borrows the structure-map approach from `ast-structure-map`, but narrow
 ## Run
 
 ```bash
-uv run --project . refactor-analyze /path/to/repo --profile full
+scripts/refactor-analyze /path/to/repo --profile full
 ```
+
+The wrapper pins uv's mutable state (cache/python/tools) to the session temp
+directory, so it also works inside the Claude Code sandbox where uv's default
+paths are outside the write boundary. Outside a sandbox,
+`uv run --project . refactor-analyze ...` is equivalent.
 
 The intended workflow is whole-repository analysis with the full profile.
 Reports are written to `<repo>/.analysis` by default, regardless of the current

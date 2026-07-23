@@ -1,9 +1,22 @@
 #!/usr/bin/env sh
+# refactor-analyze wrapper — sandbox-compatible (2026-07-24 H-019)
+# Claude Code sandbox では uv の既定 cache/data/config path(~/.cache 等)が
+# write 境界外・denyRead 下にあるため、可変 state を session temp へ固定してから uv を呼ぶ。
+# ~/.claude/bin/uvw と同じ前処理を skill 単体でも動くよう vendoring している
+# (skill は toolkit 外へ copy されても自己完結で動く必要があるため)。
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 SKILL_DIR=$(dirname "$SCRIPT_DIR")
 
 if command -v uv >/dev/null 2>&1; then
+  base="${TMPDIR:-/tmp/uvw-state-$(id -u)}"
+  state="$base/uvw"
+  mkdir -p "$state/cache" "$state/python" "$state/tools" "$state/xdg-config"
+  UV_CACHE_DIR="${UV_CACHE_DIR:-$state/cache}"
+  UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$state/python}"
+  UV_TOOL_DIR="${UV_TOOL_DIR:-$state/tools}"
+  XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$state/xdg-config}"
+  export UV_CACHE_DIR UV_PYTHON_INSTALL_DIR UV_TOOL_DIR XDG_CONFIG_HOME
   exec uv run --project "$SKILL_DIR" refactor-analyze "$@"
 fi
 

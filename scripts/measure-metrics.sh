@@ -80,11 +80,16 @@ measure_tree() {
     echo "permissions_ask_count: $(jq '.permissions.ask // [] | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
     echo "permissions_deny_count: $(jq '.permissions.deny | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
     echo "bypass_lockout_ok: $(jq -r 'if .permissions.disableBypassPermissionsMode == "disable" then "yes" else "no" end' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    # effective pre-allowed egress domains(H-007):
+    # sandbox.network.allowedDomains と WebFetch(domain:...) allow の和集合。
+    # WebFetch allow は sandbox Bash の network domain も pre-allow する(公式 sandboxing docs)
+    echo "effective_preallowed_domains_count: $(jq '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")))] | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
   else
     echo "permissions_allow_count: n/a"
     echo "permissions_ask_count: n/a"
     echo "permissions_deny_count: n/a"
     echo "bypass_lockout_ok: n/a"
+    echo "effective_preallowed_domains_count: n/a"
   fi
 
   local uncond=0

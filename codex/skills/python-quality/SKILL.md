@@ -14,6 +14,7 @@ Python の実装・修正・レビューの前に本チェックリストを適�
 ### uv プロジェクト
 
 - pyproject.toml があるプロジェクトでは常に `uv run python` または `uv run script.py` を使用する
+- **Claude Code の sandbox 内では素の `uv` ではなく `~/.claude/bin/uvw` を経由する**（uv の既定 cache/data path が sandbox の write 境界外・denyRead 下にあり起動前に失敗するため。uvw は可変 state を session temp へ固定する。Codex や CI 等 sandbox 外の実行はこの限りではない）
 - `python` / `python3` を直接実行するのは、システム Python 自体の確認など明示的な理由がある場合のみ（理由を述べる）
 - `uv` 未導入または非 uv プロジェクトでは、まず環境を確認し、推測で bare `python` にフォールバックしない
 - 一時確認の Python 実行で `__pycache__` を残したくない場合は `PYTHONDONTWRITEBYTECODE=1` を付ける
@@ -60,6 +61,7 @@ if len(cells) < MIN_CELLS:
 ### クイックコマンド
 
 ```bash
+# Claude Code sandbox 内では uv を ~/.claude/bin/uvw に読み替える
 uv run ruff check src/ --fix
 uv run ruff format src/
 uv run mypy src/
