@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Reject project/local Claude settings that can weaken the OS-managed boundary.
+set -euo pipefail
+
+CWD_ARG=""
+PROJECT_ARG=""
+LOCAL_ARG=""
+QUIET=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --cwd) [[ $# -ge 2 ]] || { echo "ERROR: --cwd requires a path" >&2; exit 1; }; CWD_ARG="$2"; shift 2 ;;
+    --project) [[ $# -ge 2 ]] || { echo "ERROR: --project requires a path" >&2; exit 1; }; PROJECT_ARG="$2"; shift 2 ;;
+    --local) [[ $# -ge 2 ]] || { echo "ERROR: --local requires a path" >&2; exit 1; }; LOCAL_ARG="$2"; shift 2 ;;
+    --quiet) QUIET=true; shift ;;
+    *) echo "ERROR: unknown option: $1" >&2; exit 1 ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || { echo "ERROR: project-policy-gate requires jq" >&2; exit 1; }
+
+canonical_dir() {
+  local path="$1"
+  [[ -d "$path" ]] || return 1
+  (cd -- "$path" && pwd -P)
+}
+
+find_root() {
+  local dir parent
+  dir="$(canonical_dir "$1")" || { echo "ERROR: working directory is not accessible: $1" >&2; return 1; }
+  while :; do
+    if [[ -e "$dir/.git" ]]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    parent="${dir%/*}"
+    [[ -n "$parent" ]] || parent="/"
+    [[ "$parent" != "$dir" ]] || break
+    dir="$parent"
+  done
+  canonical_dir "$1"
+}
+
+ROOT=""
+LABELS=()
+PATHS=()
+if [[ -n "$PROJECT_ARG" || -n "$LOCAL_ARG" ]]; then
+  if [[ -n "$PROJECT_ARG" ]]; then LABELS+=("project"); PATHS+=("$PROJECT_ARG"); fi
+  if [[ -n "$LOCAL_ARG" ]]; then LABELS+=("project-local"); PATHS+=("$LOCAL_ARG"); fi
+else
+  START="${CWD_ARG:-${CLAUDE_PROJECT_DIR:-$PWD}}"
+  ROOT="$(find_root "$START")" || exit 1
+  LABELS+=("project" "project-local")
+  PATHS+=("$ROOT/.claude/settings.json" "$ROOT/.claude/settings.local.json")
+fi
+
+FINDINGS=()
+INSPECTED=()
+for i in "${!PATHS[@]}"; do
+  path="${PATHS[$i]}"
+  label="${LABELS[$i]}"
+  [[ -e "$path" || -L "$path" ]] || continue
+  if [[ -L "$path" ]]; then
+    echo "ERROR: $label settings must not be a symlink: $path" >&2
+    exit 1
+  fi
+  parent="${path%/*}"
+  [[ "$parent" != "$path" ]] || parent="."
+  parent_real="$(canonical_dir "$parent")" || { echo "ERROR: $label settings parent is not accessible: $parent" >&2; exit 1; }
+  file_real="$parent_real/${path##*/}"
+  if [[ -n "$ROOT" && "$file_real" != "$ROOT/"* ]]; then
+    echo "ERROR: $label settings resolve outside the project root: $path -> $file_real" >&2
+    exit 1
+  fi
+  [[ -f "$file_real" ]] || { echo "ERROR: $label settings are not a regular file: $file_real" >&2; exit 1; }
+  if ! jq -e 'type == "object"' "$file_real" >/dev/null 2>&1; then
+    echo "ERROR: $label settings are not valid JSON objects: $file_real" >&2
+    exit 1
+  fi
+  INSPECTED+=("$file_real")
+  while IFS= read -r finding; do
+    [[ -n "$finding" ]] && FINDINGS+=("$finding")
+  done < <(jq -r --arg label "$label" '
+    [
+      (["permissions","hooks","sandbox","allowManagedHooksOnly",
+        "allowManagedPermissionRulesOnly","allowManagedMcpServersOnly",
+        "disableAllHooks","disableAutoMode","requiredMinimumVersion"][] as $k
+        | select(has($k)) | ($label + "." + $k)),
+      (if has("env") then
+         if (.env | type) != "object" then ($label + ".env(non-object)")
+         else (.env | keys[] as $k
+           | select(["BASH_ENV","ENV","HOME","PATH","SHELLOPTS","BASHOPTS",
+                     "LD_PRELOAD","DYLD_INSERT_LIBRARIES","PYTHONPATH","NODE_OPTIONS",
+                     "GIT_CONFIG_GLOBAL","GIT_CONFIG_SYSTEM","CLAUDE_CONFIG_DIR",
+                     "XDG_CONFIG_HOME","XDG_STATE_HOME","XDG_DATA_HOME","XDG_CACHE_HOME"]
+                    | index($k))
+           | ($label + ".env." + $k))
+         end
+       else empty end)
+    ] | .[]
+  ' "$file_real")
+done
+
+if [[ ${#FINDINGS[@]} -gt 0 ]]; then
+  joined="$(IFS=', '; printf '%s' "${FINDINGS[*]}")"
+  echo "ERROR: project/local settings contain security policy surfaces reserved for managed settings: $joined" >&2
+  echo "Move the setting to the OS-managed toolkit policy or remove it; execution is blocked fail-closed." >&2
+  exit 1
+fi
+
+if [[ "$QUIET" != true ]]; then
+  if [[ -n "$ROOT" ]]; then
+    echo "OK: project/local security-policy gate passed for $ROOT"
+  else
+    echo "OK: explicit project/local settings contain no prohibited security policy surfaces"
+  fi
+fi
+exit 0

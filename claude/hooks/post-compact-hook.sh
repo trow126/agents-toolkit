@@ -1,30 +1,23 @@
-#!/bin/bash
-# PostCompact hook: re-inject git context after context compaction
-# Provides branch and working tree state so Claude retains orientation
-
+#!/usr/bin/env bash
+# PostCompact hook: re-inject bounded repository orientation after compaction.
 set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+EMITTER="$SCRIPT_DIR/lib/emit_system_message.py"
 
-if git rev-parse --is-inside-work-tree 2>/dev/null; then
-    BRANCH=$(git branch --show-current 2>/dev/null || echo "detached")
-    [ -z "$BRANCH" ] && BRANCH="detached"
-
-    STATUS_COUNT=$(git status --short 2>/dev/null | wc -l)
-    STAGED=$(git diff --cached --stat 2>/dev/null | tail -1)
-
-    MSG="[Post-Compact Context] Branch: ${BRANCH}"
-    if [ "$STATUS_COUNT" -gt 0 ]; then
-        MSG="${MSG} | Uncommitted changes: ${STATUS_COUNT} files"
-    else
-        MSG="${MSG} | Clean working tree"
-    fi
-    if [ -n "$STAGED" ]; then
-        MSG="${MSG} | Staged: ${STAGED}"
-    fi
-
-    printf '{"systemMessage":"%s"}\n' "$(echo "$MSG" | sed 's/"/\\"/g' | tr '\n' ' ')"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  [[ -n "$branch" ]] || branch="detached"
+  status_count="$(git status --short 2>/dev/null | wc -l | tr -d ' ')"
+  staged="$(git diff --cached --shortstat 2>/dev/null || true)"
+  if [[ "$status_count" -gt 0 ]]; then
+    state="Uncommitted changes: $status_count files"
+  else
+    state="Clean working tree"
+  fi
+  msg="[Post-Compact Context] Branch: $branch | $state"
+  [[ -n "$staged" ]] && msg="$msg | Staged: $staged"
 else
-    CWD=$(pwd)
-    printf '{"systemMessage":"[Post-Compact Context] CWD: %s (not a git repo)"}\n' "$CWD"
+  msg="[Post-Compact Context] CWD: $(pwd -P) (not a git repo)"
 fi
 
-exit 0
+printf '%s\n' "$msg" | python3 "$EMITTER"

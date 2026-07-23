@@ -14,7 +14,7 @@
 # セッション初期化
 
 - SessionStart hook が `git status` / `git branch` を systemMessage で自動注入する
-- プロジェクト固有の教訓は `claudedocs/learnings.md`（存在時）を確認し、新しい継続的な知見は native auto memory に保存する
+- プロジェクト固有の教訓は `claudedocs/learnings.md`（存在時）を必要時に確認する。native auto memory は計測不能な常時注入を避けるため無効
 - 汎用の環境・CLI 教訓は `~/.agents/rules/learnings.md` を必要時にだけ読む（常時ロードしない。棚卸しは `/knowledge-audit`）
 
 # owner 選択とルーティング（コスト方針）
@@ -43,5 +43,5 @@
 # 起動運用
 
 - `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
-- bypassPermissions モードは共有設定で無効（`permissions.disableBypassPermissionsMode`）。低プロンプト運用は sandbox auto-allow が担い（write は workspace + session temp 限定、read は denyRead で private tree を遮断、egress は事前許可 domain ゼロ = 全 domain が session 内初回 prompt）、prompt が出るのは外部副作用・`gh`（固定 argv の auth status 以外は read 系も ask: sandbox 外実行で domain prompt を経ないため）・破壊的 git 操作・`git -c*` 等の ask と初回 domain のみ。`git commit --amend` は hook が literal 共起で deny（事故防止層。境界は push の ask/deny と sandbox）。bypass が不可欠な作業は公式 devcontainer 等の隔離環境で行う
+- security policy は OS-managed scope に置き、bypass/auto mode を無効化する。`permissions.ask: ["Bash"]` と `autoAllowBashIfSandboxed: false` により、組み込み read-only 判定を含む全 Bash は毎回標準 approval を経る。全 `gh` も同じ rule で ask。project/local の `permissions`・`hooks`・`sandbox` は `project-policy-gate` が起動時と PreToolUse 前に fail-closed で拒否する。事前許可 domain は0件。`git commit --amend` は hook が literal 共起で denyする
 - sandbox 内の uv は `~/.claude/bin/uvw` を経由する（既定 cache が write 境界外のため。cache 等は session temp へ固定される）。`git config`・`git init` 等 `.git/config`・`.git/hooks` へ書く操作は sandbox が deny するため手動 shell で行う

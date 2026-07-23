@@ -18,7 +18,7 @@ paths:
 - 評価順: deny > ask > allow
 - documented scope: managed > CLI 引数 > project local（`<project>/.claude/settings.local.json`）> project > user（`~/.claude/settings.json`）。**user-level の `~/.claude/settings.local.json` という scope は存在しない**
 - マージ規則: **scalar 値は高優先スコープが override** し、**array-valued settings は一般にスコープ間で連結・重複排除**される。permission rules（allow/ask/deny）だけでなく、`sandbox.filesystem.allowWrite` 等の filesystem arrays、`sandbox.credentials` の deny arrays、network arrays も連結される（＝低優先スコープの deny/ask は高優先スコープから除去できない。feature 固有の例外は当該公式仕様を優先）
-- 運用方針: 許可は user settings `~/.claude/settings.json` に一元管理、プロジェクト側は permissions なしで運用
+- 運用方針: permission・hook・sandbox は root-owned OS-managed settings に一元管理する。user settings は非 security preference のみ。project / project-local に `permissions`・`hooks`・`sandbox` または shell/config redirect env を置くと runtime gate が fail-closed で拒否する
 
 ## Permission rule と sandbox の連動（見落とすと事故になる）
 
@@ -27,3 +27,10 @@ paths:
 - `Edit()` の allow path は `sandbox.filesystem.allowWrite` と同様に write 許可を与える
 - path prefix は permission rule（`//abs`・`/`=project 相対・`~/`）と sandbox filesystem（`/abs`・`~/`・無 prefix=project root / user settings では `~/.claude`）で**構文が異なる**
 - sandbox は settings.json（全 scope・symlink 解決込み）への write を built-in で deny する。linked worktree では main repo 共有 `.git` への write を許可しつつ `hooks/`・`config` は deny する（v2.1.210+/公式 sandboxing docs）
+
+## Managed policy installation
+
+- `claude/managed-settings.json` は `install/manifest.tsv` で symlink しない。`scripts/install-managed-policy.sh --apply` が OS-managed drop-in へ root-owned copy を配置する
+- bypass lockout は `permissions.disableBypassPermissionsMode`、auto mode lockout は **top-level** `disableAutoMode`。後者を `permissions` 配下へ置くと無効 entry として strip され得るため validator が拒否する
+- `bootstrap.sh` は managed copy の hash/mode/owner を検証してから user symlink を作る
+- project settings による `excludedCommands` 等の array 追加は managed-only switch がないため、`project-policy-gate` が file 自体を拒否する

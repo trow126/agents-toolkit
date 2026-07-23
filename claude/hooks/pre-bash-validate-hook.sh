@@ -7,8 +7,10 @@
 #   security boundary としては扱わない。最終境界は次の決定論的レイヤが担う:
 #     - filesystem: permission の Read/Edit deny が sandbox filesystem へ統合され
 #       OS-level で child process にも適用される(`Read(//**/.env)` 等)
-#     - 破壊的操作の外部反映: `git push` 等の content-scoped ask(sandbox auto-allow 中も prompt)
+#     - 破壊的操作の外部反映: `git push` 等の managed ask（Bash は auto-allow 無効で常に approval）
 #     - shell 経由の再評価: `Bash(bash *)`/`Bash(sh *)` 等の deny、`git -c*` 等の ask
+#     - project/local settings: managed scope 専用の security surface が存在すれば
+#       project-policy-gate が PreToolUse を exit 2 で block する(C-02)
 #
 # 方針:
 #   - fail-closed: 入力の parse 失敗・依存欠落・schema 不一致は exit 2(block)
@@ -36,6 +38,19 @@ if ! echo "$INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
 fi
 if ! COMMAND=$(echo "$INPUT" | jq -er '.tool_input.command | select(type == "string" and length > 0)' 2>/dev/null); then
     block "hook input has no non-empty tool_input.command (fail-closed)"
+fi
+
+# Project/local settings are lower precedence than managed settings, but some
+# array surfaces (notably sandbox.excludedCommands) have no dedicated managed
+# only-switch.  Resolve the installed gate first; tests/repository execution use
+# the source-tree sibling after resolving this hook's symlink.
+HOOK_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // "") | if type == "string" then . else "" end' 2>/dev/null) ||     block "hook input cwd cannot be parsed (fail-closed)"
+[[ -n "$HOOK_CWD" ]] || HOOK_CWD="$PWD"
+HOOK_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd -P)" || block "cannot resolve hook directory"
+PROJECT_POLICY_GATE="$HOOK_DIR/../bin/project-policy-gate"
+[[ -x "$PROJECT_POLICY_GATE" ]] || block "project-policy-gate is missing or not executable: $PROJECT_POLICY_GATE"
+if ! GATE_OUTPUT=$("$PROJECT_POLICY_GATE" --cwd "$HOOK_CWD" --quiet 2>&1); then
+    block "unsafe project/local Claude settings: $GATE_OUTPUT"
 fi
 
 # quote 正規化: `--am""end` / `'.e'nv` のような quote 分割 literal を復元する。

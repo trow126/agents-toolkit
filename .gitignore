@@ -20,7 +20,7 @@ codex/skills/*
 !codex/skills/doctor/
 !codex/skills/issue-writing/
 !codex/skills/kaggle/
-!codex/skills/python-quality/
+!codex/references/
 
 # rules/ は現在追跡対象なし
 # (issue_completeness_policy.md は shared/rules/issue-completeness.md の codex/AGENTS.md 同期に統合し廃止。

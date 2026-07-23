@@ -145,7 +145,7 @@ done < <(git ls-files)
 # 4. manifest外のtracked file(claude/・codex/・shared/ 配下)
 # =========================================================================
 echo "== 4. tracked files outside manifest coverage =="
-ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md")
+ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md" "claude/managed-settings.json")
 ALLOWLIST_PREFIX=("claude/githooks/")
 
 is_covered() {
@@ -248,18 +248,108 @@ for rule_file in "$REPO_ROOT"/shared/rules/*.md; do
 done
 
 # =========================================================================
-# 8. 危険設定(waiverなしでは致命)
-#    共有既定にbypass/unsandboxed/full model pinを残す場合は
-#    docs/waivers/settings-waivers.tsv に file<TAB>pattern<TAB>environment<TAB>expires<TAB>reason
-#    の有効行(expires >= today)が必要。waiver済みはWARN、未waiverはFAIL。
+# 8. Phase 1 inventory completeness / 11-axis audit (H-04)
 # =========================================================================
-echo "== 8. dangerous settings (fatal without waiver) =="
+echo "== 8. inventory completeness and audit schema =="
+INVENTORY_FILE="$REPO_ROOT/docs/reports/inventory-elements.tsv"
+INVENTORY_ERRORS="$(python3 - "$REPO_ROOT" "$INVENTORY_FILE" <<'PYINV'
+import csv
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+path = Path(sys.argv[2])
+errors = []
+expected = [
+    "id", "category", "before_path", "after_path", "archive_path", "tags",
+    "purpose", "needed", "builtin_alternative", "overlap", "context_load",
+    "false_positive", "failure_impact", "verification", "low_cost_model",
+    "deterministic_replacement", "disposition", "evidence",
+]
+axes = [
+    "purpose", "needed", "builtin_alternative", "overlap", "context_load",
+    "false_positive", "failure_impact", "verification", "low_cost_model",
+    "deterministic_replacement", "disposition",
+]
+if not path.is_file():
+    errors.append("docs/reports/inventory-elements.tsv is missing")
+else:
+    try:
+        with path.open(encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh, delimiter="\t")
+            if reader.fieldnames != expected:
+                errors.append(f"inventory header mismatch: {reader.fieldnames!r}")
+                rows = []
+            else:
+                rows = list(reader)
+    except (OSError, UnicodeError, csv.Error) as exc:
+        errors.append(f"inventory parse error: {exc}")
+        rows = []
+
+    ids = set()
+    represented = set()
+    for lineno, row in enumerate(rows, 2):
+        rid = (row.get("id") or "").strip()
+        if not rid:
+            errors.append(f"inventory line {lineno}: id is empty")
+        elif rid in ids:
+            errors.append(f"inventory line {lineno}: duplicate id {rid}")
+        ids.add(rid)
+        for key in ("category", "before_path", "after_path", "archive_path", "evidence", *axes):
+            if not (row.get(key) or "").strip():
+                errors.append(f"inventory line {lineno} ({rid or '?'}): {key} is empty")
+        for key in ("before_path", "after_path"):
+            value = (row.get(key) or "").strip()
+            if value and value != "-" and not value.startswith(("~", "$", "active ")) and ";" not in value and " -> " not in value:
+                represented.add(value)
+
+    # Every operational script/config surface named by Phase 1 must be an
+    # individual row; documentation and generated archives are intentionally
+    # outside this coverage set.
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files"], check=True, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    ).stdout.splitlines()
+    operational = set()
+    prefixes = (
+        "scripts/", "tests/", "claude/bin/", "claude/hooks/",
+        "claude/scripts/", "claude/githooks/", ".github/workflows/", "install/",
+    )
+    for item in tracked:
+        if item == "bootstrap.sh" or item in {
+            "claude/settings.json", "claude/managed-settings.json", "codex/hooks.json"
+        }:
+            operational.add(item)
+        elif item.startswith(prefixes):
+            # test documentation fixtures are not executable mechanisms.
+            if item.startswith("tests/") and not (item.endswith(".sh") or "/lib/" in item):
+                continue
+            operational.add(item)
+    missing = sorted(operational - represented)
+    for item in missing:
+        errors.append(f"operational element missing from inventory: {item}")
+
+print("\n".join(errors))
+PYINV
+)"
+if [[ -n "$INVENTORY_ERRORS" ]]; then
+  while IFS= read -r line; do [[ -n "$line" ]] && fail "inventory audit: $line"; done <<< "$INVENTORY_ERRORS"
+fi
+
+# =========================================================================
+# 9. security / managed policy / waiver governance
+# =========================================================================
+echo "== 9. managed security policy and dangerous settings =="
 WAIVER_FILE="$REPO_ROOT/docs/waivers/settings-waivers.tsv"
 WAIVER_ENVS="$REPO_ROOT/docs/waivers/environments.txt"
 TODAY="$(date +%F)"
+USER_SETTINGS="$REPO_ROOT/claude/settings.json"
+MANAGED_SETTINGS="$REPO_ROOT/claude/managed-settings.json"
+POLICY_CHECK="$SCRIPT_DIR/check-managed-policy.py"
 
-# waiver file 自体の schema 検査(H-008): 5列・全列非空・実在日・承認済み environment のみ許可。
-# 不正行は「使われていなくても」違反として列挙する(governance gate の腐敗防止)。
+# waiver file 自体の schema 検査(H-008)。不正行は未使用でも違反。
 if [[ -f "$WAIVER_FILE" ]]; then
   wl=0
   while IFS= read -r wrow; do
@@ -272,27 +362,23 @@ if [[ -f "$WAIVER_FILE" ]]; then
     fi
     IFS=$'\t' read -r wfile wpattern wenv wexpires wreason <<< "$wrow"
     [[ -z "$wfile" || -z "$wpattern" || -z "$wenv" || -z "$wexpires" || -z "$wreason" ]] && \
-      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 空の列がある(environment/reason 含め全列必須)"
-    if [[ ! "$wexpires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date -d "$wexpires" +%F >/dev/null 2>&1 || [[ "$(date -d "$wexpires" +%F)" != "$wexpires" ]]; then
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 空の列がある"
+    if [[ ! "$wexpires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || \
+       ! date -d "$wexpires" +%F >/dev/null 2>&1 || \
+       [[ "$(date -d "$wexpires" +%F)" != "$wexpires" ]]; then
       fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: expires が実在日の YYYY-MM-DD ではない: '$wexpires'"
     fi
     if [[ -n "$wenv" ]] && { [[ ! -f "$WAIVER_ENVS" ]] || ! grep -qxF "$wenv" <(grep -v '^#' "$WAIVER_ENVS"); }; then
-      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 未承認 environment '$wenv'(docs/waivers/environments.txt の allowlist に追加が必要)"
+      fail "waiver schema: docs/waivers/settings-waivers.tsv:$wl: 未承認 environment '$wenv'"
     fi
   done < "$WAIVER_FILE"
 fi
-declare -a DANGER_PATTERNS=(
-  "bypassPermissions|bypassPermissions"
-  "danger-full-access|danger-full-access"
-  "skipDangerousModePermissionPrompt|\"skipDangerousModePermissionPrompt\"[[:space:]]*:[[:space:]]*true"
-  "allowUnsandboxedCommands|\"allowUnsandboxedCommands\"[[:space:]]*:[[:space:]]*true"
-)
+
 has_waiver() {
   local file="$1" pname="$2"
   [[ -f "$WAIVER_FILE" ]] || return 1
   while IFS=$'\t' read -r wfile wpattern wenv wexpires wreason; do
     [[ "$wfile" == \#* || -z "$wfile" ]] && continue
-    # schema-valid な行だけを waiver として認める(非空5列・実在日・承認済み environment)
     [[ -z "$wpattern" || -z "$wenv" || -z "$wexpires" || -z "$wreason" ]] && continue
     [[ "$wexpires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || continue
     date -d "$wexpires" +%F >/dev/null 2>&1 || continue
@@ -303,155 +389,88 @@ has_waiver() {
   done < "$WAIVER_FILE"
   return 1
 }
-for f in claude/settings.json codex/config.toml codex/gh.config.toml; do
-  [[ -f "$f" ]] || continue
-  for entry in "${DANGER_PATTERNS[@]}"; do
-    pname="${entry%%|*}"
-    pregex="${entry#*|}"
-    matches="$(grep -InoE "$pregex" "$f" || true)"
-    [[ -z "$matches" ]] && continue
-    while IFS=: read -r lineno content; do
-      if has_waiver "$f" "$pname"; then
-        warn "$f:$lineno: $content (waived: see docs/waivers/settings-waivers.tsv)"
-      else
-        fail "dangerous setting without waiver: $f:$lineno: $content (add waiver row to docs/waivers/settings-waivers.tsv or remove)"
-      fi
-    done <<< "$matches"
-  done
-done
 
-# full model pin は構造的 scanner で検査する(quoted YAML / literal TOML 対応。measure-metrics と共有 — H-001)
+# C-02: security policy must be in managed scope, and the user file must be
+# free of security keys. This checker also enforces the lock keys, mandatory
+# Bash approval gate, helper allowRead paths, and zero pre-approved domains.
+if [[ ! -x "$POLICY_CHECK" ]]; then
+  fail "managed policy checker missing or non-executable: scripts/check-managed-policy.py"
+else
+  POLICY_OUT="$(python3 "$POLICY_CHECK" --user "$USER_SETTINGS" --managed "$MANAGED_SETTINGS" 2>&1)" || \
+    fail "managed policy contract: $POLICY_OUT"
+fi
+
+# Managed policy is deliberately not linked into ~/.claude; it is installed by
+# scripts/install-managed-policy.sh into the documented OS-managed directory.
+if grep -q $'\tclaude/managed-settings.json\t' "$MANIFEST" 2>/dev/null; then
+  fail "managed settings must not be installed through the user symlink manifest"
+fi
+
+# Full model pins use the shared structural scanner. Scanner failures are fatal.
 PIN_SCAN="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$REPO_ROOT" 2>&1)" || fail "model pin scan failed: $PIN_SCAN"
 while IFS=: read -r pfile pline pkind pvalue; do
   [[ "$pkind" == "pin" ]] || continue
   if has_waiver "$pfile" "full-model-pin"; then
-    warn "$pfile:$pline: model=$pvalue (waived: see docs/waivers/settings-waivers.tsv)"
+    warn "$pfile:$pline: model=$pvalue (waived)"
   else
-    fail "dangerous setting without waiver: $pfile:$pline: full model pin '$pvalue' (add waiver row to docs/waivers/settings-waivers.tsv or use a tier alias)"
+    fail "dangerous setting without waiver: $pfile:$pline: full model pin '$pvalue'"
   fi
 done <<< "$PIN_SCAN"
 
-# broad permission allow の検査(H-007): bare file/web tool と広域 Bash wildcard を release blocker にする
-if [[ -f claude/settings.json ]]; then
-  BROAD_ALLOWS="$(jq -r '.permissions.allow[]? | select(. == "Read" or . == "Edit" or . == "Write" or . == "Glob" or . == "Grep" or . == "WebFetch" or (test("^Bash\\((git|gh|curl|wget|npm|pnpm|bun|npx|bunx) \\*\\)$")) or (test("^Bash\\(uv run \\*\\)$")) or (test("^Bash\\(env .* \\*\\)$")))' claude/settings.json)"
+if [[ -f "$MANAGED_SETTINGS" ]]; then
+  # Bare file/web tools and broad network/package runner allows remain release blockers.
+  BROAD_ALLOWS="$(jq -r '.permissions.allow[]? | select(. == "Read" or . == "Edit" or . == "Write" or . == "Glob" or . == "Grep" or . == "WebFetch" or test("^Bash\\((git|gh|curl|wget|npm|pnpm|bun|npx|bunx|uv) \\*\\)$"))' "$MANAGED_SETTINGS" 2>/dev/null || true)"
   if [[ -n "$BROAD_ALLOWS" ]]; then
-    while IFS= read -r rule; do
-      if has_waiver "claude/settings.json" "broad-allow"; then
-        warn "claude/settings.json: broad allow '$rule' (waived)"
-      else
-        fail "dangerous setting without waiver: claude/settings.json: broad permission allow '$rule' (path/subcommand-scoped rule に置換するか waiver を登録)"
-      fi
-    done <<< "$BROAD_ALLOWS"
-  fi
-  # H-012: bypassPermissions lockout は documented path(permissions 配下)に正しい値で存在すること
-  if ! jq -e '.permissions.disableBypassPermissionsMode == "disable"' claude/settings.json >/dev/null 2>&1; then
-    fail "bypass lockout contract: claude/settings.json の permissions.disableBypassPermissionsMode が \"disable\" ではない(欠落・誤配置・誤値)"
-  fi
-  # root-level の非公式/誤配置キーを拒否する(runtime に無視されると lockout が成立しない)
-  ROOT_MISPLACED="$(jq -r 'keys[] | select(. == "disableBypassPermissionsMode" or . == "disableAutoMode" or . == "skipAutoPermissionPrompt")' claude/settings.json 2>/dev/null || true)"
-  if [[ -n "$ROOT_MISPLACED" ]]; then
-    while IFS= read -r k; do
-      fail "misplaced root-level settings key: '$k'(documented path は permissions 配下。root の unknown key は無視され得る)"
-    done <<< "$ROOT_MISPLACED"
-  fi
-  # H-007: runner script の no-space wildcard(word boundary なし。任意 script 名 prefix に match)を拒否する
-  RUNNER_WILDCARDS="$(jq -r '.permissions.allow[]? | select(test("^Bash\\((npm|pnpm|bun|yarn) run .*[^ ]\\*\\)$"))' claude/settings.json 2>/dev/null || true)"
-  if [[ -n "$RUNNER_WILDCARDS" ]]; then
-    while IFS= read -r rule; do
-      fail "no-space runner wildcard in allow: '$rule'(word boundary がなく任意 script 名 prefix に match する。exact か space-star を使う)"
-    done <<< "$RUNNER_WILDCARDS"
+    while IFS= read -r rule; do fail "broad managed permission allow: '$rule'"; done <<< "$BROAD_ALLOWS"
   fi
 
-  # H-010: 現行 Claude Code の file permission check にmatchしない path rule 形式を拒否する
-  # (path rule が有効なのは Read()/Edit() のみ。Write()/NotebookEdit()/Glob() の path 形式は unmatched)
-  UNSUPPORTED_RULES="$(jq -r '(.permissions.allow[]?, .permissions.ask[]?, .permissions.deny[]?) | select(test("^(Write|NotebookEdit|Glob)\\("))' claude/settings.json | sort -u)"
+  # Current Claude Code only supports path-scoped file policy through Read/Edit.
+  UNSUPPORTED_RULES="$(jq -r '(.permissions.allow[]?, .permissions.ask[]?, .permissions.deny[]?) | select(test("^(Write|NotebookEdit|Glob)\\("))' "$MANAGED_SETTINGS" 2>/dev/null | sort -u || true)"
   if [[ -n "$UNSUPPORTED_RULES" ]]; then
-    while IFS= read -r rule; do
-      fail "unsupported path-scoped permission rule (matches nothing in current Claude Code): '$rule' — use Edit(path) for file-edit policy"
-    done <<< "$UNSUPPORTED_RULES"
+    while IFS= read -r rule; do fail "unsupported path-scoped permission rule: '$rule'"; done <<< "$UNSUPPORTED_RULES"
   fi
 
-  # H-018: Read/Edit deny path は sandbox filesystem へ統合され OS-level で child process にも
-  # 適用される(公式 sandboxing docs)。.git 全体の deny は git add/commit の index.lock 書き込みを
-  # 阻害し通常 workflow を停止させるため拒否する(保護は .git/config・.git/hooks/** に限定する)
-  GIT_BROAD_DENIES="$(jq -r '.permissions.deny[]? | select(test("^(Read|Edit)\\(\\.git/\\*\\*?\\)$"))' claude/settings.json 2>/dev/null || true)"
+  # Broad .git deny breaks index.lock creation after sandbox integration.
+  GIT_BROAD_DENIES="$(jq -r '.permissions.deny[]? | select(test("^(Read|Edit)\\(\\.git/\\*\\*?\\)$"))' "$MANAGED_SETTINGS" 2>/dev/null || true)"
   if [[ -n "$GIT_BROAD_DENIES" ]]; then
-    while IFS= read -r rule; do
-      fail "git-workflow-breaking deny: '$rule'(sandbox 統合で .git/index.lock 書込を阻害し git add/commit が失敗する。Edit(.git/config)・Edit(.git/hooks/**) の狭い deny に置換する — H-018)"
-    done <<< "$GIT_BROAD_DENIES"
+    while IFS= read -r rule; do fail "git-workflow-breaking deny: '$rule'"; done <<< "$GIT_BROAD_DENIES"
   fi
 
-  # H-007: effective pre-allowed egress domain は 0 件であること。
-  # WebFetch(domain:...) allow は WebFetch だけでなく sandbox Bash の network domain も
-  # pre-allow する(公式 sandboxing docs)ため、和集合で計測する
-  EFFECTIVE_DOMAINS="$(jq -r '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")) | sub("^WebFetch\\(domain:"; "") | sub("\\)$"; ""))] | .[]' claude/settings.json 2>/dev/null || true)"
+  # Any Bash allow would intersect with project-added excludedCommands and
+  # recreate a no-prompt unsandboxed path. check-managed-policy.py also checks
+  # this; keep the explicit diagnostic here for fixture readability.
+  BASH_ALLOWS="$(jq -r '.permissions.allow[]? | select(startswith("Bash("))' "$MANAGED_SETTINGS" 2>/dev/null || true)"
+  if [[ -n "$BASH_ALLOWS" ]]; then
+    while IFS= read -r rule; do fail "managed Bash allow is forbidden: '$rule'"; done <<< "$BASH_ALLOWS"
+  fi
+
+  # No pre-approved egress domain in either sandbox or WebFetch allow rules.
+  EFFECTIVE_DOMAINS="$(jq -r '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")) | sub("^WebFetch\\(domain:"; "") | sub("\\)$"; ""))] | .[]' "$MANAGED_SETTINGS" 2>/dev/null || true)"
   if [[ -n "$EFFECTIVE_DOMAINS" ]]; then
-    while IFS= read -r dom; do
-      fail "pre-allowed egress domain: '$dom'(sandbox.network.allowedDomains と WebFetch(domain:) allow の和集合は 0 件が contract。child process が無 prompt で外部接続可能になる — H-007)"
-    done <<< "$EFFECTIVE_DOMAINS"
+    while IFS= read -r dom; do fail "pre-allowed egress domain: '$dom'"; done <<< "$EFFECTIVE_DOMAINS"
   fi
+fi
 
-  # H-019: 素の uv 実行 allow は sandbox 下で cache 初期化に失敗する経路の推奨になるため拒否する
-  # (uv の可変 state を session temp へ固定する ~/.claude/bin/uvw を経由させる)
-  DIRECT_UV_ALLOWS="$(jq -r '.permissions.allow[]? | select(test("^Bash\\(uv (run|tool|pip|sync|add)"))' claude/settings.json 2>/dev/null || true)"
-  if [[ -n "$DIRECT_UV_ALLOWS" ]]; then
-    while IFS= read -r rule; do
-      fail "sandbox-incompatible uv allow: '$rule'(既定 cache path が sandbox write 境界外。~/.claude/bin/uvw 経由の rule に置換する — H-019)"
-    done <<< "$DIRECT_UV_ALLOWS"
-  fi
-
-  # sandbox 有効な settings への presence contract(H-018/H-014):
-  # - .git の狭域保護(Edit(.git/config)・Edit(.git/hooks/**))が存在すること
-  # - .env の OS-level read 境界(Read(//**/.env)・Read(//**/.env.*))が存在すること
-  #   (hook は literal heuristic 層であり、runtime 構築 path はこの deny → sandbox 統合が遮断する)
-  if jq -e '.sandbox.enabled == true' claude/settings.json >/dev/null 2>&1; then
-    for required in 'Edit(.git/config)' 'Edit(.git/hooks/**)' 'Read(//**/.env)' 'Read(//**/.env.*)' 'Edit(//**/.env)' 'Edit(//**/.env.*)'; do
-      if ! jq -e --arg r "$required" '.permissions.deny | index($r) != null' claude/settings.json >/dev/null 2>&1; then
-        fail "missing required deny rule for sandboxed settings: '$required'(H-018/H-014 contract)"
-      fi
-    done
-  fi
-
-  # C-01(適合性レビュー): excludedCommands は sandbox 外実行 = domain prompt を経ない。
-  # その command word と交差する allow は「無承認の外部送信経路」になるため、
-  # 外部入力を運べない固定 argv の audited exact list 以外を拒否する
-  AUDITED_UNSANDBOXED_ALLOWS='["Bash(gh auth status)"]'
-  UNSANDBOXED_BAD="$(jq -r --argjson audited "$AUDITED_UNSANDBOXED_ALLOWS" \
-    '[.sandbox.excludedCommands[]? | split(" ")[0]] as $words
-     | .permissions.allow[]?
-     | select(. as $r | [$words[] | . as $w | (($r == ("Bash(" + $w + ")")) or ($r | startswith("Bash(" + $w + " ")))] | any)
-     | select(. as $r | $audited | index($r) | not)' claude/settings.json 2>/dev/null || true)"
-  if [[ -n "$UNSANDBOXED_BAD" ]]; then
-    while IFS= read -r rule; do
-      fail "unsandboxed egress allow: '$rule'(excludedCommands の command は sandbox domain prompt を経ずに外部送信できる。query/引数/stdin を運べる形は ask にする — C-01)"
-    done <<< "$UNSANDBOXED_BAD"
-  fi
-
-  # H-01(適合性レビュー): denyRead が toolkit 自身の sandbox 内実行 helper を遮断しないこと。
-  # ~/.claude を deny する場合は helper subtree(bin/skills)の allowRead 再開が必須。
-  # ~/.config を deny する場合は private routing の消費 path の allowRead 再開が必須
-  if jq -e '.sandbox.enabled == true' claude/settings.json >/dev/null 2>&1; then
-    if jq -e '.sandbox.filesystem.denyRead // [] | index("~/.claude") != null' claude/settings.json >/dev/null 2>&1; then
-      for required in '~/.claude/bin' '~/.claude/skills'; do
-        if ! jq -e --arg r "$required" '.sandbox.filesystem.allowRead // [] | index($r) != null' claude/settings.json >/dev/null 2>&1; then
-          fail "denyRead(~/.claude) が sandbox 内実行 helper を遮断する: allowRead '$required' が必要(H-01 contract)"
-        fi
-      done
-    fi
-    if jq -e '.sandbox.filesystem.denyRead // [] | index("~/.config") != null' claude/settings.json >/dev/null 2>&1; then
-      if ! jq -e '.sandbox.filesystem.allowRead // [] | index("~/.config/agents-toolkit") != null' claude/settings.json >/dev/null 2>&1; then
-        fail "denyRead(~/.config) が private routing の消費 path を遮断する: allowRead '~/.config/agents-toolkit' が必要(H-01 contract)"
-      fi
-    fi
+# Source PDF evidence is content-addressed; transcription must carry the same hash.
+SOURCE_MANIFEST="$REPO_ROOT/docs/requirements/source-manifest.sha256"
+TRANSCRIPTION="$REPO_ROOT/docs/requirements/requirements-transcription-260722.md"
+if [[ ! -f "$SOURCE_MANIFEST" ]]; then
+  fail "requirements source manifest missing: docs/requirements/source-manifest.sha256"
+elif ! grep -Eq '^[0-9a-f]{64}[[:space:]]+260722_2151_001\.pdf$' "$SOURCE_MANIFEST"; then
+  fail "requirements source manifest has invalid format"
+else
+  REQ_SHA="$(awk '{print $1}' "$SOURCE_MANIFEST")"
+  if [[ ! -f "$TRANSCRIPTION" ]] || ! grep -qF "$REQ_SHA" "$TRANSCRIPTION"; then
+    fail "requirements transcription does not reference source manifest SHA-256 $REQ_SHA"
   fi
 fi
 
 # =========================================================================
-# 9. skill frontmatter schema(Agent Skills core spec)
+# 10. skill frontmatter schema(Agent Skills core spec)
 #    name: 親directory名と一致・^[a-z0-9]+(-[a-z0-9]+)*$・64字以内
 #    description: 必須・非空・1024字以内 / allowed-tools: 単一行space区切り(list・comma禁止)
 # =========================================================================
-echo "== 9. skill frontmatter schema =="
+echo "== 10. skill frontmatter schema =="
 SKILL_SCHEMA_ERRORS="$(python3 - "$REPO_ROOT" <<'PYSCHEMA'
 import re, sys
 from pathlib import Path
@@ -508,10 +527,10 @@ if [[ -n "$SKILL_SCHEMA_ERRORS" ]]; then
 fi
 
 # =========================================================================
-# 10. stale reference(削除・改名済み要素への参照がactive treeに残っていないか)
+# 11. stale reference(削除・改名済み要素への参照がactive treeに残っていないか)
 #     docs/・tests/・本validator自身は対象外(歴史的記述・fixture・deny-list定義のため)
 # =========================================================================
-echo "== 10. stale references in active tree =="
+echo "== 11. stale references in active tree =="
 STALE_PATTERNS=(
   "/gh:(start|pr|issue|review|index|coderabbit)"
   "skills/issue-parser"
@@ -536,11 +555,11 @@ while IFS= read -r f; do
 done < <(git ls-files)
 
 # =========================================================================
-# 11. 直接実行される script の executable bit(適合性レビュー H-02)
+# 12. 直接実行される script の executable bit(適合性レビュー H-02)
 #     CI は tests/test-*.sh を直接実行する。hook / bin / bootstrap も path 起動のため、
 #     git mode 100755 でない tracked file は配布物として壊れている(exit 126)
 # =========================================================================
-echo "== 11. executable bits on direct-execution surfaces =="
+echo "== 12. executable bits on direct-execution surfaces =="
 NONEXEC="$(git ls-files -s -- 'tests/test-*.sh' 'scripts/*.sh' 'claude/hooks/*.sh' 'shared/bin/*' 'claude/bin/*' bootstrap.sh 2>/dev/null | awk '$1 != "100755" {print $1 " " $4}' || true)"
 if [[ -n "$NONEXEC" ]]; then
   while IFS= read -r entry; do

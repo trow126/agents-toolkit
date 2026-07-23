@@ -1,7 +1,3 @@
----
-name: python-quality
-description: Python コードを実装・修正・レビューするときに適用する品質ゲート。uv 実行規約、Ruff 対応の実装前チェックリスト（ロギング・型ヒント・async・ProcessPool 等）、型安全ガード、品質コマンド（ruff/mypy）を含む。Use when writing, editing, or reviewing Python code, or when running Python quality checks or fixing Ruff/mypy findings.
----
 
 # Python 品質ゲート
 

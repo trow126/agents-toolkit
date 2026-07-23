@@ -88,9 +88,26 @@ setup_sandbox() {
   mkdir -p "$repo/scripts"
   cp "$MIGRATE" "$repo/scripts/migrate-layout.sh"
   chmod +x "$repo/scripts/migrate-layout.sh"
-  # bootstrap は check/apply で doctor(scripts/check-runtime.sh)を強制するため実物を配置する
+  # bootstrap は managed policy + doctor を強制するため関連実物を配置する。
   cp "$REPO_ROOT/scripts/check-runtime.sh" "$repo/scripts/check-runtime.sh"
-  chmod +x "$repo/scripts/check-runtime.sh"
+  cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
+  cp "$REPO_ROOT/scripts/install-managed-policy.sh" "$repo/scripts/install-managed-policy.sh"
+  chmod +x "$repo/scripts/check-runtime.sh" "$repo/scripts/check-managed-policy.py" "$repo/scripts/install-managed-policy.sh"
+  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
+  cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
+  mkdir -p "$repo/claude/bin"
+  cp "$REPO_ROOT/claude/bin/project-policy-gate" "$repo/claude/bin/project-policy-gate"
+  chmod +x "$repo/claude/bin/project-policy-gate"
+  mkdir -p "$sandbox/managed"
+  AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply \
+    --target "$sandbox/managed/20-agents-toolkit-security.json" >/dev/null
+  # migration は tracked source と untracked runtime を区別する。fixture に追加した
+  # bootstrap/policy source は tracked として commit し、runtime 移動対象から除外する。
+  git -C "$repo" add bootstrap.sh install/manifest.tsv claude/settings.json claude/managed-settings.json \
+    scripts/migrate-layout.sh scripts/check-runtime.sh scripts/check-managed-policy.py scripts/install-managed-policy.sh \
+    claude/bin/project-policy-gate
+  git -C "$repo" -c user.email="fixture@example.invalid" -c user.name="Fixture" \
+    commit -q -m "fixture: add bootstrap and managed policy sources"
 }
 
 # doctor の version 検査を host の claude 有無・version に依存させない(hermetic stub)。
@@ -104,14 +121,15 @@ chmod +x "$STUB_CLAUDE_BIN/claude"
 run_migrate() {
   local sandbox="$1"
   shift
-  # 本テストは fixture の XDG を明示指定する(= doctor の custom XDG 検査対象)。
-  # custom XDG を受容した machine を模擬するため acceptance env を与える(H-013)
+  # custom XDG は非対応。sandbox HOME 配下の documented default XDG paths を使い、
+  # managed policy の test-only install target も bootstrap へ継承する。
+  env -u XDG_STATE_HOME -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME \
   PATH="$STUB_CLAUDE_BIN:$PATH" \
+  HOME="$sandbox/home" \
   AGENTS_TOOLKIT_REPO="$sandbox/agents-toolkit" \
   AGENTS_TOOLKIT_HOME="$sandbox/home" \
-  XDG_STATE_HOME="$sandbox/state" \
-  XDG_CONFIG_HOME="$sandbox/config" \
-  AGENTS_TOOLKIT_ACCEPT_CUSTOM_XDG=1 \
+  AGENTS_TOOLKIT_TESTING=1 \
+  AGENTS_TOOLKIT_MANAGED_POLICY_TARGET="$sandbox/managed/20-agents-toolkit-security.json" \
   AGENTS_TOOLKIT_MIGRATE_FORCE=1 \
   "$sandbox/agents-toolkit/scripts/migrate-layout.sh" "$@"
 }
@@ -152,7 +170,7 @@ test_apply_success() {
   setup_sandbox "$sandbox"
   repo="$sandbox/agents-toolkit"
   home="$sandbox/home"
-  state="$sandbox/state"
+  state="$home/.local/state"
 
   run_migrate "$sandbox" --apply >"$sandbox/apply.log" 2>&1 || rc=$?
   assert_eq "apply は exit 0" "0" "$rc"
@@ -176,7 +194,7 @@ test_apply_success() {
 
   # private routingはClaudeが実際に参照する外部configへ移動する
   assert_true "(private routing) CLAUDE.local.md がXDG configへ移動" \
-    test -f "$sandbox/config/agents-toolkit/private-routing.md"
+    test -f "$home/.config/agents-toolkit/private-routing.md"
   assert_true "(private overlay) config.toml が実directoryへ移動" test -f "$home/.codex/config.toml"
 
   # (c) tracked sourceはrepoに残る
@@ -215,7 +233,10 @@ test_apply_success() {
 
   # bootstrap.sh --check がPASSする(個別symlinkが検証を通る)
   local check_rc=0
-  PATH="$STUB_CLAUDE_BIN:$PATH" HOME="$home" AGENTS_TOOLKIT_REPO="$repo" "$repo/bootstrap.sh" --check >"$sandbox/check.log" 2>&1 || check_rc=$?
+  env -u XDG_STATE_HOME -u XDG_CONFIG_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME \
+    PATH="$STUB_CLAUDE_BIN:$PATH" HOME="$home" AGENTS_TOOLKIT_REPO="$repo" \
+    AGENTS_TOOLKIT_TESTING=1 AGENTS_TOOLKIT_MANAGED_POLICY_TARGET="$sandbox/managed/20-agents-toolkit-security.json" \
+    "$repo/bootstrap.sh" --check >"$sandbox/check.log" 2>&1 || check_rc=$?
   assert_eq "bootstrap.sh --check はPASS" "0" "$check_rc"
 
   rm -rf "$sandbox"
@@ -254,7 +275,7 @@ test_failure_rollback() {
   setup_sandbox "$sandbox"
   repo="$sandbox/agents-toolkit"
   home="$sandbox/home"
-  state="$sandbox/state"
+  state="$home/.local/state"
 
   # migration preflight後、データ移動後に呼ばれるbootstrapだけを失敗させる。
   printf '#!/usr/bin/env bash\necho "fixture bootstrap failure" >&2\nexit 42\n' > "$repo/bootstrap.sh"
@@ -319,17 +340,17 @@ test_destination_collision_preflight() {
   setup_sandbox "$sandbox"
   repo="$sandbox/agents-toolkit"
   home="$sandbox/home"
-  mkdir -p "$sandbox/state/agmsg/db"
-  echo "SENTINEL" > "$sandbox/state/agmsg/db/existing"
-  before="$(snapshot "$repo"; snapshot "$home"; snapshot "$sandbox/state")"
+  mkdir -p "$home/.local/state/agmsg/db"
+  echo "SENTINEL" > "$home/.local/state/agmsg/db/existing"
+  before="$(snapshot "$repo"; snapshot "$home"; snapshot "$home/.local/state")"
 
   run_migrate "$sandbox" --apply >"$sandbox/collision.log" 2>&1 || rc=$?
-  after="$(snapshot "$repo"; snapshot "$home"; snapshot "$sandbox/state")"
+  after="$(snapshot "$repo"; snapshot "$home"; snapshot "$home/.local/state")"
 
   assert_eq "destination collisionは非ゼロ終了" "1" "$rc"
   assert_contains "collision対象が表示される" "$(cat "$sandbox/collision.log")" "移行先が既に存在"
   assert_eq "collision preflightはfilesystemを変更しない" "$before" "$after"
-  assert_eq "既存stateの内容を保持" "SENTINEL" "$(cat "$sandbox/state/agmsg/db/existing")"
+  assert_eq "既存stateの内容を保持" "SENTINEL" "$(cat "$home/.local/state/agmsg/db/existing")"
   assert_true "旧whole-directory symlinkを保持" test -L "$home/.claude"
 
   rm -rf "$sandbox"

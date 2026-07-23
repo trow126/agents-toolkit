@@ -19,17 +19,21 @@ credentials・sessions・cache・history 等の runtime データは source tree
 ```bash
 git clone https://github.com/trow126/agents-toolkit.git ~/agents-toolkit
 cd ~/agents-toolkit
+sudo ./scripts/install-managed-policy.sh --apply
 ./bootstrap.sh --apply
 ```
+
+Claude Code の permission・sandbox・hook は user settings ではなく OS-managed scope に置く。`bootstrap.sh` は managed policy の exact copy・owner・mode を検証し、未導入または drift 時は symlink を作成せず停止する。Linux/WSL2 の導入先は `/etc/claude-code/managed-settings.d/20-agents-toolkit-security.json`、macOS は `/Library/Application Support/ClaudeCode/managed-settings.d/20-agents-toolkit-security.json`。
 
 ## 既存マシンの移行(旧 whole-directory symlink 構成から)
 
 `~/.claude`・`~/.codex`・`~/.agents` が repo を丸ごと指す symlink になっている旧構成のマシンでは、以下の手順で新構成へ移行する。
 
 1. Claude Code・Codex CLI・`agmsg` のセッションをすべて終了する
-2. `./scripts/migrate-layout.sh --dry-run` で移動計画を確認する(変更なし)
-3. `./scripts/migrate-layout.sh --apply` を実行する。runtime データを実ディレクトリ/XDG stateへ移し、`bootstrap.sh --apply`と`--check`までを同一transactionとして実行する。ここまでの途中失敗時は自動rollbackする
-4. `bootstrap.sh --check`成功後はtransactionをcommitし、生成済みrollback scriptを無効化する。commit後のrollbackは移行後に作られたruntimeを失う危険があるため自動化しない。必要な場合は`operations.log`を確認し、新規runtimeを別途退避してから手動で戻す
+2. `sudo ./scripts/install-managed-policy.sh --apply` で managed security policy を導入する
+3. `./scripts/migrate-layout.sh --dry-run` で移動計画を確認する(変更なし)
+4. `./scripts/migrate-layout.sh --apply` を実行する。runtime データを実ディレクトリ/XDG stateへ移し、`bootstrap.sh --apply`と`--check`までを同一transactionとして実行する。ここまでの途中失敗時は自動rollbackする
+5. `bootstrap.sh --check`成功後はtransactionをcommitし、生成済みrollback scriptを無効化する。commit後のrollbackは移行後に作られたruntimeを失う危険があるため自動化しない。必要な場合は`operations.log`を確認し、新規runtimeを別途退避してから手動で戻す
 
 ## インストーラ(`bootstrap.sh`)
 
@@ -56,7 +60,8 @@ Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
 1. `<agent>/` ディレクトリを作成する(source 専用。実 config ディレクトリへは反映しない)
 2. `install/manifest.tsv` に、追跡したい設定ファイル・ディレクトリごとに `mode<TAB>source<TAB>target` 行を追加する(`mode` は `link-file` または `link-dir`。**ディレクトリ丸ごと symlink は禁止** — runtime writer の混入を防ぐため、source 側で source/runtime を分離してから追加する)
 3. ルート `.gitignore` に `<agent>/*` の default-deny + 追跡したい設定ファイルの allowlist を追加する
-4. `./scripts/validate-layout.sh` を実行し、manifest 整合・manifest 外の tracked ファイルがないことを確認する
+4. `docs/reports/inventory-elements.tsv` に要素別11軸評価を1行追加し、`inventory-matrix.md` を同期する
+5. `./scripts/validate-layout.sh` を実行し、manifest・managed policy・inventory coverage・実行 mode を確認する
 
 ## 既知の例外
 
@@ -66,7 +71,7 @@ repo内での開発・実行により `.venv`、`.mypy_cache`、`.pytest_cache`�
 
 ## CI
 
-`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON構文検証・`scripts/validate-layout.sh`・`shared/bin/sync-shared-rules.sh --check`・`tests/test-*.sh`・`python-refactor-analysis`のpytest・全履歴gitleaksスキャンを実行する。
+`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON/Python構文検証・`scripts/validate-layout.sh`・release package lint・`shared/bin/sync-shared-rules.sh --check`・XDG を隔離した `tests/test-*.sh`・`python-refactor-analysis` の pytest・全履歴 gitleaks スキャンを実行する。
 
 ## 注意
 

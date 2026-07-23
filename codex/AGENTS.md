@@ -20,7 +20,7 @@
 
 ## Python
 
-Python の実装・修正・レビュー時は `python-quality` skill（`~/.agents/skills/python-quality/`）を読み、その品質ゲート（uv 実行規約・Ruff チェックリスト・型安全ガード）を適用する。
+Python の実装・修正・レビュー時は、必要時に `~/.codex/references/python-quality.md` を読み、その品質ゲート（uv 実行規約・Ruff チェックリスト・型安全ガード）を適用する。常時ロードしない。
 
 <!-- BEGIN shared:no-fallback -->
 ## No Fallback ポリシー

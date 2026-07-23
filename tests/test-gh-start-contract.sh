@@ -57,9 +57,13 @@ fi
 # 2. bootstrap 済み clean HOME 経由: ~/.claude/bin symlink から同様に動く
 # =========================================================================
 TESTHOME="$SANDBOX/home"
-mkdir -p "$TESTHOME"
+MANAGED_TARGET="$SANDBOX/managed/20-agents-toolkit-security.json"
+mkdir -p "$TESTHOME" "$(dirname "$MANAGED_TARGET")"
 HOME="$TESTHOME" git config --global --add safe.directory "$REPO_ROOT" 2>/dev/null || true
-if HOME="$TESTHOME" "$REPO_ROOT/bootstrap.sh" --apply > "$SANDBOX/bootstrap.log" 2>&1; then
+AGENTS_TOOLKIT_TESTING=1 "$REPO_ROOT/scripts/install-managed-policy.sh" --apply --target "$MANAGED_TARGET" > "$SANDBOX/managed-policy.log" 2>&1
+if env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME \
+  HOME="$TESTHOME" AGENTS_TOOLKIT_TESTING=1 AGENTS_TOOLKIT_MANAGED_POLICY_TARGET="$MANAGED_TARGET" \
+  "$REPO_ROOT/bootstrap.sh" --apply > "$SANDBOX/bootstrap.log" 2>&1; then
   ok "clean HOME への bootstrap --apply が成功"
 else
   ng "clean HOME への bootstrap --apply が失敗: $(tail -3 "$SANDBOX/bootstrap.log")"

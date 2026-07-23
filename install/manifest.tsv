@@ -38,4 +38,4 @@ link-dir	codex/skills/claude-second-opinion	.agents/skills/claude-second-opinion
 link-dir	codex/skills/doctor	.agents/skills/doctor
 link-dir	codex/skills/issue-writing	.agents/skills/issue-writing
 link-dir	codex/skills/kaggle	.agents/skills/kaggle
-link-dir	codex/skills/python-quality	.agents/skills/python-quality
+link-file	codex/references/python-quality.md	.codex/references/python-quality.md

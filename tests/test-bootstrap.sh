@@ -86,15 +86,21 @@ fi
 # entries: link-file x2, link-dir x2 (うち1つは .agents/skills/... の入れ子target)
 build_fixture_repo() {
   local repo="$1"
-  mkdir -p "$repo/install" "$repo/claude/rules" "$repo/codex" "$repo/shared/skills/agmsg"
+  mkdir -p "$repo/install" "$repo/claude/rules" "$repo/claude/bin" "$repo/codex" "$repo/shared/skills/agmsg"
   echo "# CLAUDE.md (fixture)" > "$repo/claude/CLAUDE.md"
   echo "# sample rule (fixture)" > "$repo/claude/rules/sample.md"
   echo "# AGENTS.md (fixture)" > "$repo/codex/AGENTS.md"
   echo "# agmsg SKILL.md (fixture)" > "$repo/shared/skills/agmsg/SKILL.md"
-  # bootstrap は check/apply で doctor(scripts/check-runtime.sh)を強制するため実物を配置する
+  # bootstrap は managed policy checker/installer と doctor を強制する。
+  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
+  cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
+  cp "$REPO_ROOT/claude/bin/project-policy-gate" "$repo/claude/bin/project-policy-gate"
+  chmod +x "$repo/claude/bin/project-policy-gate"
   mkdir -p "$repo/scripts"
   cp "$REPO_ROOT/scripts/check-runtime.sh" "$repo/scripts/check-runtime.sh"
-  chmod +x "$repo/scripts/check-runtime.sh"
+  cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
+  cp "$REPO_ROOT/scripts/install-managed-policy.sh" "$repo/scripts/install-managed-policy.sh"
+  chmod +x "$repo/scripts/check-runtime.sh" "$repo/scripts/check-managed-policy.py" "$repo/scripts/install-managed-policy.sh"
 
   printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\n' > "$repo/install/manifest.tsv"
   printf 'link-dir\tclaude/rules\t.claude/rules\n' >> "$repo/install/manifest.tsv"
@@ -113,10 +119,35 @@ mkdir -p "$STUB_CLAUDE_BIN"
 printf '#!/usr/bin/env bash\necho "2.1.218 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
 chmod +x "$STUB_CLAUDE_BIN/claude"
 
+managed_target() {
+  local home="$1"
+  printf '%s\n' "$home/.managed/20-agents-toolkit-security.json"
+}
+
+install_fixture_policy() {
+  local repo="$1" home="$2" target
+  target="$(managed_target "$home")"
+  if [[ ! -f "$target" ]]; then
+    AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply --target "$target" >/dev/null
+  fi
+}
+
+run_bootstrap_raw() {
+  local repo="$1" home="$2" overlay="$3"
+  shift 3
+  local target
+  target="$(managed_target "$home")"
+  env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME \
+    PATH="$STUB_CLAUDE_BIN:$PATH" AGENTS_TOOLKIT_REPO="$repo" HOME="$home" \
+    AGENTS_TOOLKIT_OVERLAY="$overlay" AGENTS_TOOLKIT_TESTING=1 \
+    AGENTS_TOOLKIT_MANAGED_POLICY_TARGET="$target" "$BOOTSTRAP" "$@"
+}
+
 run_bootstrap() {
   local repo="$1" home="$2" overlay="$3"
   shift 3
-  PATH="$STUB_CLAUDE_BIN:$PATH" AGENTS_TOOLKIT_REPO="$repo" HOME="$home" AGENTS_TOOLKIT_OVERLAY="$overlay" "$BOOTSTRAP" "$@"
+  install_fixture_policy "$repo" "$home"
+  run_bootstrap_raw "$repo" "$home" "$overlay" "$@"
 }
 
 # =========================================================================
@@ -393,6 +424,19 @@ out=""
 rc=0
 out="$(run_bootstrap "$REPO9" "$HOME9" "$NO_OVERLAY" --check 2>&1)" || rc=$?
 assert_exit_nonzero "旧構成では --check も失敗する" "$rc"
+
+# =========================================================================
+# 10. managed policy がない check/apply は user link 作成前に fail-closed
+# =========================================================================
+REPO10="$SANDBOX/repo10"
+HOME10="$SANDBOX/home10"
+build_fixture_repo "$REPO10"
+mkdir -p "$HOME10"
+out=""; rc=0
+out="$(run_bootstrap_raw "$REPO10" "$HOME10" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "managed policy 欠落で --apply は失敗する" "$rc"
+assert_contains "managed policy 欠落を明示する" "$out" "managed policy is not installed"
+assert_false "managed policy 前提失敗時は user symlink を作らない" test -e "$HOME10/.claude/CLAUDE.md"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

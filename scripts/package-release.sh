@@ -20,6 +20,27 @@ case "$MODE" in
     ;;
 esac
 
+
+# Refuse to package a working tree that differs from HEAD. git archive packages
+# HEAD, so allowing dirty/untracked operational files would create a misleading
+# report/archive pair.
+if ! git diff --quiet --ignore-submodules -- || ! git diff --cached --quiet --ignore-submodules --; then
+  echo "ERROR: working tree/index differs from HEAD; commit or restore changes before packaging" >&2
+  exit 1
+fi
+untracked="$(git ls-files --others --exclude-standard -- \
+  bootstrap.sh scripts tests claude codex shared install .github docs/reports docs/requirements | head -1)"
+if [[ -n "$untracked" ]]; then
+  echo "ERROR: untracked release-relevant file: $untracked" >&2
+  exit 1
+fi
+
+# Release gates are run here as well as in CI so a manual package build cannot
+# bypass the managed-policy, inventory, source-manifest, and executable-mode
+# contracts.
+"$REPO_ROOT/scripts/validate-layout.sh" >/dev/null
+"$REPO_ROOT/shared/bin/sync-shared-rules.sh" --check >/dev/null
+
 SHORTSHA="$(git rev-parse --short HEAD)"
 if [[ "$MODE" == "--check" ]]; then
   OUTDIR="$(mktemp -d)"
@@ -44,7 +65,11 @@ if [[ -n "$bad" ]]; then
 fi
 
 entries="$(echo "$listing" | wc -l)"
-sha256="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
+else
+  sha256="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
+fi
 echo "PASS: release archive is clean ($entries entries)"
 echo "archive: $ARCHIVE"
 echo "sha256: $sha256"

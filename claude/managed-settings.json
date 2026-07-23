@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "allowManagedHooksOnly": true,
+  "allowManagedPermissionRulesOnly": true,
+  "disableAutoMode": "disable",
+  "permissions": {
+    "allow": [
+      "Agent",
+      "Edit(**)",
+      "Read(**)",
+      "WebSearch"
+    ],
+    "deny": [
+      "Bash(> /dev/sd*)",
+      "Bash(bash *)",
+      "Bash(cat **/.env*)",
+      "Bash(cat .env*)",
+      "Bash(dd if=*of=/dev/sd*)",
+      "Bash(git checkout -- .)",
+      "Bash(git clean -f *)",
+      "Bash(git clean -fd *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard *)",
+      "Bash(nc *)",
+      "Bash(ncat *)",
+      "Bash(rm -rf .)",
+      "Bash(rm -rf /)",
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf data*)",
+      "Bash(rm -rf models*)",
+      "Bash(rm -rf results*)",
+      "Bash(rm -rf ~)",
+      "Bash(sudo *)",
+      "Bash(uv run python scripts/scraping/*)",
+      "Bash(uv run python scripts/voting/*)",
+      "Bash(~/.claude/bin/uvw run python scripts/scraping/*)",
+      "Bash(~/.claude/bin/uvw run python scripts/voting/*)",
+      "Bash(sh *)",
+      "Bash(zsh *)",
+      "Bash(dash *)",
+      "Bash(wget *)",
+      "Edit(**/.env*)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(~/.bashrc)",
+      "Edit(~/.zshrc)",
+      "Read(**/*.p12)",
+      "Read(**/*.pem)",
+      "Read(**/*.pfx)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/credentials.json)",
+      "Read(**/id_ed25519)",
+      "Read(**/id_rsa)",
+      "Read(**/service-account*.json)",
+      "Read(./.env.*)",
+      "Read(.env)",
+      "Read(~/.aws/**)",
+      "Read(~/.azure/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.gem/credentials)",
+      "Read(~/.git-credentials)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.npmrc)",
+      "Read(~/.pypirc)",
+      "Read(~/.ssh/**)",
+      "Bash(head **/.env*)",
+      "Bash(head .env*)",
+      "Bash(tail **/.env*)",
+      "Bash(tail .env*)",
+      "Bash(less **/.env*)",
+      "Bash(less .env*)",
+      "Bash(more **/.env*)",
+      "Bash(more .env*)",
+      "Bash(grep * **/.env*)",
+      "Bash(grep * .env*)",
+      "Bash(awk * **/.env*)",
+      "Bash(awk * .env*)",
+      "Bash(sed * **/.env*)",
+      "Bash(sed * .env*)",
+      "Bash(python **/.env*)",
+      "Bash(python3 **/.env*)",
+      "Bash(node **/.env*)",
+      "Bash(cp **/.env*)",
+      "Bash(mv **/.env*)",
+      "Bash(source **/.env*)",
+      "Bash(source .env*)",
+      "Bash(. **/.env*)",
+      "Bash(. .env*)",
+      "Bash(mkfs *)",
+      "Bash(mkfs.* *)",
+      "Edit(.git/config)",
+      "Edit(.git/hooks/**)",
+      "Read(//**/.env)",
+      "Read(//**/.env.*)",
+      "Edit(//**/.env)",
+      "Edit(//**/.env.*)"
+    ],
+    "defaultMode": "default",
+    "ask": [
+      "Bash"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "~/.config",
+        "~/.local/state",
+        "~/.local/share",
+        "~/.cache",
+        "~/.claude",
+        "~/.claude.json",
+        "~/.codex",
+        "~/.agents"
+      ],
+      "allowRead": [
+        "~/.claude/bin",
+        "~/.claude/skills",
+        "~/.config/agents-toolkit"
+      ],
+      "allowManagedReadPathsOnly": true
+    },
+    "credentials": {
+      "files": [
+        {
+          "path": "~/.ssh",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.aws",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.gnupg",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.kube",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.docker/config.json",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.git-credentials",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.npmrc",
+          "mode": "deny"
+        },
+        {
+          "path": "~/.pypirc",
+          "mode": "deny"
+        }
+      ],
+      "envVars": [
+        {
+          "name": "GITHUB_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "NPM_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "AWS_SESSION_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "HF_TOKEN",
+          "mode": "deny"
+        }
+      ]
+    },
+    "excludedCommands": [
+      "gh *"
+    ],
+    "network": {
+      "allowManagedDomainsOnly": true
+    },
+    "autoAllowBashIfSandboxed": false
+  },
+  "hooks": {
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/config-change-hook.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/slack-notify-hook.sh notification",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/post-compact-hook.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pr-review-hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pre-bash-validate-hook.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/session-init-hook.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/herdr-agent-state.sh\" session",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/slack-notify-hook.sh stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "requiredMinimumVersion": "2.1.218"
+}

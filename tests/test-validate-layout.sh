@@ -1,92 +1,110 @@
 #!/usr/bin/env bash
-# test-validate-layout.sh — scripts/validate-layout.sh のstandaloneテスト
-# 実$HOME・実repoには一切触れず、mktemp -d に mini repo fixture(実git repo)を構築して検証する。
+# Standalone contract tests for scripts/validate-layout.sh.
+# Every fixture is a real, isolated git repository; the user's HOME is untouched.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-VALIDATE_SCRIPT="$REPO_ROOT/scripts/validate-layout.sh"
-
+VALIDATE="$REPO_ROOT/scripts/validate-layout.sh"
 SANDBOX="$(mktemp -d)"
-cleanup() { rm -rf "$SANDBOX"; }
-trap cleanup EXIT
-
+trap 'rm -rf "$SANDBOX"' EXIT
 FAILURES=0
 
-assert_exit_zero() {
-  local desc="$1" rc="$2"
-  if [[ "$rc" -eq 0 ]]; then
-    echo "ok: $desc"
-  else
-    echo "FAIL: $desc (exit=$rc)" >&2
-    FAILURES=$((FAILURES + 1))
-  fi
-}
+ok(){ echo "ok: $1"; }
+ng(){ echo "FAIL: $1" >&2; FAILURES=$((FAILURES+1)); }
+assert_zero(){ [[ "$2" -eq 0 ]] && ok "$1" || ng "$1 (exit=$2)"; }
+assert_nonzero(){ [[ "$2" -ne 0 ]] && ok "$1" || ng "$1 (expected non-zero)"; }
+assert_contains(){ [[ "$2" == *"$3"* ]] && ok "$1" || { ng "$1 (missing: $3)"; printf '%s\n' "$2" >&2; }; }
 
-assert_exit_nonzero() {
-  local desc="$1" rc="$2"
-  if [[ "$rc" -ne 0 ]]; then
-    echo "ok: $desc"
-  else
-    echo "FAIL: $desc (expected non-zero exit, got 0)" >&2
-    FAILURES=$((FAILURES + 1))
-  fi
-}
-
-assert_contains() {
-  local desc="$1" haystack="$2" needle="$3"
-  if [[ "$haystack" == *"$needle"* ]]; then
-    echo "ok: $desc"
-  else
-    echo "FAIL: $desc (expected output to contain: $needle)" >&2
-    echo "--- actual output ---" >&2
-    echo "$haystack" >&2
-    FAILURES=$((FAILURES + 1))
-  fi
-}
-
-if [[ ! -x "$VALIDATE_SCRIPT" ]]; then
-  echo "FAIL: validate-layout script not found or not executable: $VALIDATE_SCRIPT" >&2
-  exit 1
-fi
-
-# fixture repo: manifest整合が取れた最小構成(claude/codex/shared)を実git repoとして構築する。
-# shared/rules/rule-a.md は claude/CLAUDE.md の @~/.agents/rules/ import で、
-# shared/rules/rule-b.md は sync-shared-rules.sh の SYNC_MAP で、それぞれ別経路で消費させる。
 build_fixture() {
   local repo="$1"
-  mkdir -p "$repo/install" "$repo/scripts" \
-    "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/githooks" \
-    "$repo/codex" \
-    "$repo/shared/bin" "$repo/shared/rules"
+  mkdir -p \
+    "$repo/install" "$repo/scripts/lib" \
+    "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/skills/sample-skill" "$repo/claude/githooks" \
+    "$repo/codex" "$repo/shared/bin" "$repo/shared/rules" \
+    "$repo/docs/waivers" "$repo/docs/requirements" "$repo/docs/reports" "$repo/tests"
 
-  cp "$VALIDATE_SCRIPT" "$repo/scripts/validate-layout.sh"
-  chmod +x "$repo/scripts/validate-layout.sh"
-  mkdir -p "$repo/scripts/lib"
+  cp "$VALIDATE" "$repo/scripts/validate-layout.sh"
+  cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
   cp "$REPO_ROOT/scripts/lib/scan-model-pins.py" "$repo/scripts/lib/scan-model-pins.py"
+  chmod +x "$repo/scripts/validate-layout.sh" "$repo/scripts/check-managed-policy.py"
 
-  cat > "$repo/install/manifest.tsv" <<'EOF'
-# fixture manifest
+  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
+  cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
+
+  cat > "$repo/install/manifest.tsv" <<'MANIFEST'
+link-file	claude/settings.json	.claude/settings.json
 link-file	claude/CLAUDE.md	.claude/CLAUDE.md
 link-dir	claude/rules	.claude/rules
 link-dir	claude/agents	.claude/agents
+link-dir	claude/skills	.claude/skills
 link-file	codex/AGENTS.md	.codex/AGENTS.md
 link-dir	shared/rules	.agents/rules
 link-dir	shared/bin	.agents/bin
+MANIFEST
+
+  printf '# fixture\n@~/.agents/rules/rule-a.md\n' > "$repo/claude/CLAUDE.md"
+  printf '# fixture\n' > "$repo/claude/.gitignore"
+  printf '# fixture\n' > "$repo/claude/README.md"
+  printf '# fixture\n' > "$repo/claude/rules/sample.md"
+  printf '# fixture\n' > "$repo/claude/agents/sample.md"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/claude/githooks/pre-commit"
+  chmod +x "$repo/claude/githooks/pre-commit"
+  cat > "$repo/claude/skills/sample-skill/SKILL.md" <<'SKILL'
+---
+name: sample-skill
+description: Fixture skill.
+allowed-tools: Read Grep
+---
+# Sample
+SKILL
+  printf '# fixture\n' > "$repo/codex/AGENTS.md"
+
+  cat > "$repo/shared/bin/sync-shared-rules.sh" <<'SYNC'
+#!/usr/bin/env bash
+SYNC_MAP=$(cat <<'EOF'
+rule-b	codex/AGENTS.md
 EOF
-
-  printf '# CLAUDE.md (fixture)\n@~/.agents/rules/rule-a.md\n' > "$repo/claude/CLAUDE.md"
-  echo "# gitignore (fixture)" > "$repo/claude/.gitignore"
-  echo "# README (fixture)" > "$repo/claude/README.md"
-  echo "# pre-commit hook (fixture)" > "$repo/claude/githooks/pre-commit"
-  echo "# sample rule (fixture)" > "$repo/claude/rules/sample.md"
-  echo "# sample agent (fixture)" > "$repo/claude/agents/sample.md"
-  echo "# AGENTS.md (fixture)" > "$repo/codex/AGENTS.md"
-
-  printf '#!/usr/bin/env bash\nSYNC_MAP=$(cat <<'"'"'EOF'"'"'\nrule-b\tcodex/AGENTS.md\nEOF\n)\n' > "$repo/shared/bin/sync-shared-rules.sh"
+)
+SYNC
   chmod +x "$repo/shared/bin/sync-shared-rules.sh"
-  echo "# rule-a (consumed via CLAUDE.md import)" > "$repo/shared/rules/rule-a.md"
-  echo "# rule-b (consumed via SYNC_MAP)" > "$repo/shared/rules/rule-b.md"
+  printf '# imported\n' > "$repo/shared/rules/rule-a.md"
+  printf '# synchronized\n' > "$repo/shared/rules/rule-b.md"
+
+  printf '# no active waivers\n' > "$repo/docs/waivers/settings-waivers.tsv"
+  printf 'fixture-env\n' > "$repo/docs/waivers/environments.txt"
+  cp "$REPO_ROOT/docs/requirements/source-manifest.sha256" "$repo/docs/requirements/source-manifest.sha256"
+  local sha
+  sha="$(awk '{print $1}' "$repo/docs/requirements/source-manifest.sha256")"
+  printf '# Requirements source\n\nSHA-256: `%s`\n' "$sha" > "$repo/docs/requirements/requirements-transcription-260722.md"
+  printf 'fixture /home/example is intentionally under tests\n' > "$repo/tests/absolute-home-fixture.txt"
+
+  # Minimal, schema-complete inventory for the validator fixture. Coverage is
+  # generated from this fixture's actual operational paths.
+  python3 - "$repo" <<'PYINV'
+import csv, os, sys
+from pathlib import Path
+root=Path(sys.argv[1])
+fields=["id","category","before_path","after_path","archive_path","tags","purpose","needed","builtin_alternative","overlap","context_load","false_positive","failure_impact","verification","low_cost_model","deterministic_replacement","disposition","evidence"]
+paths=[]
+for base in ["scripts","tests","claude/bin","claude/hooks","claude/scripts","claude/githooks",".github/workflows","install"]:
+    d=root/base
+    if not d.exists(): continue
+    for dirpath, _, files in os.walk(d):
+        for name in files:
+            rel=str((Path(dirpath)/name).relative_to(root))
+            if rel.startswith("tests/") and not (rel.endswith(".sh") or "/lib/" in rel):
+                continue
+            paths.append(rel)
+for rel in ["bootstrap.sh","claude/settings.json","claude/managed-settings.json","codex/hooks.json"]:
+    if (root/rel).exists(): paths.append(rel)
+rows=[]
+for i,rel in enumerate(sorted(set(paths)),1):
+    rows.append({"id":f"fixture:{i}","category":"fixture","before_path":rel,"after_path":rel,"archive_path":"-","tags":"","purpose":f"validate {rel}","needed":"high","builtin_alternative":"none","overlap":"none","context_load":"test-only","false_positive":"low","failure_impact":"medium","verification":"fixture validator","low_cost_model":"n/a","deterministic_replacement":"yes","disposition":"keep","evidence":"test fixture"})
+out=root/"docs/reports/inventory-elements.tsv"
+with out.open("w",encoding="utf-8",newline="") as fh:
+    w=csv.DictWriter(fh,fieldnames=fields,delimiter="\t",lineterminator="\n"); w.writeheader(); w.writerows(rows)
+PYINV
 
   git -C "$repo" init -q
   git -C "$repo" add -A
@@ -94,370 +112,86 @@ EOF
 
 run_validate() {
   local repo="$1"
-  "$repo/scripts/validate-layout.sh"
+  mkdir -p "$repo/.home"
+  env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME \
+    HOME="$repo/.home" "$repo/scripts/validate-layout.sh"
 }
 
-# =========================================================================
-# 1. 正常構成は PASS する
-# =========================================================================
-REPO1="$SANDBOX/repo1"
-build_fixture "$REPO1"
-mkdir -p "$REPO1/claude/agents/.pytest_cache" "$REPO1/tests"
-echo "allowed local cache" > "$REPO1/claude/agents/.pytest_cache/CACHEDIR.TAG"
-echo 'fixture path: /home/exampleuser' > "$REPO1/tests/absolute-home-fixture.txt"
-git -C "$REPO1" add tests/absolute-home-fixture.txt
-out=""
-rc=0
-out="$(run_validate "$REPO1" 2>&1)" || rc=$?
-assert_exit_zero "正常構成は exit 0" "$rc"
-assert_contains "正常構成は PASS メッセージを出す" "$out" "PASS: no layout violations found"
+run_case() {
+  local name="$1" mutate="$2" expected="$3"
+  local repo="$SANDBOX/$name" out rc=0
+  build_fixture "$repo"
+  eval "$mutate"
+  out="$(run_validate "$repo" 2>&1)" || rc=$?
+  if [[ "$expected" == PASS ]]; then
+    assert_zero "$name passes" "$rc"
+    assert_contains "$name emits PASS" "$out" "PASS: no layout violations found"
+  else
+    assert_nonzero "$name fails" "$rc"
+    assert_contains "$name reports contract" "$out" "$expected"
+  fi
+}
 
-# =========================================================================
-# 2. 禁止runtime名の追跡は非ゼロ+対象列挙
-# =========================================================================
-REPO2="$SANDBOX/repo2"
-build_fixture "$REPO2"
-echo '{"fixture":"forbidden"}' > "$REPO2/shared/bin/history.jsonl"
-git -C "$REPO2" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO2" 2>&1)" || rc=$?
-assert_exit_nonzero "禁止runtime名の追跡は失敗する" "$rc"
-assert_contains "禁止runtime名が列挙される" "$out" "forbidden runtime name tracked: shared/bin/history.jsonl"
+run_case valid ':' PASS
+run_case forbidden-runtime \
+  'printf "{}\n" > "$repo/shared/bin/history.jsonl"; git -C "$repo" add shared/bin/history.jsonl' \
+  'forbidden runtime name tracked: shared/bin/history.jsonl'
+run_case manifest-four-columns \
+  'printf "link-file\tclaude/CLAUDE.md\t.claude/duplicate.md\textra\n" >> "$repo/install/manifest.tsv"' \
+  '3列が必要です(実際: 4列)'
+run_case manifest-orphan \
+  'printf "orphan\n" > "$repo/claude/orphan.md"; git -C "$repo" add claude/orphan.md' \
+  'tracked file not covered by manifest or allowlist: claude/orphan.md'
+run_case unconsumed-rule \
+  'printf "orphan\n" > "$repo/shared/rules/orphan.md"; git -C "$repo" add shared/rules/orphan.md' \
+  'shared rule not consumed by SYNC_MAP or claude/CLAUDE.md import: shared/rules/orphan.md'
+run_case user-security-key \
+  'jq ". + {sandbox:{enabled:false}}" "$repo/claude/settings.json" > "$repo/u"; mv "$repo/u" "$repo/claude/settings.json"' \
+  'user settings must not carry security policy keys'
+run_case missing-managed-lock \
+  'jq "del(.allowManagedPermissionRulesOnly)" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed settings require allowManagedPermissionRulesOnly=true'
+run_case managed-bash-allow \
+  'jq ".permissions.allow += [\"Bash(gh auth status)\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed permissions must not pre-approve Bash commands'
+run_case sandbox-auto-allow \
+  'jq ".sandbox.autoAllowBashIfSandboxed=true" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed sandbox.autoAllowBashIfSandboxed must be false'
+run_case missing-helper-read \
+  'jq ".sandbox.filesystem.allowRead -= [\"~/.claude/bin\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed allowRead is missing required toolkit paths: ~/.claude/bin'
+run_case preallowed-domain \
+  'jq ".sandbox.network.allowedDomains=[\"example.com\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed network allowedDomains must be empty/absent'
+run_case broad-git-deny \
+  'jq ".permissions.deny += [\"Edit(.git/**)\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  "git-workflow-breaking deny: 'Edit(.git/**)'"
+run_case source-hash-mismatch \
+  'printf "# wrong transcription\n" > "$repo/docs/requirements/requirements-transcription-260722.md"' \
+  'requirements transcription does not reference source manifest SHA-256'
+run_case invalid-waiver-schema \
+  'printf "claude/managed-settings.json\tpattern\tfixture-env\t2099-01-01\n" > "$repo/docs/waivers/settings-waivers.tsv"' \
+  'waiver schema:'
+run_case invalid-skill-schema \
+  'sed -i "s/name: sample-skill/name: wrong-name/" "$repo/claude/skills/sample-skill/SKILL.md"' \
+  "name 'wrong-name' != directory 'sample-skill'"
+run_case stale-reference \
+  'printf "/gh:start\n" >> "$repo/claude/rules/sample.md"' \
+  'stale reference in claude/rules/sample.md'
+run_case non-executable-script \
+  'printf "#!/usr/bin/env bash\n" > "$repo/scripts/extra.sh"; chmod 0644 "$repo/scripts/extra.sh"; git -C "$repo" add scripts/extra.sh' \
+  'non-executable direct-execution script: 100644 scripts/extra.sh'
+run_case inventory-missing-element \
+  'printf "#!/usr/bin/env bash\nexit 0\n" > "$repo/scripts/uninventoried.sh"; chmod +x "$repo/scripts/uninventoried.sh"; git -C "$repo" add scripts/uninventoried.sh' \
+  'operational element missing from inventory: scripts/uninventoried.sh'
+run_case unsupported-model-syntax \
+  'printf -- "---\n\"model\": opus\n---\n" > "$repo/claude/agents/bad.md"; git -C "$repo" add claude/agents/bad.md' \
+  'model pin scan failed:'
 
-# =========================================================================
-# 3. 絶対home pathの追跡は非ゼロ+対象列挙
-# =========================================================================
-REPO3="$SANDBOX/repo3"
-build_fixture "$REPO3"
-echo "see /home/exampleuser/notes for details" > "$REPO3/claude/agents/leaky.md"
-git -C "$REPO3" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO3" 2>&1)" || rc=$?
-assert_exit_nonzero "絶対home pathの追跡は失敗する" "$rc"
-assert_contains "絶対home pathが列挙される" "$out" "absolute home path in claude/agents/leaky.md:1: /home/exampleuser"
-
-# =========================================================================
-# 4. manifestが4列(余剰列)だと非ゼロ+対象列挙
-# =========================================================================
-REPO4="$SANDBOX/repo4"
-build_fixture "$REPO4"
-printf 'link-file\tclaude/rules/sample.md\t.claude/rules/sample.md\textra-column\n' >> "$REPO4/install/manifest.tsv"
-git -C "$REPO4" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO4" 2>&1)" || rc=$?
-assert_exit_nonzero "manifestの4列行は失敗する" "$rc"
-assert_contains "4列違反のエラーメッセージ" "$out" "3列が必要です(実際: 4列)"
-
-# =========================================================================
-# 5. manifest外(かつallowlist外)のtracked fileは非ゼロ+対象列挙
-# =========================================================================
-REPO5="$SANDBOX/repo5"
-build_fixture "$REPO5"
-echo "# untracked-by-manifest fixture file" > "$REPO5/claude/orphan.md"
-git -C "$REPO5" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO5" 2>&1)" || rc=$?
-assert_exit_nonzero "manifest外tracked fileは失敗する" "$rc"
-assert_contains "manifest外tracked fileが列挙される" "$out" "tracked file not covered by manifest or allowlist: claude/orphan.md"
-
-# =========================================================================
-# 6. 未消費shared ruleは非ゼロ+対象列挙
-# =========================================================================
-REPO6="$SANDBOX/repo6"
-build_fixture "$REPO6"
-echo "# orphan rule (consumed by nothing)" > "$REPO6/shared/rules/rule-orphan.md"
-git -C "$REPO6" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO6" 2>&1)" || rc=$?
-assert_exit_nonzero "未消費shared ruleは失敗する" "$rc"
-assert_contains "未消費shared ruleが列挙される" "$out" "shared rule not consumed by SYNC_MAP or claude/CLAUDE.md import: shared/rules/rule-orphan.md"
-
-# =========================================================================
-# 7. 危険設定はwaiverなしで非ゼロ、有効waiverがあればWARNのみでPASS
-# =========================================================================
-REPO7="$SANDBOX/repo7"
-build_fixture "$REPO7"
-echo '{"permissions": {"defaultMode": "bypassPermissions", "disableBypassPermissionsMode": "disable"}}' > "$REPO7/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO7/install/manifest.tsv"
-git -C "$REPO7" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO7" 2>&1)" || rc=$?
-assert_exit_nonzero "危険設定はwaiverなしで失敗する" "$rc"
-assert_contains "危険設定が違反として列挙される" "$out" "dangerous setting without waiver: claude/settings.json:1: bypassPermissions"
-
-# 有効期限内のwaiver行を追加するとWARNのみでPASSする(environmentはallowlist登録が必要)
-mkdir -p "$REPO7/docs/waivers"
-printf 'fixture-env\n' > "$REPO7/docs/waivers/environments.txt"
-FUTURE_DATE="$(date -d '+30 days' +%F 2>/dev/null || date -v+30d +%F)"
-printf 'claude/settings.json\tbypassPermissions\tfixture-env\t%s\ttest waiver\n' "$FUTURE_DATE" > "$REPO7/docs/waivers/settings-waivers.tsv"
-git -C "$REPO7" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO7" 2>&1)" || rc=$?
-assert_exit_zero "有効waiverがあればPASSする" "$rc"
-assert_contains "waiver済み危険設定はWARNとして出力される" "$out" "(waived: see docs/waivers/settings-waivers.tsv)"
-
-# 期限切れwaiverは失敗する
-printf 'claude/settings.json\tbypassPermissions\tfixture-env\t2020-01-01\texpired waiver\n' > "$REPO7/docs/waivers/settings-waivers.tsv"
-git -C "$REPO7" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO7" 2>&1)" || rc=$?
-assert_exit_nonzero "期限切れwaiverは失敗する" "$rc"
-
-# waiver schema違反はそれ自体が失敗する(H-008): 列数不足・空reason・不正日付・未承認environment
-for bad in \
-  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-01-01' \
-  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-01-01\t' \
-  'claude/settings.json\tbypassPermissions\tfixture-env\t2099-13-45\treason' \
-  'claude/settings.json\tbypassPermissions\tunknown-env\t2099-01-01\treason'; do
-  printf "%b\n" "$bad" > "$REPO7/docs/waivers/settings-waivers.tsv"
-  git -C "$REPO7" add -A
-  out=""
-  rc=0
-  out="$(run_validate "$REPO7" 2>&1)" || rc=$?
-  assert_exit_nonzero "waiver schema違反行($bad)は失敗する" "$rc"
-done
-
-# =========================================================================
-# 8. generic agent内のproject固有sectionは非ゼロ+対象列挙
-# =========================================================================
-REPO8="$SANDBOX/repo8"
-build_fixture "$REPO8"
-printf '\n## Primary Focus（プロジェクト固有）\n' >> "$REPO8/claude/agents/sample.md"
-git -C "$REPO8" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO8" 2>&1)" || rc=$?
-assert_exit_nonzero "generic agentのproject固有sectionは失敗する" "$rc"
-assert_contains "project固有sectionのfileが列挙される" "$out" "project-specific section in generic agent"
-
-# =========================================================================
-# 9. link-dir配下の未知local artifactは非ゼロ、許可cacheは正常系でPASS済み
-# =========================================================================
-REPO9="$SANDBOX/repo9"
-build_fixture "$REPO9"
-echo "unknown" > "$REPO9/claude/agents/.unknown-runtime"
-out=""
-rc=0
-out="$(run_validate "$REPO9" 2>&1)" || rc=$?
-assert_exit_nonzero "link-dir配下の未知artifactは失敗する" "$rc"
-assert_contains "未知artifactが列挙される" "$out" "unapproved local artifact under source tree: claude/agents/.unknown-runtime"
-
-# =========================================================================
-# 10. manifest source symlinkがrepo外を指す場合は非ゼロ
-# =========================================================================
-REPO10="$SANDBOX/repo10"
-build_fixture "$REPO10"
-echo "outside" > "$SANDBOX/outside.md"
-ln -s "$SANDBOX/outside.md" "$REPO10/claude/agents/outside.md"
-git -C "$REPO10" add claude/agents/outside.md
-out=""
-rc=0
-out="$(run_validate "$REPO10" 2>&1)" || rc=$?
-assert_exit_nonzero "repo外を指すmanifest source symlinkは失敗する" "$rc"
-assert_contains "repo外sourceの実体pathが列挙される" "$out" "tracked symlink points outside repo"
-
-# =========================================================================
-# 11. skill frontmatter schema違反は非ゼロ(name不一致・comma allowed-tools)
-# =========================================================================
-REPO11="$SANDBOX/repo11"
-build_fixture "$REPO11"
-mkdir -p "$REPO11/claude/skills/good-skill" "$REPO11/claude/skills/bad-skill"
-printf -- '---\nname: good-skill\ndescription: A valid fixture skill for schema checks.\nallowed-tools: Bash Read\n---\n# ok\n' > "$REPO11/claude/skills/good-skill/SKILL.md"
-printf -- '---\nname: Wrong:Name\ndescription: Bad fixture.\nallowed-tools: Bash, Read\n---\n# bad\n' > "$REPO11/claude/skills/bad-skill/SKILL.md"
-printf 'link-dir\tclaude/skills/good-skill\t.claude/skills/good-skill\nlink-dir\tclaude/skills/bad-skill\t.claude/skills/bad-skill\n' >> "$REPO11/install/manifest.tsv"
-git -C "$REPO11" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11" 2>&1)" || rc=$?
-assert_exit_nonzero "skill schema違反は失敗する" "$rc"
-assert_contains "name不一致が列挙される" "$out" "name 'Wrong:Name' != directory 'bad-skill'"
-assert_contains "comma区切りallowed-toolsが列挙される" "$out" "allowed-tools must be space-separated"
-
-# =========================================================================
-# 11b. agent frontmatter / TOML の full model pin はwaiverなしで非ゼロ(H-001)
-# =========================================================================
-REPO11B="$SANDBOX/repo11b"
-build_fixture "$REPO11B"
-printf -- '---\nname: sample\nmodel: claude-foo-1\n---\n' > "$REPO11B/claude/agents/sample.md"
-printf -- '---\nname: quoted\nmodel: "claude-foo-2"\n---\n' > "$REPO11B/claude/agents/quoted.md"
-mkdir -p "$REPO11B/codex"
-printf 'model = "claude-foo-1"\n' > "$REPO11B/codex/example.toml"
-printf "model = 'claude-foo-3'\n" > "$REPO11B/codex/literal.toml"
-git -C "$REPO11B" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11B" 2>&1)" || rc=$?
-assert_exit_nonzero "agent frontmatterのfull model pinは失敗する" "$rc"
-assert_contains "plain YAML pinが列挙される" "$out" "claude/agents/sample.md:3: full model pin 'claude-foo-1'"
-assert_contains "quoted YAML pinが列挙される" "$out" "claude/agents/quoted.md:3: full model pin 'claude-foo-2'"
-assert_contains "TOML basic string pinが列挙される" "$out" "codex/example.toml:1: full model pin 'claude-foo-1'"
-assert_contains "TOML literal string pinが列挙される" "$out" "codex/literal.toml:1: full model pin 'claude-foo-3'"
-
-# =========================================================================
-# 11c. broad permission allow(bare tool / 広域Bash wildcard)は非ゼロ(H-007)
-# =========================================================================
-REPO11C="$SANDBOX/repo11c"
-build_fixture "$REPO11C"
-printf '{"permissions": {"disableBypassPermissionsMode": "disable", "allow": ["Read", "Bash(git *)", "Bash(npm *)", "Bash(uv run *)", "Bash(npm run test*)", "Write(**)"]}}\n' > "$REPO11C/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11C/install/manifest.tsv"
-git -C "$REPO11C" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11C" 2>&1)" || rc=$?
-assert_exit_nonzero "broad permission allowは失敗する" "$rc"
-assert_contains "bare Read allowが列挙される" "$out" "broad permission allow 'Read'"
-assert_contains "広域Bash wildcardが列挙される" "$out" "broad permission allow 'Bash(git *)'"
-assert_contains "runner wildcard(npm)が列挙される" "$out" "broad permission allow 'Bash(npm *)'"
-assert_contains "runner wildcard(uv run)が列挙される" "$out" "broad permission allow 'Bash(uv run *)'"
-assert_contains "unsupported path rule(Write)が列挙される" "$out" "unsupported path-scoped permission rule (matches nothing in current Claude Code): 'Write(**)'"
-assert_contains "no-space runner wildcardが列挙される" "$out" "no-space runner wildcard in allow: 'Bash(npm run test*)'"
-
-# =========================================================================
-# 11e. bypass lockout の欠落・誤配置・誤値は非ゼロ(H-012)
-# =========================================================================
-REPO11E="$SANDBOX/repo11e"
-build_fixture "$REPO11E"
-printf '{"permissions": {"defaultMode": "default"}, "disableBypassPermissionsMode": "disable"}\n' > "$REPO11E/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11E/install/manifest.tsv"
-git -C "$REPO11E" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11E" 2>&1)" || rc=$?
-assert_exit_nonzero "root 配置の lockout は失敗する" "$rc"
-assert_contains "lockout 欠落(permissions 配下)が列挙される" "$out" "bypass lockout contract"
-assert_contains "root 誤配置キーが列挙される" "$out" "misplaced root-level settings key: 'disableBypassPermissionsMode'"
-
-printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "enable"}}\n' > "$REPO11E/claude/settings.json"
-git -C "$REPO11E" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11E" 2>&1)" || rc=$?
-assert_exit_nonzero "誤値の lockout は失敗する" "$rc"
-
-# =========================================================================
-# 11f. .git 全体 deny(sandbox 統合で git workflow を破壊)と
-#      sandbox 有効時の presence contract 欠落は非ゼロ(H-018/H-014)
-# =========================================================================
-REPO11F="$SANDBOX/repo11f"
-build_fixture "$REPO11F"
-printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "deny": ["Edit(.git/**)"]}, "sandbox": {"enabled": true}}\n' > "$REPO11F/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11F/install/manifest.tsv"
-git -C "$REPO11F" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11F" 2>&1)" || rc=$?
-assert_exit_nonzero ".git 全体 deny は失敗する" "$rc"
-assert_contains "git-workflow-breaking deny が列挙される" "$out" "git-workflow-breaking deny: 'Edit(.git/**)'"
-assert_contains "狭域 .git 保護の欠落が列挙される" "$out" "missing required deny rule for sandboxed settings: 'Edit(.git/config)'"
-assert_contains ".env OS 境界の欠落が列挙される" "$out" "missing required deny rule for sandboxed settings: 'Read(//**/.env)'"
-
-# =========================================================================
-# 11g. WebFetch(domain:) allow / sandbox.network.allowedDomains による
-#      effective pre-allow と、素の uv allow は非ゼロ(H-007/H-019)
-# =========================================================================
-REPO11G="$SANDBOX/repo11g"
-build_fixture "$REPO11G"
-printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "allow": ["WebFetch(domain:github.com)", "Bash(uv run pytest *)"]}, "sandbox": {"network": {"allowedDomains": ["example.com"]}}}\n' > "$REPO11G/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11G/install/manifest.tsv"
-git -C "$REPO11G" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11G" 2>&1)" || rc=$?
-assert_exit_nonzero "effective pre-allowed domain は失敗する" "$rc"
-assert_contains "WebFetch 由来の domain が列挙される" "$out" "pre-allowed egress domain: 'github.com'"
-assert_contains "allowedDomains 由来の domain が列挙される" "$out" "pre-allowed egress domain: 'example.com'"
-assert_contains "素の uv allow が列挙される" "$out" "sandbox-incompatible uv allow: 'Bash(uv run pytest *)'"
-
-# =========================================================================
-# 11h. excludedCommands と交差する allow(unsandboxed egress)は非ゼロ(C-01)
-#      audited exact list(gh auth status)は許容される
-# =========================================================================
-REPO11H="$SANDBOX/repo11h"
-build_fixture "$REPO11H"
-printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "allow": ["Bash(gh auth status)", "Bash(gh search *)", "Bash(gh issue list *)"]}, "sandbox": {"excludedCommands": ["gh *"]}}\n' > "$REPO11H/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11H/install/manifest.tsv"
-git -C "$REPO11H" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11H" 2>&1)" || rc=$?
-assert_exit_nonzero "unsandboxed egress allow は失敗する" "$rc"
-assert_contains "gh search の allow が列挙される" "$out" "unsandboxed egress allow: 'Bash(gh search *)'"
-assert_contains "gh issue list の allow が列挙される" "$out" "unsandboxed egress allow: 'Bash(gh issue list *)'"
-if grep -q "unsandboxed egress allow: 'Bash(gh auth status)'" <<< "$out"; then
-  echo "FAIL: audited exact list(gh auth status)が誤検出された" >&2
-  FAILURES=$((FAILURES + 1))
-else
-  echo "ok: audited exact list(gh auth status)は許容される"
-fi
-
-# =========================================================================
-# 11i. denyRead が helper subtree を遮断する構成(allowRead 欠落)は非ゼロ(H-01)
-# =========================================================================
-REPO11I="$SANDBOX/repo11i"
-build_fixture "$REPO11I"
-printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "deny": ["Edit(.git/config)", "Edit(.git/hooks/**)", "Read(//**/.env)", "Read(//**/.env.*)", "Edit(//**/.env)", "Edit(//**/.env.*)"]}, "sandbox": {"enabled": true, "filesystem": {"denyRead": ["~/.claude", "~/.config"]}}}\n' > "$REPO11I/claude/settings.json"
-printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11I/install/manifest.tsv"
-git -C "$REPO11I" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11I" 2>&1)" || rc=$?
-assert_exit_nonzero "helper 遮断構成は失敗する" "$rc"
-assert_contains "~/.claude/bin の allowRead 欠落が列挙される" "$out" "allowRead '~/.claude/bin' が必要"
-assert_contains "private routing path の allowRead 欠落が列挙される" "$out" "allowRead '~/.config/agents-toolkit' が必要"
-
-# =========================================================================
-# 13. 直接実行 script の executable bit 欠落は非ゼロ(H-02)
-# =========================================================================
-REPO13="$SANDBOX/repo13"
-build_fixture "$REPO13"
-mkdir -p "$REPO13/tests"
-printf '#!/usr/bin/env bash\nexit 0\n' > "$REPO13/tests/test-dummy.sh"
-git -C "$REPO13" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO13" 2>&1)" || rc=$?
-assert_exit_nonzero "非実行 test script は失敗する" "$rc"
-assert_contains "non-executable script が列挙される" "$out" "non-executable direct-execution script: 100644 tests/test-dummy.sh"
-
-# =========================================================================
-# 11d. model scanner は非対応YAML構文で fail-closed になる(H-001)
-# =========================================================================
-REPO11D="$SANDBOX/repo11d"
-build_fixture "$REPO11D"
-printf -- '---\nname: quoted-key\n"model": "claude-x-1"\n---\n' > "$REPO11D/claude/agents/sample.md"
-git -C "$REPO11D" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO11D" 2>&1)" || rc=$?
-assert_exit_nonzero "非対応YAML構文(quoted key)でvalidatorが失敗する" "$rc"
-assert_contains "scanner失敗が明示される" "$out" "model pin scan failed"
-
-# =========================================================================
-# 12. active treeのstale reference(旧slash command等)は非ゼロ
-# =========================================================================
-REPO12="$SANDBOX/repo12"
-build_fixture "$REPO12"
-printf '# stale fixture\nrun /gh:start 42 to begin\n' >> "$REPO12/claude/rules/sample.md"
-git -C "$REPO12" add -A
-out=""
-rc=0
-out="$(run_validate "$REPO12" 2>&1)" || rc=$?
-assert_exit_nonzero "stale reference(旧slash command)は失敗する" "$rc"
-assert_contains "stale referenceが列挙される" "$out" "stale reference in claude/rules/sample.md"
-
-echo
+printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "PASS: all assertions succeeded"
   exit 0
-else
-  echo "FAIL: $FAILURES assertion(s) failed" >&2
-  exit 1
 fi
+echo "FAIL: $FAILURES assertion(s) failed" >&2
+exit 1

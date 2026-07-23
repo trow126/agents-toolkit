@@ -6,15 +6,16 @@
 #      sandbox.filesystem.denyRead は literal な ~/.config / ~/.local/state / ~/.local/share /
 #      ~/.cache を遮断する。custom XDG(例: XDG_CONFIG_HOME=/opt/cfg)は denyRead の外側へ
 #      解決されるため private routing / state が sandbox から読めてしまう。既定値以外は
-#      fail-closed でエラーにする(--accept-custom-xdg で明示受容。受容する場合は
-#      docs/waivers/settings-waivers.tsv へ記録し、denyRead に絶対 path を追加すること)
-#   2. Claude Code version が検証済み下限以上の stable であること(H-017)
+#      fail-closed でエラーにする。custom XDG の waiver/例外経路は持たない。
+#   2. current project の .claude/settings*.json が managed security policy を
+#      上書き・拡張する security surface を持たないこと(C-02)
+#   3. Claude Code version が検証済み下限以上の stable であること(H-017)
 #      本 toolkit の settings は sandbox.credentials(v2.1.187+)、Read()/Edit() path rule の
 #      現行挙動(v2.1.208+)、permissions.disableBypassPermissionsMode 等に依存する。
 #      検証済み下限: 2.1.218。prerelease(例: 2.1.218-beta.1)は検証対象外として拒否する。
-#      注: user settings に version floor を書く documented key は存在しない(minimumVersion は
-#      settings 参照に無い。managed 配備の requiredMinimumVersion は fail-open 設計)。
-#      したがって本 script + bootstrap 統合が toolkit の version gate である。
+#      managed policy の requiredMinimumVersion=2.1.218 が対応versionでは startupを拒否する。
+#      それ以前のversionは当該keyを認識しないため、本 script + bootstrap も defense-in-depth
+#      の version gate として維持する。
 #
 # 呼び出し:
 #   standalone:                scripts/check-runtime.sh           (claude 欠落もエラー)
@@ -25,29 +26,46 @@ set -euo pipefail
 MINIMUM="2.1.218"
 TESTED_MAJOR="2"
 SOFT_MISSING="false"
-ACCEPT_CUSTOM_XDG="false"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd "${SCRIPT_PATH%/*}" && pwd -P)"
+PROJECT_POLICY_GATE="$SCRIPT_DIR/../claude/bin/project-policy-gate"
 
 for arg in "$@"; do
   case "$arg" in
     --soft-missing) SOFT_MISSING="true" ;;
-    --accept-custom-xdg) ACCEPT_CUSTOM_XDG="true" ;;
-    *) echo "ERROR: unknown option: $arg (usage: check-runtime.sh [--soft-missing] [--accept-custom-xdg])" >&2; exit 1 ;;
+    *) echo "ERROR: unknown option: $arg (usage: check-runtime.sh [--soft-missing])" >&2; exit 1 ;;
   esac
 done
 
 fail=0
 
-# --- 1. XDG 既定値検査(H-013) ---
+# --- 1. XDG 既定値検査(H-013/H-03/M-05) ---
+# Lexical comparisonではなく absolute/real path を正規化して比較する。
+# trailing slash・".."・既存symlinkの表記差は同一pathとして扱う。
+normalize_path() {
+  python3 - "$1" <<'PY_NORM'
+import os
+import sys
+p = os.path.expanduser(sys.argv[1])
+if not os.path.isabs(p):
+    raise SystemExit(2)
+print(os.path.realpath(p))
+PY_NORM
+}
+
 check_xdg() {
-  local var="$1" default="$2" val
+  local var="$1" default="$2" val normalized default_normalized
   val="${!var:-}"
-  if [[ -n "$val" && "$val" != "$default" ]]; then
-    if [[ "$ACCEPT_CUSTOM_XDG" == "true" ]]; then
-      echo "NOTE: $var=$val(既定 $default 以外)を明示受容しました。sandbox.filesystem.denyRead に絶対 path を追加し、docs/waivers/settings-waivers.tsv へ記録してください"
-    else
-      echo "ERROR: $var=$val は既定($default)と異なります。sandbox denyRead は既定 XDG path しか遮断しないため、custom XDG 下の private routing / state / cache が sandbox から読めます。対処: (a) custom XDG をやめる、または (b) denyRead へ絶対 path を追加し waiver を記録した上で --accept-custom-xdg(bootstrap 経由は --accept-custom-xdg か AGENTS_TOOLKIT_ACCEPT_CUSTOM_XDG=1)を付けて再実行" >&2
-      fail=1
-    fi
+  [[ -z "$val" ]] && return 0
+  if ! normalized="$(normalize_path "$val")"; then
+    echo "ERROR: $var must be an absolute path: $val" >&2
+    fail=1
+    return 0
+  fi
+  default_normalized="$(normalize_path "$default")"
+  if [[ "$normalized" != "$default_normalized" ]]; then
+    echo "ERROR: $var=$val resolves to $normalized, but the supported default is $default_normalized. The managed denyRead policy protects only the default XDG trees. Custom XDG is unsupported and is rejected fail-closed." >&2
+    fail=1
   fi
 }
 check_xdg XDG_CONFIG_HOME "$HOME/.config"
@@ -57,9 +75,21 @@ check_xdg XDG_CACHE_HOME  "$HOME/.cache"
 if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
-echo "OK: XDG base directories are defaults (denyRead 前提と一致)"
+echo "OK: XDG base directories resolve to supported defaults (managed denyRead premise)"
 
-# --- 2. Claude Code version 検査(H-017) ---
+# --- 2. project/local settings gate(C-02) ---
+if [[ ! -x "$PROJECT_POLICY_GATE" ]]; then
+  echo "ERROR: project policy gate is missing or not executable: $PROJECT_POLICY_GATE" >&2
+  exit 1
+fi
+PROJECT_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+if ! "$PROJECT_POLICY_GATE" --cwd "$PROJECT_CWD" --quiet; then
+  echo "ERROR: unsafe project/local Claude settings detected; runtime startup is blocked fail-closed" >&2
+  exit 1
+fi
+echo "OK: project/local Claude settings contain no managed-security overrides"
+
+# --- 3. Claude Code version 検査(H-017) ---
 if ! command -v claude >/dev/null 2>&1; then
   if [[ "$SOFT_MISSING" == "true" ]]; then
     echo "NOTE: claude CLI が見つかりません。version 検査を skip します(Claude Code 導入後に scripts/check-runtime.sh を単体実行してください)"

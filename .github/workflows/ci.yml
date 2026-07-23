@@ -26,6 +26,16 @@ jobs:
           done < <(git ls-files '*.sh')
           exit "$fail"
 
+      - name: Python syntax check (py_compile)
+        env:
+          PYTHONPYCACHEPREFIX: ${{ runner.temp }}/agents-toolkit-pycache
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files '*.py')
+          if ((${#files[@]})); then
+            python3 -m py_compile "${files[@]}"
+          fi
+
       - name: JSON syntax check (jq empty)
         run: |
           set -euo pipefail
@@ -52,7 +62,7 @@ jobs:
           set -euo pipefail
           for t in tests/test-*.sh; do
             echo "== $t =="
-            "$t"
+            env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME "$t"
           done
 
       - name: Set up uv

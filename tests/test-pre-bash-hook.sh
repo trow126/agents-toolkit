@@ -19,8 +19,17 @@ ng() {
 }
 
 run_hook_cmd() {
-  # $1: command string。正常な hook input JSON を与える
-  jq -n --arg c "$1" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":$c}}' | "$HOOK" >/dev/null 2>&1
+  # $1: command string, $2(optional): project cwd
+  local command="$1" cwd="${2:-}"
+  if [[ -n "$cwd" ]]; then
+    jq -n --arg c "$command" --arg cwd "$cwd" \
+      '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":$cwd,"tool_input":{"command":$c}}' \
+      | "$HOOK" >/dev/null 2>&1
+  else
+    jq -n --arg c "$command" \
+      '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":$c}}' \
+      | "$HOOK" >/dev/null 2>&1
+  fi
 }
 
 expect_block() {
@@ -32,6 +41,18 @@ expect_block() {
 expect_allow() {
   local desc="$1" cmd="$2" rc=0
   run_hook_cmd "$cmd" || rc=$?
+  if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
+}
+
+expect_block_in() {
+  local desc="$1" cwd="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "$cwd" || rc=$?
+  if [[ "$rc" -eq 2 ]]; then ok "$desc"; else ng "$desc (expected exit 2, got $rc)"; fi
+}
+
+expect_allow_in() {
+  local desc="$1" cwd="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "$cwd" || rc=$?
   if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
 }
 
@@ -58,7 +79,32 @@ rc=0
 printf '{"tool_input":{"command":"cat .env"}}' | env PATH="$MINBIN" "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "jq 欠落は exit 2(block。fail-open しない)"; else ng "jq 欠落が exit $rc"; fi
 
-# ---- 2. .env 遮断(path-aware) ----
+# ---- 2. project/local settings gate(C-02) ----
+PROJECT_ROOT="$SANDBOX/project"
+mkdir -p "$PROJECT_ROOT/.git" "$PROJECT_ROOT/.claude"
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"model":"sonnet","env":{"PROJECT_FLAVOR":"test"}}
+JSON
+expect_allow_in "benign project settings do not block Bash hook" "$PROJECT_ROOT" 'echo hello'
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"sandbox":{"enabled":false}}
+JSON
+expect_block_in "project sandbox override blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"sandbox":{"excludedCommands":["cat *"]}}
+JSON
+expect_block_in "project excludedCommands blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"sandbox":{"filesystem":{"allowRead":["~/.claude"]}}}
+JSON
+expect_block_in "project allowRead expansion blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"permissions":{"allow":["Bash(cat *)"]}}
+JSON
+expect_block_in "project permission rule blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
+rm -rf "$PROJECT_ROOT"
+
+# ---- 3. .env 遮断(path-aware) ----
 expect_block "cat .env を block" 'cat .env'
 expect_block "nested config/.env を block" 'cat config/.env'
 expect_block "perl による nested .env open を block" 'perl -e "open(F, q{config/.env}); print <F>"'
@@ -77,7 +123,7 @@ expect_allow "無関係な command は許可" 'echo hello'
 expect_allow "scope: base64 復号 path は hook 層の対象外(OS 境界の担当)" 'cat "$(printf Y29uZmlnLy5lbnY= | base64 -d)"'
 expect_allow "scope: 変数連結 path は hook 層の対象外(OS 境界の担当)" 'a=config/.e; b=nv; cat "$a$b"'
 
-# ---- 3. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
+# ---- 4. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
 expect_block "--amend(標準順)を block" 'git commit --amend -m x'
 expect_block "--amend(option 先行: -S)を block" 'git commit -S --amend -m x'
 expect_block "--amend(git -c 前置)を block" 'git -c user.name=x commit --amend'
@@ -94,7 +140,7 @@ expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
 expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 
-# ---- 4. 既存の危険 pattern ----
+# ---- 5. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'
 expect_block "mkfs を block" 'mkfs.ext4 /dev/sda1'
 
