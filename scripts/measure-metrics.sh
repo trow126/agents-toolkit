@@ -28,11 +28,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 measure_tree() {
   local root="$1"
   local claude_md=0 always_rules=0 imports=0 import_count=0 agents_md=0
-  [[ -f "$root/claude/CLAUDE.md" ]] && claude_md=$(wc -c < "$root/claude/CLAUDE.md")
+  local claude_md_lines=0 always_rules_lines=0 agents_md_lines=0
+  [[ -f "$root/claude/CLAUDE.md" ]] && claude_md=$(wc -c < "$root/claude/CLAUDE.md") && claude_md_lines=$(wc -l < "$root/claude/CLAUDE.md")
   for f in "$root"/claude/rules/*.md; do
     [[ -f "$f" ]] || continue
     if ! head -1 "$f" | grep -q '^---$' || ! awk '/^---$/{c++} c==1' "$f" | grep -q '^paths:'; then
       always_rules=$((always_rules + $(wc -c < "$f")))
+      always_rules_lines=$((always_rules_lines + $(wc -l < "$f")))
     fi
   done
   if [[ -f "$root/claude/CLAUDE.md" ]]; then
@@ -41,13 +43,16 @@ measure_tree() {
       [[ -f "$rf" ]] && imports=$((imports + $(wc -c < "$rf"))) && import_count=$((import_count + 1))
     done < <(grep -oE '@~/\.agents/rules/[A-Za-z0-9_-]+\.md' "$root/claude/CLAUDE.md" | sed -E 's#@~/\.agents/rules/##; s/\.md$//')
   fi
-  [[ -f "$root/codex/AGENTS.md" ]] && agents_md=$(wc -c < "$root/codex/AGENTS.md")
+  [[ -f "$root/codex/AGENTS.md" ]] && agents_md=$(wc -c < "$root/codex/AGENTS.md") && agents_md_lines=$(wc -l < "$root/codex/AGENTS.md")
 
   echo "claude_md_bytes: $claude_md"
+  echo "claude_md_lines: $claude_md_lines"
   echo "claude_always_rules_bytes: $always_rules"
+  echo "claude_always_rules_lines: $always_rules_lines"
   echo "claude_imported_shared_bytes: $imports ($import_count files)"
   echo "claude_always_on_total: $((claude_md + always_rules + imports))"
   echo "codex_agents_md_bytes: $agents_md"
+  echo "codex_agents_md_lines: $agents_md_lines"
   echo "combined_always_on_total: $((claude_md + always_rules + imports + agents_md))"
 
   echo "custom_agents: $(find "$root/claude/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
@@ -84,12 +89,20 @@ measure_tree() {
     # sandbox.network.allowedDomains と WebFetch(domain:...) allow の和集合。
     # WebFetch allow は sandbox Bash の network domain も pre-allow する(公式 sandboxing docs)
     echo "effective_preallowed_domains_count: $(jq '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")))] | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    # unsandboxed egress(適合性レビュー C-01):
+    # excludedCommands(sandbox 外実行 = domain prompt を経ない)の command word と交差する
+    # allow rule 数。audited exact list(固定 argv・外部入力なし)以外は 0 件が contract
+    echo "unsandboxed_query_capable_allows: $(jq '[.sandbox.excludedCommands[]? | split(" ")[0]] as $words | [.permissions.allow[]? | select(. as $r | [$words[] | . as $w | (($r == ("Bash(" + $w + ")")) or ($r | startswith("Bash(" + $w + " ")))] | any) | select(. != "Bash(gh auth status)")] | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    # auto memory(適合性レビュー M-01): 組み込み常時コンテキストの明示計測(accepted exception)
+    echo "auto_memory_enabled: $(jq -r 'if .autoMemoryEnabled == true then "yes" else "no" end' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
   else
     echo "permissions_allow_count: n/a"
     echo "permissions_ask_count: n/a"
     echo "permissions_deny_count: n/a"
     echo "bypass_lockout_ok: n/a"
     echo "effective_preallowed_domains_count: n/a"
+    echo "unsandboxed_query_capable_allows: n/a"
+    echo "auto_memory_enabled: n/a"
   fi
 
   local uncond=0

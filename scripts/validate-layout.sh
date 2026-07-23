@@ -411,6 +411,39 @@ if [[ -f claude/settings.json ]]; then
       fi
     done
   fi
+
+  # C-01(適合性レビュー): excludedCommands は sandbox 外実行 = domain prompt を経ない。
+  # その command word と交差する allow は「無承認の外部送信経路」になるため、
+  # 外部入力を運べない固定 argv の audited exact list 以外を拒否する
+  AUDITED_UNSANDBOXED_ALLOWS='["Bash(gh auth status)"]'
+  UNSANDBOXED_BAD="$(jq -r --argjson audited "$AUDITED_UNSANDBOXED_ALLOWS" \
+    '[.sandbox.excludedCommands[]? | split(" ")[0]] as $words
+     | .permissions.allow[]?
+     | select(. as $r | [$words[] | . as $w | (($r == ("Bash(" + $w + ")")) or ($r | startswith("Bash(" + $w + " ")))] | any)
+     | select(. as $r | $audited | index($r) | not)' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$UNSANDBOXED_BAD" ]]; then
+    while IFS= read -r rule; do
+      fail "unsandboxed egress allow: '$rule'(excludedCommands の command は sandbox domain prompt を経ずに外部送信できる。query/引数/stdin を運べる形は ask にする — C-01)"
+    done <<< "$UNSANDBOXED_BAD"
+  fi
+
+  # H-01(適合性レビュー): denyRead が toolkit 自身の sandbox 内実行 helper を遮断しないこと。
+  # ~/.claude を deny する場合は helper subtree(bin/skills)の allowRead 再開が必須。
+  # ~/.config を deny する場合は private routing の消費 path の allowRead 再開が必須
+  if jq -e '.sandbox.enabled == true' claude/settings.json >/dev/null 2>&1; then
+    if jq -e '.sandbox.filesystem.denyRead // [] | index("~/.claude") != null' claude/settings.json >/dev/null 2>&1; then
+      for required in '~/.claude/bin' '~/.claude/skills'; do
+        if ! jq -e --arg r "$required" '.sandbox.filesystem.allowRead // [] | index($r) != null' claude/settings.json >/dev/null 2>&1; then
+          fail "denyRead(~/.claude) が sandbox 内実行 helper を遮断する: allowRead '$required' が必要(H-01 contract)"
+        fi
+      done
+    fi
+    if jq -e '.sandbox.filesystem.denyRead // [] | index("~/.config") != null' claude/settings.json >/dev/null 2>&1; then
+      if ! jq -e '.sandbox.filesystem.allowRead // [] | index("~/.config/agents-toolkit") != null' claude/settings.json >/dev/null 2>&1; then
+        fail "denyRead(~/.config) が private routing の消費 path を遮断する: allowRead '~/.config/agents-toolkit' が必要(H-01 contract)"
+      fi
+    fi
+  fi
 fi
 
 # =========================================================================
@@ -501,6 +534,19 @@ while IFS= read -r f; do
     done <<< "$matches"
   done
 done < <(git ls-files)
+
+# =========================================================================
+# 11. 直接実行される script の executable bit(適合性レビュー H-02)
+#     CI は tests/test-*.sh を直接実行する。hook / bin / bootstrap も path 起動のため、
+#     git mode 100755 でない tracked file は配布物として壊れている(exit 126)
+# =========================================================================
+echo "== 11. executable bits on direct-execution surfaces =="
+NONEXEC="$(git ls-files -s -- 'tests/test-*.sh' 'scripts/*.sh' 'claude/hooks/*.sh' 'shared/bin/*' 'claude/bin/*' bootstrap.sh 2>/dev/null | awk '$1 != "100755" {print $1 " " $4}' || true)"
+if [[ -n "$NONEXEC" ]]; then
+  while IFS= read -r entry; do
+    fail "non-executable direct-execution script: $entry(git update-index --chmod=+x で 100755 にする — H-02)"
+  done <<< "$NONEXEC"
+fi
 
 echo
 if [[ "$violations" -eq 0 ]]; then

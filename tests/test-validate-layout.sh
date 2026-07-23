@@ -377,6 +377,57 @@ assert_contains "allowedDomains 由来の domain が列挙される" "$out" "pre
 assert_contains "素の uv allow が列挙される" "$out" "sandbox-incompatible uv allow: 'Bash(uv run pytest *)'"
 
 # =========================================================================
+# 11h. excludedCommands と交差する allow(unsandboxed egress)は非ゼロ(C-01)
+#      audited exact list(gh auth status)は許容される
+# =========================================================================
+REPO11H="$SANDBOX/repo11h"
+build_fixture "$REPO11H"
+printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "allow": ["Bash(gh auth status)", "Bash(gh search *)", "Bash(gh issue list *)"]}, "sandbox": {"excludedCommands": ["gh *"]}}\n' > "$REPO11H/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11H/install/manifest.tsv"
+git -C "$REPO11H" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11H" 2>&1)" || rc=$?
+assert_exit_nonzero "unsandboxed egress allow は失敗する" "$rc"
+assert_contains "gh search の allow が列挙される" "$out" "unsandboxed egress allow: 'Bash(gh search *)'"
+assert_contains "gh issue list の allow が列挙される" "$out" "unsandboxed egress allow: 'Bash(gh issue list *)'"
+if grep -q "unsandboxed egress allow: 'Bash(gh auth status)'" <<< "$out"; then
+  echo "FAIL: audited exact list(gh auth status)が誤検出された" >&2
+  FAILURES=$((FAILURES + 1))
+else
+  echo "ok: audited exact list(gh auth status)は許容される"
+fi
+
+# =========================================================================
+# 11i. denyRead が helper subtree を遮断する構成(allowRead 欠落)は非ゼロ(H-01)
+# =========================================================================
+REPO11I="$SANDBOX/repo11i"
+build_fixture "$REPO11I"
+printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "disable", "deny": ["Edit(.git/config)", "Edit(.git/hooks/**)", "Read(//**/.env)", "Read(//**/.env.*)", "Edit(//**/.env)", "Edit(//**/.env.*)"]}, "sandbox": {"enabled": true, "filesystem": {"denyRead": ["~/.claude", "~/.config"]}}}\n' > "$REPO11I/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11I/install/manifest.tsv"
+git -C "$REPO11I" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11I" 2>&1)" || rc=$?
+assert_exit_nonzero "helper 遮断構成は失敗する" "$rc"
+assert_contains "~/.claude/bin の allowRead 欠落が列挙される" "$out" "allowRead '~/.claude/bin' が必要"
+assert_contains "private routing path の allowRead 欠落が列挙される" "$out" "allowRead '~/.config/agents-toolkit' が必要"
+
+# =========================================================================
+# 13. 直接実行 script の executable bit 欠落は非ゼロ(H-02)
+# =========================================================================
+REPO13="$SANDBOX/repo13"
+build_fixture "$REPO13"
+mkdir -p "$REPO13/tests"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$REPO13/tests/test-dummy.sh"
+git -C "$REPO13" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO13" 2>&1)" || rc=$?
+assert_exit_nonzero "非実行 test script は失敗する" "$rc"
+assert_contains "non-executable script が列挙される" "$out" "non-executable direct-execution script: 100644 tests/test-dummy.sh"
+
+# =========================================================================
 # 11d. model scanner は非対応YAML構文で fail-closed になる(H-001)
 # =========================================================================
 REPO11D="$SANDBOX/repo11d"
