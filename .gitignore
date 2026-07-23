@@ -47,3 +47,6 @@ shared/skills/agmsg/teams/
 *.tmp
 __pycache__/
 *.pyc
+
+# release packaging output (scripts/package-release.sh)
+dist/

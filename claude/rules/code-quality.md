@@ -6,7 +6,7 @@
 
 ## 品質ゲート
 
-- 実装前に共有 learnings（`~/.agents/rules/learnings.md`）を確認する
+- 環境・CLI 系の再発バグ（systemd PATH・スレッド飽和等）に触れる作業では、共有 learnings（`~/.agents/rules/learnings.md`）を参照する（常時ロードはしない）
 - 型安全性: ゼロ除算、空配列、None ハンドリング、インデックス境界
 - タスク完了前に lint/typecheck を実行し、完了報告には実行した検証の実出力を含める
 - 言語固有ゲート（Ruff・Markdown 空行）は paths スコープ付き `rules/python.md` / `rules/markdown.md` に定義済み

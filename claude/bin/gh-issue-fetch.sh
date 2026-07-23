@@ -8,7 +8,9 @@
 
 set -e
 
-PARSER_SCRIPT="$HOME/.claude/skills/issue-parser/scripts/parse_issue.py"
+# パーサーは同一ディレクトリのランタイム utility（$HOME 配置に依存しない）
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+PARSER_SCRIPT="${SCRIPT_DIR}/parse_issue.py"
 
 show_help() {
     echo "gh-issue-fetch.sh - GitHub Issue取得・構造化"

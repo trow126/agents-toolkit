@@ -41,6 +41,9 @@ jobs:
       - name: Validate repo layout
         run: ./scripts/validate-layout.sh
 
+      - name: Release packaging lint
+        run: ./scripts/package-release.sh --check
+
       - name: Check shared rules sync
         run: ./shared/bin/sync-shared-rules.sh --check
 

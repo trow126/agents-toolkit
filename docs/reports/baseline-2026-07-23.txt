@@ -1,0 +1,62 @@
+# Baseline 証跡 — 2026-07-23 近代化の変更前テスト実行ログ
+#
+# 対象 commit: 6c980f1 (baseline: pristine agents-toolkit-master from zip)
+# 実行環境: Linux (cloud sandbox), bash 5.x, Claude Code CLI 2.1.218, node v22.22.2, uv 0.11.x, python 3.12
+# 実行コマンド: scripts/validate-layout.sh / shared/bin/sync-shared-rules.sh --check / tests/test-*.sh / uv run --frozen pytest -q (python-refactor-analysis)
+# 注: 各テストは末尾3行+exit codeを記録(全文はテストが冪等なため再実行で再現可能)
+#
+# Baseline test run 2026-07-23T01:38Z
+
+## validate-layout
+== 1. forbidden tracked runtime names ==
+== 2. absolute home paths ==
+== 3. manifest integrity ==
+== 4. tracked files outside manifest coverage ==
+== 5. private project sections in generic agents ==
+== 6. local artifacts under source trees ==
+== 7. unconsumed shared rules ==
+== 8. dangerous settings (non-fatal warnings) ==
+WARN: claude/settings.json:125: bypassPermissions
+
+PASS: no layout violations found
+exit=0
+
+## sync-shared-rules --check
+OK: all synced blocks match canonical sources
+exit=0
+
+## shell test suite
+== tests/test-agmsg-state-home.sh ==
+ok: file round-trip: 書き込んだ値が再解決後に読める(sqlite3 なし)
+
+PASS: all assertions succeeded
+exit=0
+== tests/test-bootstrap.sh ==
+ok: 旧構成では --check も失敗する
+
+PASS: all assertions succeeded
+exit=0
+== tests/test-fixture-old-layout.sh ==
+ok: claude/.credentials.json の内容はダミー
+
+PASS: all assertions succeeded
+exit=0
+== tests/test-migration.sh ==
+ok: manifest preflight失敗後も旧symlinkを保持
+
+PASS: all assertions succeeded
+exit=0
+== tests/test-sync-shared-rules.sh ==
+ok: BEGIN欠落エラー後もrepo4は破損したまま(--checkが書き込まない)
+
+PASS: all assertions succeeded
+exit=0
+== tests/test-validate-layout.sh ==
+ok: repo外sourceの実体pathが列挙される
+
+PASS: all assertions succeeded
+exit=0
+
+## python-refactor-analysis pytest (baseline)
+20 passed in 0.12s
+exit=0

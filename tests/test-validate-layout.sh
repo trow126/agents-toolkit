@@ -176,7 +176,7 @@ assert_exit_nonzero "未消費shared ruleは失敗する" "$rc"
 assert_contains "未消費shared ruleが列挙される" "$out" "shared rule not consumed by SYNC_MAP or claude/CLAUDE.md import: shared/rules/rule-orphan.md"
 
 # =========================================================================
-# 7. 危険設定(bypassPermissions等)はWARNのみでexit codeに影響しない
+# 7. 危険設定はwaiverなしで非ゼロ、有効waiverがあればWARNのみでPASS
 # =========================================================================
 REPO7="$SANDBOX/repo7"
 build_fixture "$REPO7"
@@ -186,8 +186,27 @@ git -C "$REPO7" add -A
 out=""
 rc=0
 out="$(run_validate "$REPO7" 2>&1)" || rc=$?
-assert_exit_zero "危険設定はWARNのみでPASSする" "$rc"
-assert_contains "危険設定がWARNとして出力される" "$out" "WARN: claude/settings.json:1: bypassPermissions"
+assert_exit_nonzero "危険設定はwaiverなしで失敗する" "$rc"
+assert_contains "危険設定が違反として列挙される" "$out" "dangerous setting without waiver: claude/settings.json:1: bypassPermissions"
+
+# 有効期限内のwaiver行を追加するとWARNのみでPASSする
+mkdir -p "$REPO7/docs/waivers"
+FUTURE_DATE="$(date -d '+30 days' +%F 2>/dev/null || date -v+30d +%F)"
+printf 'claude/settings.json\tbypassPermissions\tfixture-env\t%s\ttest waiver\n' "$FUTURE_DATE" > "$REPO7/docs/waivers/settings-waivers.tsv"
+git -C "$REPO7" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO7" 2>&1)" || rc=$?
+assert_exit_zero "有効waiverがあればPASSする" "$rc"
+assert_contains "waiver済み危険設定はWARNとして出力される" "$out" "(waived: see docs/waivers/settings-waivers.tsv)"
+
+# 期限切れwaiverは失敗する
+printf 'claude/settings.json\tbypassPermissions\tfixture-env\t2020-01-01\texpired waiver\n' > "$REPO7/docs/waivers/settings-waivers.tsv"
+git -C "$REPO7" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO7" 2>&1)" || rc=$?
+assert_exit_nonzero "期限切れwaiverは失敗する" "$rc"
 
 # =========================================================================
 # 8. generic agent内のproject固有sectionは非ゼロ+対象列挙
@@ -227,6 +246,36 @@ rc=0
 out="$(run_validate "$REPO10" 2>&1)" || rc=$?
 assert_exit_nonzero "repo外を指すmanifest source symlinkは失敗する" "$rc"
 assert_contains "repo外sourceの実体pathが列挙される" "$out" "tracked symlink points outside repo"
+
+# =========================================================================
+# 11. skill frontmatter schema違反は非ゼロ(name不一致・comma allowed-tools)
+# =========================================================================
+REPO11="$SANDBOX/repo11"
+build_fixture "$REPO11"
+mkdir -p "$REPO11/claude/skills/good-skill" "$REPO11/claude/skills/bad-skill"
+printf -- '---\nname: good-skill\ndescription: A valid fixture skill for schema checks.\nallowed-tools: Bash Read\n---\n# ok\n' > "$REPO11/claude/skills/good-skill/SKILL.md"
+printf -- '---\nname: Wrong:Name\ndescription: Bad fixture.\nallowed-tools: Bash, Read\n---\n# bad\n' > "$REPO11/claude/skills/bad-skill/SKILL.md"
+printf 'link-dir\tclaude/skills/good-skill\t.claude/skills/good-skill\nlink-dir\tclaude/skills/bad-skill\t.claude/skills/bad-skill\n' >> "$REPO11/install/manifest.tsv"
+git -C "$REPO11" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11" 2>&1)" || rc=$?
+assert_exit_nonzero "skill schema違反は失敗する" "$rc"
+assert_contains "name不一致が列挙される" "$out" "name 'Wrong:Name' != directory 'bad-skill'"
+assert_contains "comma区切りallowed-toolsが列挙される" "$out" "allowed-tools must be space-separated"
+
+# =========================================================================
+# 12. active treeのstale reference(旧slash command等)は非ゼロ
+# =========================================================================
+REPO12="$SANDBOX/repo12"
+build_fixture "$REPO12"
+printf '# stale fixture\nrun /gh:start 42 to begin\n' >> "$REPO12/claude/rules/sample.md"
+git -C "$REPO12" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO12" 2>&1)" || rc=$?
+assert_exit_nonzero "stale reference(旧slash command)は失敗する" "$rc"
+assert_contains "stale referenceが列挙される" "$out" "stale reference in claude/rules/sample.md"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

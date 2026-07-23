@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# validate-layout.sh — repo構造の最終validator(構造更新計画 Phase 6)
+# validate-layout.sh — repo構造の最終validator(構造更新計画 Phase 6 + 2026-07-23 近代化)
 # tracked ファイルと、cutover後のlink-dir配下を対象に、禁止runtime名・絶対home path・manifest整合・
-# manifest外のtracked file・未消費shared rule・未許可artifactを検査する。fail-fastせず違反を全件列挙してから
-# 非ゼロ終了する。危険設定(bypassPermissions・danger-full-access)は非致命WARNとして表示するのみ。
+# manifest外のtracked file・未消費shared rule・未許可artifact・危険設定(waiver必須)・
+# skill frontmatter schema・stale referenceを検査する。fail-fastせず違反を全件列挙してから非ゼロ終了する。
+# 危険設定はdocs/waivers/settings-waivers.tsvの有効なwaiver行がある場合のみWARN扱いとする。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -247,17 +248,135 @@ for rule_file in "$REPO_ROOT"/shared/rules/*.md; do
 done
 
 # =========================================================================
-# 8. 危険設定の警告(非致命、exit codeに影響しない)
+# 8. 危険設定(waiverなしでは致命)
+#    共有既定にbypass/unsandboxed/full model pinを残す場合は
+#    docs/waivers/settings-waivers.tsv に file<TAB>pattern<TAB>environment<TAB>expires<TAB>reason
+#    の有効行(expires >= today)が必要。waiver済みはWARN、未waiverはFAIL。
 # =========================================================================
-echo "== 8. dangerous settings (non-fatal warnings) =="
+echo "== 8. dangerous settings (fatal without waiver) =="
+WAIVER_FILE="$REPO_ROOT/docs/waivers/settings-waivers.tsv"
+TODAY="$(date +%F)"
+declare -a DANGER_PATTERNS=(
+  "bypassPermissions|bypassPermissions"
+  "danger-full-access|danger-full-access"
+  "skipDangerousModePermissionPrompt|\"skipDangerousModePermissionPrompt\"[[:space:]]*:[[:space:]]*true"
+  "allowUnsandboxedCommands|\"allowUnsandboxedCommands\"[[:space:]]*:[[:space:]]*true"
+  "full-model-pin|\"model\"[[:space:]]*:[[:space:]]*\"claude-[a-z0-9.-]+\""
+)
+has_waiver() {
+  local file="$1" pname="$2"
+  [[ -f "$WAIVER_FILE" ]] || return 1
+  while IFS=$'\t' read -r wfile wpattern wenv wexpires wreason; do
+    [[ "$wfile" == \#* || -z "$wfile" ]] && continue
+    if [[ "$wfile" == "$file" && "$wpattern" == "$pname" && "$wexpires" > "$TODAY" ]] || [[ "$wfile" == "$file" && "$wpattern" == "$pname" && "$wexpires" == "$TODAY" ]]; then
+      return 0
+    fi
+  done < "$WAIVER_FILE"
+  return 1
+}
 for f in claude/settings.json codex/config.toml codex/gh.config.toml; do
   [[ -f "$f" ]] || continue
-  matches="$(grep -InoE 'bypassPermissions|danger-full-access' "$f" || true)"
-  [[ -z "$matches" ]] && continue
-  while IFS=: read -r lineno content; do
-    warn "$f:$lineno: $content"
-  done <<< "$matches"
+  for entry in "${DANGER_PATTERNS[@]}"; do
+    pname="${entry%%|*}"
+    pregex="${entry#*|}"
+    matches="$(grep -InoE "$pregex" "$f" || true)"
+    [[ -z "$matches" ]] && continue
+    while IFS=: read -r lineno content; do
+      if has_waiver "$f" "$pname"; then
+        warn "$f:$lineno: $content (waived: see docs/waivers/settings-waivers.tsv)"
+      else
+        fail "dangerous setting without waiver: $f:$lineno: $content (add waiver row to docs/waivers/settings-waivers.tsv or remove)"
+      fi
+    done <<< "$matches"
+  done
 done
+
+# =========================================================================
+# 9. skill frontmatter schema(Agent Skills core spec)
+#    name: 親directory名と一致・^[a-z0-9]+(-[a-z0-9]+)*$・64字以内
+#    description: 必須・非空・1024字以内 / allowed-tools: 単一行space区切り(list・comma禁止)
+# =========================================================================
+echo "== 9. skill frontmatter schema =="
+SKILL_SCHEMA_ERRORS="$(python3 - "$REPO_ROOT" <<'PYSCHEMA'
+import re, sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+errors = []
+for pattern in ("claude/skills/*/SKILL.md", "codex/skills/*/SKILL.md", "shared/skills/*/SKILL.md"):
+    for sk in sorted(root.glob(pattern)):
+        rel = sk.relative_to(root)
+        text = sk.read_text(encoding="utf-8")
+        m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+        if not m:
+            errors.append(f"{rel}: missing YAML frontmatter")
+            continue
+        fm = m.group(1).split("\n")
+        fields = {}
+        cur = None
+        for line in fm:
+            km = re.match(r"^([A-Za-z][A-Za-z0-9_-]*):(.*)$", line)
+            if km:
+                cur = km.group(1)
+                fields.setdefault(cur, []).append(km.group(2).strip())
+            elif cur is not None:
+                fields.setdefault(cur, []).append(line.strip())
+        name = (fields.get("name") or [""])[0]
+        if name != sk.parent.name:
+            errors.append(f"{rel}: name '{name}' != directory '{sk.parent.name}'")
+        if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name or "") or len(name) > 64:
+            errors.append(f"{rel}: name '{name}' violates Agent Skills spec (a-z0-9, hyphen, <=64)")
+        desc_lines = fields.get("description")
+        if not desc_lines:
+            errors.append(f"{rel}: description missing")
+        else:
+            desc = " ".join(l for l in desc_lines if l and l not in (">", "|", ">-", "|-"))
+            if not desc.strip():
+                errors.append(f"{rel}: description empty")
+            elif len(desc) > 1024:
+                errors.append(f"{rel}: description {len(desc)} chars > 1024")
+        at = fields.get("allowed-tools")
+        if at is not None:
+            scalar = at[0]
+            extra = [l for l in at[1:] if l]
+            if not scalar or extra or scalar.startswith("-"):
+                errors.append(f"{rel}: allowed-tools must be a single-line space-separated scalar (no YAML list)")
+            elif "," in scalar:
+                errors.append(f"{rel}: allowed-tools must be space-separated (no commas)")
+print("\n".join(errors))
+PYSCHEMA
+)"
+if [[ -n "$SKILL_SCHEMA_ERRORS" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "skill schema: $line"
+  done <<< "$SKILL_SCHEMA_ERRORS"
+fi
+
+# =========================================================================
+# 10. stale reference(削除・改名済み要素への参照がactive treeに残っていないか)
+#     docs/・tests/・本validator自身は対象外(歴史的記述・fixture・deny-list定義のため)
+# =========================================================================
+echo "== 10. stale references in active tree =="
+STALE_PATTERNS=(
+  "/gh:(start|pr|issue|review|index|coderabbit)"
+  "skills/issue-parser"
+  "fast-worker|project-orchestrator|plan-reviewer-(completeness|critic|feasibility)|security-reviewer"
+  "rules/(scope-discipline|framework-respect|git-safety)\.md"
+  "test-quality-hook|user-prompt-submit-hook"
+)
+while IFS= read -r f; do
+  case "$f" in
+    docs/* | tests/* | scripts/validate-layout.sh) continue ;;
+  esac
+  [[ -f "$f" ]] || continue
+  for pat in "${STALE_PATTERNS[@]}"; do
+    matches="$(grep -InoE "$pat" "$f" || true)"
+    [[ -z "$matches" ]] && continue
+    while IFS=: read -r lineno content; do
+      fail "stale reference in $f:$lineno: $content"
+    done <<< "$matches"
+  done
+done < <(git ls-files)
 
 echo
 if [[ "$violations" -eq 0 ]]; then

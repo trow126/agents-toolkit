@@ -49,13 +49,22 @@ cp ~/.claude/settings.json ~/.claude/settings.local.json
 本リポジトリは public のため、コミット前に [gitleaks](https://github.com/gitleaks/gitleaks) でステージ済み差分をスキャンする。フック（`githooks/pre-commit`）は gitleaks 未インストール時にコミットを明示エラーで拒否する。
 
 ```bash
-# gitleaks をインストール（例: v8.30.1 linux x64）
-curl -sL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
-  | tar -xz -C ~/.local/bin gitleaks
+# gitleaks をインストール（例: v8.30.1 linux x64。MIT License）
+# 1) version 固定 artifact を一旦ファイルへ保存（stream 直結の tar 展開はしない）
+curl -fL -o /tmp/gitleaks.tar.gz \
+  https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+
+# 2) 公式 release ページの checksums ファイルと照合し、成功した場合のみ展開
+curl -fL -o /tmp/gitleaks_checksums.txt \
+  https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt
+(cd /tmp && grep "gitleaks_8.30.1_linux_x64.tar.gz" gitleaks_checksums.txt | sha256sum -c -) \
+  && tar -xzf /tmp/gitleaks.tar.gz -C ~/.local/bin gitleaks
 
 # フックを有効化（`./bootstrap.sh --apply` 実行時に自動設定される。手動で設定し直す場合）
 git -C ~/agents-toolkit config core.hooksPath claude/githooks
 ```
+
+checksum 照合が失敗した場合は展開せず、ダウンロード元と経路を確認する（OS パッケージマネージャ経由の導入も可）。
 
 GitHub 側でも Secret Scanning + Push Protection を有効化済み（既知プロバイダのトークンは push 時にもブロックされる）。
 

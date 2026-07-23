@@ -2,12 +2,7 @@
 name: gh-pr
 description: "PR作成を自動化。ブランチ検出・差分解析・タイトル/本文生成・Issue連携・push制御を一括実行"
 argument-hint: "[base-branch]"
-allowed-tools:
-  - Agent
-  - Bash
-  - Read
-  - Glob
-  - Grep
+allowed-tools: Agent Bash Read Glob Grep
 ---
 
 # /gh-pr - PR 作成スキル

@@ -8,7 +8,7 @@
 | `progress-tracker` | `off`。TodoWrite（廃止済み API）依存。進捗管理は built-in タスク管理と gh-start の同期フェーズで代替 |
 | `issue-work-logger` | `off`。TodoWrite 依存の常時ログ機構。native auto memory と `claudedocs/learnings.md` で代替 |
 | `issue-retrospective` | `off`。retrospective 系の重複（knowledge-audit が learnings の棚卸しを担当） |
-| `issue-parser` | `off`。標準モデルの Read/構造化能力で十分な薄い wrapper |
+| `issue-parser` | `off`。skill 本体は薄い wrapper のため archive。ただし決定論的パーサー `scripts/parse_issue.py` は `gh-issue-fetch.sh` の実行時依存のため `claude/bin/parse_issue.py` へ復帰済み（2026-07-23 レビュー ATK-001 対応。本 archive 内に scripts/ は残っていない） |
 | `introspect` | `off`。メタ認知の一般助言のみで検証可能な手順なし |
 | `token-efficiency` | `off`。旧 SuperClaude 系の記号圧縮。現行モデル・auto compact で不要 |
 | `x-article-to-markdown` | `off`。X API 仕様変動に依存、利用実績なしの判断済み |

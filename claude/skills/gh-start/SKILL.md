@@ -2,17 +2,7 @@
 name: gh-start
 description: "GitHub Issue駆動開発（v4）。Issue取得→実装→コミット→同期の4フェーズで確実に実行。"
 argument-hint: "<issue-number>"
-allowed-tools:
-  - Bash
-  - Read
-  - Glob
-  - Grep
-  - Edit
-  - Write
-  - Agent
-  - TaskCreate
-  - TaskUpdate
-  - TaskList
+allowed-tools: Bash Read Glob Grep Edit Write Agent TaskCreate TaskUpdate TaskList
 ---
 
 # /gh-start - GitHub Issue駆動開発
@@ -59,7 +49,7 @@ gh-issue-fetch.sh 42
 
 2. **逐次実行** (タスクごとに):
    - TaskUpdate → `in_progress` に更新
-   - Agent tool でサブエージェントに委譲して実装（下記テンプレート参照）
+   - **現在の owner（このセッション）が自分で実装・テスト・修正まで完遂する**（既定。委譲しない）
    - 完了後 → TaskUpdate → `completed` に更新
    - checkpoint更新: `.claude/checkpoints/issue_{N}_checkpoint.md` に完了タスクを記録
 
@@ -69,22 +59,15 @@ gh-issue-fetch.sh 42
 Issueタスクは暗黙的な順序依存を持つことが多い（タスク2がタスク1のコードに依存する等）。
 確実性を優先し、1タスクずつ完了させる。
 
-**Agent委譲テンプレート**:
-```
-Agent(
-  subagent_type: "general-purpose",
-  prompt: "以下のタスクを実装してください。
-    タスク: {task_text}
-    Issue: #{N} - {issue_title}
-    プロジェクトルート: {cwd}
-    
-    完了条件:
-    - コードが動作すること
-    - 既存テストが壊れないこと
-    - ~/.agents/rules/learnings.md のルールに準拠すること"
-)
-```
-エージェントがエラーを返した場合、ユーザーに報告して指示を待つ。
+**委譲の条件（例外）**:
+タスク数・ステップ数は委譲理由にならない。以下のいずれかに**明示的に該当する場合のみ** Agent tool を使い、該当理由と委譲先を checkpoint に 1 行記録する:
+
+- **context isolation**: 大量の read-only 探索・長大ファイル読み込みが main context を汚染する → built-in Explore
+- **specialist expertise**: 該当ドメインの高リスク・専門作業（CLAUDE.md のドメインスペシャリスト該当時のみ）
+- **independent verification**: 高リスク変更の独立監査が必要 → `code-reviewer`（read-only。実装はさせない）
+- **useful parallelism**: 相互依存のない独立検証を並行比較する場合のみ
+
+委譲した場合も、結果の統合・最終検証・commit は owner が行う。委譲エージェントがエラーを返した場合、ユーザーに報告して指示を待つ。
 
 ---
 
@@ -195,7 +178,7 @@ Claude:
 **Scripts**:
 - `~/.claude/bin/gh-issue-fetch.sh` - Issue取得・パース
 - `~/.claude/bin/gh-progress-sync.sh` - GitHub同期
-- `~/.claude/skills/issue-parser/scripts/parse_issue.py` - Markdownパース
+- `~/.claude/bin/parse_issue.py` - Markdownパース（gh-issue-fetch.sh が同一ディレクトリから解決）
 
 **依存**:
 - `gh` CLI (GitHub CLI)

@@ -1,8 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
   "attribution": {
     "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
     "pr": ""
@@ -122,7 +119,7 @@
       "Bash(mkfs.* *)",
       "Edit(.git/**)"
     ],
-    "defaultMode": "bypassPermissions"
+    "defaultMode": "default"
   },
   "hooks": {
     "ConfigChange": [
@@ -243,9 +240,9 @@
   },
   "language": "japanese",
   "sandbox": {
-    "enabled": false,
+    "enabled": true,
     "failIfUnavailable": false,
-    "allowUnsandboxedCommands": true,
+    "allowUnsandboxedCommands": false,
     "filesystem": {
       "allowRead": [
         "~/.config/gh"
@@ -254,7 +251,6 @@
   },
   "autoUpdatesChannel": "latest",
   "tui": "default",
-  "skipDangerousModePermissionPrompt": true,
   "disableAutoMode": "disable",
   "theme": "light-ansi",
   "editorMode": "vim",
@@ -267,8 +263,8 @@
       "Do not treat all repositories under ~/ as automatically trusted; moving into another repository or home-level config is scope escalation unless the user explicitly asks"
     ]
   },
-  "model": "claude-fable-5",
-  "effortLevel": "high",
+  "model": "sonnet",
+  "effortLevel": "medium",
   "autoCompactEnabled": true,
   "autoMemoryEnabled": true
 }

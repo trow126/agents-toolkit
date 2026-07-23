@@ -1,7 +1,6 @@
 # Claude Code 設定
 
 # 共有ルール（正本: ~/.agents/rules/ — Codex と共有。正本編集後は ~/.agents/bin/sync-shared-rules.sh を実行）
-@~/.agents/rules/learnings.md
 @~/.agents/rules/karpathy-guidelines.md
 @~/.agents/rules/no-fallback.md
 @~/.agents/rules/decision-integrity.md
@@ -16,6 +15,7 @@
 
 - SessionStart hook が `git status` / `git branch` を systemMessage で自動注入する
 - プロジェクト固有の教訓は `claudedocs/learnings.md`（存在時）を確認し、新しい継続的な知見は native auto memory に保存する
+- 汎用の環境・CLI 教訓は `~/.agents/rules/learnings.md` を必要時にだけ読む（常時ロードしない。棚卸しは `/knowledge-audit`）
 
 # owner 選択とルーティング（コスト方針）
 
@@ -28,9 +28,14 @@
 - 独立検証が必要な場合だけ reviewer（`code-reviewer` / `plan-reviewer`）を分離する
 - subagent からの再委任は原則禁止。タスクのステップ数を委任基準にしない
 - 完了判定は deterministic なテスト・lint・CI で行う
-- Agent Teams / `ultracode` は、3 本以上の独立 workstream に分割でき、並列化の利点が調整コストを明確に上回る大型タスクだけに使う（experimental のため既定は単一 owner）
+- Agent Teams / `ultracode` は experimental のため共有設定では無効。3 本以上の独立 workstream で並列化の利点が調整コストを明確に上回る大型タスクに限り、machine-local の `settings.local.json` で opt-in してから使う
 
-詳細手順（高リスク判断の並列諮問・Codex peer 連携・routing 検証）は `model-routing` スキルを参照。machine 固有の project→specialist 対応は untracked の `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/private-routing.md` に置く（公開リポジトリに固有名を書かない）。
+詳細手順（高リスク判断の並列諮問・Codex peer 連携・routing 検証）は `model-routing` スキルを参照。
+
+# private routing（machine 固有の project→specialist 対応）
+
+- 配置: untracked の `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/private-routing.md`（公開リポジトリに固有名を書かない）
+- 消費契約: specialist を選択する際、owner がこのファイルの存在を確認し、存在する場合のみ該当 project 節を読んで routing に反映する（opt-in active config）。存在しない・該当節がない場合は本ファイルなしとして上記の原則だけで判断し、エラーにしない
 
 # 起動運用
 

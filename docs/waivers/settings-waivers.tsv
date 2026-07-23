@@ -1,0 +1,6 @@
+# settings-waivers.tsv — 危険設定の明示 waiver（scripts/validate-layout.sh check 8 が参照）
+# 形式: file<TAB>pattern<TAB>environment<TAB>expires(YYYY-MM-DD)<TAB>reason
+# pattern は check 8 の pattern 名: bypassPermissions / danger-full-access /
+#   skipDangerousModePermissionPrompt / allowUnsandboxedCommands / full-model-pin
+# 有効期限内の行がある場合のみ、該当 file×pattern は FAIL ではなく WARN になる。
+# 危険設定は原則 machine-local の settings.local.json に置き、共有設定には残さない。

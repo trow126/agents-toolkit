@@ -1,6 +1,6 @@
 # 安全性ルール（Claude Code 固有）
 
-<!-- 障害調査・フレームワークの尊重は共有正本へ移設: ~/.agents/rules/failure-investigation.md / framework-respect.md -->
+<!-- 障害調査は共有正本 ~/.agents/rules/failure-investigation.md、フレームワークの尊重は karpathy-guidelines.md §3 に統合済み（2026-07-23） -->
 
 ## Claude Code 運用
 

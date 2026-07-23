@@ -1,7 +1,7 @@
 ---
 name: pr-review
 description: Use when a PR has just been created with `gh pr create`（pr-review hook が発火した直後）, or when the user requests a post-PR self-review. PR作成後のセルフレビューコメント投稿の規約。
-allowed-tools: Bash, Agent, Read, Grep, Glob
+allowed-tools: Bash Agent Read Grep Glob
 ---
 
 # PR Auto-Review（Post-PRコメント型）

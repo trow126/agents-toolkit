@@ -5,7 +5,7 @@
 # このスクリプトは以下を自動実行:
 # 1. git gtr new issue-<number> でワークツリー作成
 # 2. 新しいワークツリーディレクトリへ移動
-# 3. claude "/gh:start <number>" で Issue 作業を開始
+# 3. claude "/gh-start <number>" で Issue 作業を開始
 
 set -e
 
@@ -151,7 +151,7 @@ echo ""
 echo "🚀 Starting Claude Code..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "💡 Hint: /gh:start ${ISSUE_NUMBER}"
+echo "💡 Hint: /gh-start ${ISSUE_NUMBER}"
 echo ""
 
 # Claude Code を起動（プロンプトなし）
