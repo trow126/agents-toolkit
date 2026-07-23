@@ -18,65 +18,9 @@
 - 正しさを速度と引き換えにしない。「動けば良い」より「正しく動く」
 <!-- END shared:quality-priority -->
 
-<!-- BEGIN shared:python-guidelines -->
-## Python ガイドライン
+## Python
 
-### uv プロジェクト
-
-- pyproject.toml があるプロジェクトでは常に `uv run python` または `uv run script.py` を使用する
-- `python` / `python3` を直接実行するのは、システム Python 自体の確認など明示的な理由がある場合のみ（理由を述べる）
-- `uv` 未導入または非 uv プロジェクトでは、まず環境を確認し、推測で bare `python` にフォールバックしない
-- 一時確認の Python 実行で `__pycache__` を残したくない場合は `PYTHONDONTWRITEBYTECODE=1` を付ける
-- `__pycache__` cleanup のために `rm -rf` を実行しない
-
-### 実装前チェックリスト
-
-1. **`__all__`**: アルファベット順にソート（RUF022）
-2. **ロギング**: f-stringではなく `%s` フォーマットを使用（G004）
-3. **例外**: `logger.exception("msg")` に `{e}` を含めない（TRY401）
-4. **型ヒント**: `__init__` に `-> None` を付与（ANN204）
-5. **日時**: `datetime.now(timezone.utc)` を使用（DTZ005）
-6. **非同期**: while/sleepを避け、Eventを使用（ASYNC110）
-7. **テスト**: 空、単一、境界値、無効値、NaN のケースを網羅
-8. **CancelledError**: `except Exception:` の前に `except asyncio.CancelledError: raise` 必須（asyncループ内）
-9. **Queue型**: `asyncio.Queue[dict[str, Any]]` 禁止。frozen dataclass使用
-10. **No Fallback**: `except: pass` / `except: return None` 禁止。エラーは明示的に処理または伝播。必須設定値に `dict.get(k, default)` 禁止
-11. **PEP 758 (Python 3.14+)**: `except A, B, C:` は括弧なしで有効。Python 2構文ではない。ruff formatは括弧を削除する
-12. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
-13. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
-14. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
-15. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
-16. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
-17. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
-18. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
-
-### 主要な型安全ガード
-
-```python
-# ゼロ除算
-rate = wins / total if total > 0 else 0.0
-
-# インデックス境界
-first = items[0] if items else None
-
-# 空のDataFrame
-if df.empty or df["col"].isna().all():
-    return None
-
-# MIN_CELLS パターン（テーブルパース）
-MIN_CELLS = max_index + 1
-if len(cells) < MIN_CELLS:
-    return None
-```
-
-### クイックコマンド
-
-```bash
-uv run ruff check src/ --fix
-uv run ruff format src/
-uv run mypy src/
-```
-<!-- END shared:python-guidelines -->
+Python の実装・修正・レビュー時は `python-quality` skill（`~/.agents/skills/python-quality/`）を読み、その品質ゲート（uv 実行規約・Ruff チェックリスト・型安全ガード）を適用する。
 
 <!-- BEGIN shared:no-fallback -->
 ## No Fallback ポリシー
@@ -88,22 +32,12 @@ uv run mypy src/
 - 許容される例外: オプション/装飾的な機能、明示的なログ出力を伴うグレースフルデグラデーション
 <!-- END shared:no-fallback -->
 
-<!-- BEGIN shared:scope-discipline -->
-## 実装スコープと完全性
-
-- 依頼されたものだけを作る。投機的な機能・汎用化・「将来のための抽象」を作らない（YAGNI）
-- まず MVP（最小スコープ）から始め、フィードバックに基づいて反復する。要求されない限りエンタープライズ肥大化（認証・デプロイ・監視）を追加しない
-- バグ修正に周辺リファクタを混ぜない
-- 着手した機能は最後まで完成させる: コア機能に TODO・モック・プレースホルダー・スタブを残さない。生成するコードはすべて本番品質
-- 大きな変更の前に、よりシンプルなアプローチで同じ成功条件を満たせないか立ち止まって評価する
-<!-- END shared:scope-discipline -->
-
 <!-- BEGIN shared:karpathy-guidelines -->
 ## Karpathy-Inspired 実装行動規律
 
 出典: https://github.com/multica-ai/andrej-karpathy-skills
 
-LLM コーディングで起きやすい「勝手な前提」「過剰設計」「無関係な差分」「検証不能な完了」を抑えるための行動規律。既存ルール（品質方針・No Fallback・実装スコープ・テスト）の前段に適用する。
+LLM コーディングで起きやすい「勝手な前提」「過剰設計」「無関係な差分」「検証不能な完了」を抑えるための行動規律。既存ルール（品質方針・No Fallback・テスト）の前段に適用する。実装スコープ規律（旧 scope-discipline）と依存規律（旧 framework-respect）を統合済み。
 
 ### 1. 実装前に前提を表に出す
 
@@ -119,12 +53,15 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - 「将来便利そう」という理由だけで汎用化しない。
 - 実装が大きくなったら、同じ成功条件をより短く満たせないか見直す。
 - 例外処理は必要な失敗モードに限定し、ありえないケースのために本筋を複雑にしない。
+- まず MVP（最小スコープ）から始めて反復する。要求されない限りエンタープライズ肥大化（認証・デプロイ・監視）を追加しない（MVP = スコープの最小化であり品質の最小化ではない）。
+- 着手した機能は最後まで完成させる: コア機能に TODO・モック・プレースホルダー・スタブを残さない。
 
 ### 3. 変更は外科的に行う
 
 - 変更行はユーザー依頼または検証に直接つながるものに限定する。
 - 隣接コード、コメント、整形をついでに改善しない。
-- 既存スタイルに合わせる。好みのスタイルへ寄せるためのリファクタは禁止。
+- 既存スタイルに合わせる。好みのスタイルへ寄せるためのリファクタは禁止。バグ修正に周辺リファクタを混ぜない。
+- ライブラリ使用前に package.json / 依存定義を確認し、既存のプロジェクト規約とインポートスタイルに従う。
 - 無関係な dead code を見つけた場合は報告に留め、削除しない。
 - 自分の変更で不要になった import、変数、関数だけを片付ける。
 
@@ -192,17 +129,10 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - 永続化・再読込・実行時更新を伴う変更では、単体テストに加えて実運用の状態遷移を再現する round-trip テストを作成する（プロジェクト固有の対象は各リポジトリのルールに記載）
 <!-- END shared:test-policy -->
 
-<!-- BEGIN shared:git-safety -->
-## Git 安全ガードレール
-
-- main / master への force-push 禁止
-- 本番データ・データベースの削除禁止
-- シークレットを含む `.env` ファイルの変更禁止
-<!-- END shared:git-safety -->
-
 <!-- BEGIN shared:git-workflow -->
 ## Git ワークフロー
 
+- 安全ガードレール: main/master への force-push 禁止。本番データ・データベースの削除禁止。シークレットを含む `.env` ファイルの変更禁止
 - セッション開始時に `git status` と `git branch` を確認する
 - すべての作業は feature ブランチで行い、main/master で直接作業しない
 - 明示的な依頼なしにコミットしない。依頼されたコミットは意味単位で分割する
@@ -231,18 +161,9 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 ## 障害調査（Failure Investigation）
 
 - 障害が発生した理由を必ず調査する（根本原因分析）
-- テストの無効化・品質チェックやバリデーションのバイパスで回避しない
 - 体系的にデバッグする: 理解 > 診断 > 修正 > 検証
 - バグ報告: 実装前に具体的な修正仮説を提示する。金融/取引ロジックの場合、修正前に必ず根本原因を明確にする
 <!-- END shared:failure-investigation -->
-
-<!-- BEGIN shared:framework-respect -->
-## フレームワークの尊重
-
-- ライブラリ使用前に package.json/deps を確認する
-- 既存のプロジェクト規約とインポートスタイルに従う
-- ロールバック機能を備えたバッチ操作を優先する
-<!-- END shared:framework-respect -->
 
 <!-- BEGIN shared:workspace-hygiene -->
 ## ワークスペース衛生
@@ -274,86 +195,9 @@ LLM コーディングで起きやすい「勝手な前提」「過剰設計」�
 - 見出し・テーブル・コードブロックの前後に空行を入れる
 <!-- END shared:markdown-rules -->
 
-<!-- BEGIN shared:issue-completeness -->
-## Issue Completeness Policy
+## GitHub Issue 作成・更新
 
-## Purpose
-
-Prevent predictable follow-up issues that exist only because the initial issue
-did not define the real completion state. The first issue should normally be
-self-contained enough that an implementer can decide done or not-done without
-guessing what "complete" means.
-
-## Core Rules
-
-1. Initial issue completeness is the default requirement.
-   - Write the first issue so it can stand on its own.
-   - Do not leave essential completion logic, artifact integrity conditions, or
-     known edge cases for a predictable follow-up issue.
-
-2. Define success by final state, not intermediate signals.
-   - Success criteria must be based on final persisted state or user-visible
-     outcome.
-   - Do not treat a function return value, temporary in-memory result, or
-     transient `exit 0` as sufficient unless that is also the real final
-     outcome.
-
-3. Review completeness before posting the issue.
-   - When relevant to the task, explicitly check whether the issue addresses:
-     - normal success
-     - partial success
-     - zero-result or empty-result cases
-     - incremental or append-to-existing-data success
-     - precondition failure
-     - retry and idempotency
-     - stale artifact or stale state
-     - operator-visible success signals versus actual persisted data state
-
-4. Require concrete, closeable issue bodies.
-   - The issue must make the concrete problem explicit.
-   - The issue must state the exact target: repository, file, module,
-     function, workflow, dataset, artifact, or run.
-   - The issue must state the intended outcome.
-   - The issue must state what remains wrong or incomplete.
-   - The issue must state what must change.
-   - The issue must state non-goals when ambiguity is possible.
-   - The issue must state completion or acceptance criteria that can decide
-     whether the issue can be closed.
-   - The issue must state verification steps or commands when validation or
-     reproduction is expected.
-
-5. Follow-up issues are restricted.
-   - Open a follow-up issue only when genuinely new information appears after
-     the original issue was created and that information was not reasonably
-     foreseeable at issue creation time.
-   - If the missing requirement was predictable, treat it as an initial issue
-     quality failure rather than as justification for issue splitting.
-
-## Quality Gate
-
-Before posting or closing issue design work, ask:
-
-`Can the implementer decide completion from this one issue alone?`
-
-If the answer is no, the issue is incomplete and should be revised before work
-continues.
-
-## Guidance By Task Shape
-
-- Persistence, scraping, backfill, settlement, CLI, migration, and generated
-  artifact tasks require special care because real completion depends on saved
-  outputs or operator-visible behavior.
-- For those tasks, the issue should normally describe the expected post-save or
-  externally visible state, not only the execution path.
-- If partial save is allowed, the issue must distinguish between "data may be
-  saved" and "task is considered successful."
-<!-- END shared:issue-completeness -->
-
-## Issue 完全性ポリシーの適用範囲（Codex trigger）
-
-- 適用範囲: `$HOME` 配下の全 repository での GitHub Issue 作成・更新（global Codex/agent workflow）。上記の Issue Completeness Policy を issue 完全性判断の第一 source of truth とする。
-- Repo 固有の `.github/ISSUE_TEMPLATE` がある場合はその見出し・必須フィールドが正確な source of truth。本ポリシーはそれを置き換えず、完全性要件を上乗せする。
-- 正確な Issue 見出し・作成/更新手順は `issue-writing` skill (`~/.agents/skills/issue-writing/`) を使う。
+- Issue の作成・更新（`$HOME` 配下の全 repository）は `issue-writing` skill（`~/.agents/skills/issue-writing/`）を使う。Issue Completeness Policy（完全性要件の第一 source of truth）は同 skill に内包。repo 固有の `.github/ISSUE_TEMPLATE` がある場合はその見出し・必須フィールドが正確な source of truth で、本ポリシーは完全性要件を上乗せする。
 
 ## GitHub 操作
 

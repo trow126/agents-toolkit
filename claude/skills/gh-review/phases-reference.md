@@ -1,6 +1,6 @@
-# phases-reference.md - /gh:review 詳細フェーズ参照
+# phases-reference.md - /gh-review 詳細フェーズ参照
 
-> このファイルは /gh:review の詳細フェーズ参照です。実行指示・必須フローは SKILL.md を参照してください。
+> このファイルは /gh-review の詳細フェーズ参照です。実行指示・必須フローは SKILL.md を参照してください。
 
 ## Behavioral Flow
 
@@ -387,7 +387,7 @@
 
     次のステップ:
     - 再レビュー結果を待つ
-    - 追加指摘があれば /gh:review 17 を再実行
+    - 追加指摘があれば /gh-review 17 を再実行
     - レビュー通過後 gh pr merge 17
 ```
 

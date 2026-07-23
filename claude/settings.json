@@ -168,16 +168,6 @@
             "timeout": 30
           }
         ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/test-quality-hook.sh",
-            "timeout": 10
-          }
-        ]
       }
     ],
     "PreToolUse": [
@@ -280,15 +270,5 @@
   "model": "claude-fable-5",
   "effortLevel": "high",
   "autoCompactEnabled": true,
-  "autoMemoryEnabled": true,
-  "skillOverrides": {
-    "gh:coderabbit": "off",
-    "progress-tracker": "off",
-    "issue-retrospective": "off",
-    "issue-parser": "off",
-    "issue-work-logger": "off",
-    "introspect": "off",
-    "token-efficiency": "off",
-    "x-article-to-markdown": "off"
-  }
+  "autoMemoryEnabled": true
 }

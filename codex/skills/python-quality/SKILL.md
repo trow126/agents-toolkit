@@ -1,9 +1,13 @@
 ---
-paths:
-  - "**/*.py"
+name: python-quality
+description: Python コードを実装・修正・レビューするときに適用する品質ゲート。uv 実行規約、Ruff 対応の実装前チェックリスト（ロギング・型ヒント・async・ProcessPool 等）、型安全ガード、品質コマンド（ruff/mypy）を含む。Use when writing, editing, or reviewing Python code, or when running Python quality checks or fixing Ruff/mypy findings.
 ---
 
-<!-- 正本: ~/.agents/rules/python-guidelines.md（編集は正本側で行い、~/.agents/bin/sync-shared-rules.sh で同期する） -->
+# Python 品質ゲート
+
+Python の実装・修正・レビューの前に本チェックリストを適用する。テスト網羅の要件は AGENTS.md のテスト方針、エラー処理の禁止事項は No Fallback ポリシーが正本（本 skill は言語固有ゲートのみを持つ）。
+
+<!-- 正本: ~/.agents/rules/python-guidelines.md（編集は正本側で行い、~/.agents/bin/sync-shared-rules.sh --write で同期する） -->
 <!-- BEGIN shared:python-guidelines -->
 ## Python ガイドライン
 
@@ -61,7 +65,3 @@ uv run ruff format src/
 uv run mypy src/
 ```
 <!-- END shared:python-guidelines -->
-
-## Claude Code 固有
-
-- クイックコマンドの各コマンドは個別に実行する（`&&` はパーミッションチェックをバイパスする: Issue #16180）

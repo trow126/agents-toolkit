@@ -1,10 +1,10 @@
 ---
-name: gh:review
-description: Use when processing review feedback on an existing PR（「レビュー対応して」「指摘を反映して」/gh:review <PR番号>）. 全レビューソース（CodeRabbit・セルフレビュー・Codex等）の指摘を統合処理し、修正・テスト・再プッシュまで一貫実行。
+name: gh-review
+description: Use when processing review feedback on an existing PR（「レビュー対応して」「指摘を反映して」/gh-review <PR番号>）. 全レビューソース（CodeRabbit・セルフレビュー・Codex等）の指摘を統合処理し、修正・テスト・再プッシュまで一貫実行。
 argument-hint: "[pr-number]"
 ---
 
-# /gh:review - 統合レビュー対応コマンド
+# /gh-review - 統合レビュー対応コマンド
 
 > **核心**: 全ソース（CodeRabbit・セルフレビュー・Codex等）のレビュー指摘を統合し、Issue要件・プロジェクト方針との整合性を確認してから対応
 
@@ -19,16 +19,16 @@ argument-hint: "[pr-number]"
 
 ```bash
 # PR番号を指定してレビュー対応開始
-/gh:review 17
+/gh-review 17
 
 # 特定の指摘のみ処理
-/gh:review 17 --comments 1,3,5
+/gh-review 17 --comments 1,3,5
 
 # 自動採用モード（Trivial指摘のみ自動修正）
-/gh:review 17 --auto-trivial
+/gh-review 17 --auto-trivial
 
 # ドライラン（修正内容を確認のみ）
-/gh:review 17 --dry-run
+/gh-review 17 --dry-run
 ```
 
 
@@ -69,7 +69,7 @@ argument-hint: "[pr-number]"
 
 ## 実行指示
 
-**あなたは今、`/gh:review` コマンドを実行しています。**
+**あなたは今、`/gh-review` コマンドを実行しています。**
 
 ### 見逃し防止ルール
 
@@ -151,10 +151,10 @@ jq 構文ルール (gh api --jq):
 ## 関連コマンド
 
 ```bash
-/gh:start 42        # Issue作業開始
-/gh:pr              # PR作成
-/gh:review 17       # レビュー対応（このコマンド）
-/gh:issue close 42  # Issue完了・振り返り
+/gh-start 42        # Issue作業開始
+/gh-pr              # PR作成
+/gh-review 17       # レビュー対応（このコマンド）
+/gh-issue close 42  # Issue完了・振り返り
 ```
 
 ## Tips

@@ -1,6 +1,6 @@
 ---
 name: deep-reasoner
-description: "複雑なアーキテクチャ設計・厄介なデバッグ・アルゴリズム設計の深い推論。結論と判断根拠（前提・代替案・棄却理由・確信度）を返し、実装はしない。ドメインスペシャリスト（blockchain-security-auditor、model-qa-specialist 等）が該当する場合はそちらを優先。"
+description: "複雑なアーキテクチャ設計・根本原因不明の障害・アルゴリズム設計の深い推論。標準モデルで実装が繰り返し失敗した場合のエスカレーション先。結論と判断根拠（前提・代替案・棄却理由・確信度）を返し、実装はしない（実装は標準モデルの owner が行う）。ドメインスペシャリスト（blockchain-security-auditor、model-qa-specialist 等）が該当する場合はそちらを優先。"
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

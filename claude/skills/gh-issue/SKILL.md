@@ -1,5 +1,5 @@
 ---
-name: gh:issue
+name: gh-issue
 description: "GitHub Issueのライフサイクル管理（作成・完了）"
 argument-hint: "<create|close> [issue-number]"
 ---
@@ -8,7 +8,7 @@ argument-hint: "<create|close> [issue-number]"
 
 Issueの作成と完了を担当するシンプルなコマンド。
 
-**作業の開始・継続は `/gh:start` を使用してください。**
+**作業の開始・継続は `/gh-start` を使用してください。**
 
 ## 利用可能なコマンド
 
@@ -16,16 +16,16 @@ Issueの作成と完了を担当するシンプルなコマンド。
 
 ```bash
 # 基本的な作成
-/gh:issue create "Feature: User Authentication"
+/gh-issue create "Feature: User Authentication"
 
 # ファイルから作成（推奨）
-/gh:issue create --from-file claudedocs/brainstorm/auth_requirements.md
+/gh-issue create --from-file claudedocs/brainstorm/auth_requirements.md
 
 # ファイルパス直接指定（--from-fileと同等）
-/gh:issue create claudedocs/brainstorm/auth_requirements.md
+/gh-issue create claudedocs/brainstorm/auth_requirements.md
 
 # 対話的に作成
-/gh:issue create --interactive
+/gh-issue create --interactive
 ```
 
 **ファイルパス自動検出**:
@@ -64,13 +64,13 @@ Issueの作成と完了を担当するシンプルなコマンド。
 
 ```bash
 # Issueをクローズ
-/gh:issue close 42
+/gh-issue close 42
 
 # 理由を指定
-/gh:issue close 42 --reason completed
+/gh-issue close 42 --reason completed
 
 # 学習抽出スキップ
-/gh:issue close 42 --no-retro
+/gh-issue close 42 --no-retro
 ```
 
 **処理フロー**:
@@ -98,15 +98,15 @@ Issueの作成と完了を担当するシンプルなコマンド。
 
 ## 廃止されたサブコマンド
 
-以下のサブコマンドは `/gh:start` に統合されました：
+以下のサブコマンドは `/gh-start` に統合されました：
 
 | 旧コマンド | 新しい方法 |
 |-----------|-----------|
-| `/gh:issue list` | `gh issue list --mine` |
-| `/gh:issue view 42` | `gh issue view 42` |
-| `/gh:issue work 42` | `/gh:start 42` |
-| `/gh:issue status 42` | `gh issue view 42` |
-| `/gh:issue sync 42` | 自動（/gh:start内） |
+| `/gh-issue list` | `gh issue list --mine` |
+| `/gh-issue view 42` | `gh issue view 42` |
+| `/gh-issue work 42` | `/gh-start 42` |
+| `/gh-issue status 42` | `gh issue view 42` |
+| `/gh-issue sync 42` | 自動（/gh-start内） |
 
 ---
 
@@ -114,9 +114,9 @@ Issueの作成と完了を担当するシンプルなコマンド。
 
 ### ステータス自動更新
 ```bash
-/gh:issue create   → Projects: "Todo"
-/gh:start 42       → Projects: "In Progress"
-/gh:issue close 42 → Projects: "Done"
+/gh-issue create   → Projects: "Todo"
+/gh-start 42       → Projects: "In Progress"
+/gh-issue close 42 → Projects: "Done"
 ```
 
 ### Graceful Degradation
@@ -131,9 +131,9 @@ GitHub Projects権限がない場合、自動的にラベルモードに切り�
 
 ```bash
 # 完全ワークフロー
-/gh:issue create --from-file ...              # Issue作成
-/gh:start 42                                   # 作業開始・継続
-/gh:issue close 42                             # 完了
+/gh-issue create --from-file ...              # Issue作成
+/gh-start 42                                   # 作業開始・継続
+/gh-issue close 42                             # 完了
 ```
 
 ---
@@ -157,16 +157,16 @@ GitHub Projects権限がない場合、自動的にラベルモードに切り�
 ## 関連コマンド
 
 ```bash
-/gh:issue create    # Issue作成（このコマンド）
-/gh:start 42        # 作業開始・継続
-/gh:issue close 42  # Issue完了（このコマンド）
+/gh-issue create    # Issue作成（このコマンド）
+/gh-start 42        # 作業開始・継続
+/gh-issue close 42  # Issue完了（このコマンド）
 ```
 
 ---
 
 ## 実行指示
 
-**あなたは今、`/gh:issue` コマンドを実行しています。**
+**あなたは今、`/gh-issue` コマンドを実行しています。**
 
 ユーザーのコマンドを解析し、適切なサブコマンドを実行してください。
 

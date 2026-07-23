@@ -186,7 +186,6 @@ done < <(git ls-files)
 # =========================================================================
 echo "== 5. private project sections in generic agents =="
 while IFS= read -r f; do
-  [[ "$f" == "claude/agents/project-orchestrator.md" ]] && continue
   if grep -nF 'Primary Focus（プロジェクト固有）' "$f" >/dev/null; then
     fail "project-specific section in generic agent: $f"
   fi

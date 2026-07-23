@@ -1,5 +1,5 @@
 ---
-name: gh:start
+name: gh-start
 description: "GitHub Issue駆動開発（v4）。Issue取得→実装→コミット→同期の4フェーズで確実に実行。"
 argument-hint: "<issue-number>"
 allowed-tools:
@@ -15,15 +15,15 @@ allowed-tools:
   - TaskList
 ---
 
-# /gh:start - GitHub Issue駆動開発
+# /gh-start - GitHub Issue駆動開発
 
 > **原則**: GitHub Issue = SSOT、TaskCreate = 進捗追跡、逐次実行 = 確実性
 
 ## Usage
 
 ```bash
-/gh:start 42        # Issue #42 で作業開始
-/gh:start           # アクティブIssue自動検出
+/gh-start 42        # Issue #42 で作業開始
+/gh-start           # アクティブIssue自動検出
 ```
 
 ---
@@ -141,7 +141,7 @@ gh-progress-sync.sh --check-task 42 "Implement login button"
 |----------|--------|------|
 | Fetch | Issue not found | Issue番号を確認してください |
 | Fetch | Issue closed | 既にクローズ済みです |
-| Execute | 実装失敗 | checkpointを保存して停止。次回 `/gh:start` でレジューム可能 |
+| Execute | 実装失敗 | checkpointを保存して停止。次回 `/gh-start` でレジューム可能 |
 | Commit | lint失敗 | 修正してから再コミット |
 | Sync | コメント失敗 | `gh issue comment` で手動投稿してください |
 
@@ -151,7 +151,7 @@ gh-progress-sync.sh --check-task 42 "Implement login button"
 
 ### 基本的な使い方
 ```
-User: /gh:start 42
+User: /gh-start 42
 
 Claude:
 1. [Checkpoint] 既存checkpoint確認 → なし（新規実行）
@@ -172,7 +172,7 @@ Claude:
 
 ### レジューム
 ```
-User: /gh:start 42
+User: /gh-start 42
 
 Claude:
 1. [Checkpoint] issue_42_checkpoint 検出
@@ -184,9 +184,9 @@ Claude:
 
 ## Related Commands
 
-- `/gh:issue` - Issue管理（作成・クローズ）
-- `/gh:pr` - PR作成
-- `/gh:review` - CodeRabbitレビュー対応
+- `/gh-issue` - Issue管理（作成・クローズ）
+- `/gh-pr` - PR作成
+- `/gh-review` - CodeRabbitレビュー対応
 
 ---
 

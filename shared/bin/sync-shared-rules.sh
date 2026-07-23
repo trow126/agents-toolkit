@@ -32,22 +32,19 @@ esac
 SYNC_MAP=$(cat <<'EOF'
 karpathy-guidelines	codex/AGENTS.md
 no-fallback	codex/AGENTS.md
-git-safety	codex/AGENTS.md
 decision-integrity	codex/AGENTS.md
 quality-priority	codex/AGENTS.md
-scope-discipline	codex/AGENTS.md
 test-policy	codex/AGENTS.md
 git-workflow	codex/AGENTS.md
 learnings	codex/AGENTS.md
-python-guidelines	codex/AGENTS.md
+python-guidelines	codex/skills/python-quality/SKILL.md
 python-guidelines	claude/rules/python.md
 failure-investigation	codex/AGENTS.md
-framework-respect	codex/AGENTS.md
 self-improvement	codex/AGENTS.md
 workspace-hygiene	codex/AGENTS.md
 markdown-rules	codex/AGENTS.md
 markdown-rules	claude/rules/markdown.md
-issue-completeness	codex/AGENTS.md
+issue-completeness	codex/skills/issue-writing/SKILL.md
 EOF
 )
 

@@ -1,17 +1,17 @@
 ---
-name: gh:index
-description: Use when planning Issues for a project or when the user asks to survey/index the codebase（「プロジェクトを調査して」「インデックス化して」/gh:index）. プロジェクト構造を調査し Issue 作成の元ネタとなるナレッジインデックスを生成する（調査のみ・変更なし）。
+name: gh-index
+description: Use when planning Issues for a project or when the user asks to survey/index the codebase（「プロジェクトを調査して」「インデックス化して」/gh-index）. プロジェクト構造を調査し Issue 作成の元ネタとなるナレッジインデックスを生成する（調査のみ・変更なし）。
 ---
 
-# /gh:index - プロジェクトナレッジインデックス生成
+# /gh-index - プロジェクトナレッジインデックス生成
 
 > **コンセプト**: 調査のみ。出力はIssue作成のソース資料。プロジェクトの変更は行わない。
 
 ## Usage
 
 ```bash
-/gh:index [target]    # 対象ディレクトリを分析（デフォルト: カレントディレクトリ）
-/gh:index             # カレントディレクトリを分析
+/gh-index [target]    # 対象ディレクトリを分析（デフォルト: カレントディレクトリ）
+/gh-index             # カレントディレクトリを分析
 ```
 
 ---
@@ -277,7 +277,7 @@ Generated: {timestamp}
 ### 基本的な使い方
 
 ```
-User: /gh:index
+User: /gh-index
 
 Claude:
 1. [Discovery] プロジェクト構造をスキャン中...
@@ -299,13 +299,13 @@ Claude:
    - Low: 2 (docstrings, tech debt)
 
 ✅ インデックス生成完了: claudedocs/project_index.md
-→ 候補を確認し、/gh:issue create でIssueを作成してください
+→ 候補を確認し、/gh-issue create でIssueを作成してください
 ```
 
 ### ディレクトリ指定
 
 ```
-User: /gh:index src/
+User: /gh-index src/
 
 Claude:
 1. [Discovery] src/ のみをスキャン中...
@@ -317,18 +317,18 @@ Claude:
 ## 関連コマンド
 
 ```bash
-/gh:index              # プロジェクトインデックスを生成（このコマンド）
+/gh-index              # プロジェクトインデックスを生成（このコマンド）
                        ↓
-/gh:issue create       # 候補からIssueを作成
+/gh-issue create       # 候補からIssueを作成
                        ↓
-/gh:start 42           # Issueの作業を開始
+/gh-start 42           # Issueの作業を開始
 ```
 
 ---
 
 ## 実行指示
 
-**あなたは今 `/gh:index` を実行しています。**
+**あなたは今 `/gh-index` を実行しています。**
 
 以下の手順に従ってください:
 

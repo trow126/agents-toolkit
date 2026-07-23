@@ -1,5 +1,5 @@
 ---
-name: gh:pr
+name: gh-pr
 description: "PR作成を自動化。ブランチ検出・差分解析・タイトル/本文生成・Issue連携・push制御を一括実行"
 argument-hint: "[base-branch]"
 allowed-tools:
@@ -10,15 +10,15 @@ allowed-tools:
   - Grep
 ---
 
-# /gh:pr - PR 作成スキル
+# /gh-pr - PR 作成スキル
 
 > **原則**: PR作成に特化。セルフレビューは Hook+rules が自動トリガー。レビュー結果は PR コメントに投稿するだけで、修正は開始しない。
 
 ## 使い方
 
 ```bash
-/gh:pr            # ベースブランチ自動検出 (main/master)
-/gh:pr develop    # ベースブランチ指定
+/gh-pr            # ベースブランチ自動検出 (main/master)
+/gh-pr develop    # ベースブランチ指定
 ```
 
 ---
@@ -128,7 +128,7 @@ EOF
 
 ## Phase 5: セルフレビューコメント投稿
 
-> **必須ゲート**: PR 作成後は、`## Automated Code Review` コメントを PR に投稿するまで `/gh:pr` を完了してはならない。コメント投稿後は修正を始めず、ユーザー入力待ちで停止する。
+> **必須ゲート**: PR 作成後は、`## Automated Code Review` コメントを PR に投稿するまで `/gh-pr` を完了してはならない。コメント投稿後は修正を始めず、ユーザー入力待ちで停止する。
 
 1. **PR 番号取得**: `gh pr view --json number -q '.number'` を実行
    - 取得失敗 → PR URL とエラー内容を表示し、「セルフレビューコメント未投稿」で停止
@@ -149,8 +149,8 @@ EOF
 5. **修正の扱い**:
    - セルフレビューコメント投稿前に、レビュー結果をその場で修正してはならない
    - 重大な問題が見つかった場合も、PR コメント投稿後に「未修正の指摘あり」と報告するだけに留める
-   - 投稿後の修正は `/gh:review <PR番号>` またはユーザーの明示指示が次に来た場合のみ、追加コミットとして対応する
-   - `/gh:pr` の同一実行内で、レビュー結果を理由にファイル編集・テスト実行・追加コミット・追加 push を行ってはならない
+   - 投稿後の修正は `/gh-review <PR番号>` またはユーザーの明示指示が次に来た場合のみ、追加コミットとして対応する
+   - `/gh-pr` の同一実行内で、レビュー結果を理由にファイル編集・テスト実行・追加コミット・追加 push を行ってはならない
 
 **完了条件**: PR に `## Automated Code Review` コメントが投稿済みで、修正作業を開始せず停止している
 
@@ -178,7 +178,7 @@ EOF
 
 ```
 # 基本
-User: /gh:pr
+User: /gh-pr
 Claude:
 1. [チェック] 未コミット変更なし、ブランチ: feature/add-auth、既存PRなし
 2. [ベース] main (自動検出)、3コミット
@@ -189,11 +189,11 @@ Claude:
 7. [レビュー] Agent で別コンテキストレビュー
 8. [コメント] gh pr comment で "## Automated Code Review" を投稿して停止
 
-# gh:start との連携
-User: /gh:start 42   → Issue #42 の作業完了
-User: /gh:pr          → PR 作成
+# gh-start との連携
+User: /gh-start 42   → Issue #42 の作業完了
+User: /gh-pr          → PR 作成
 → Hook + Phase 5 がセルフレビューコメント投稿を要求
-→ 問題発見時は /gh:review で対応
+→ 問題発見時は /gh-review で対応
 ```
 
 ---
@@ -201,9 +201,9 @@ User: /gh:pr          → PR 作成
 ## 関連コマンド
 
 ```
-/gh:start 42    → Issue 駆動開発（実装・コミット）
-/gh:pr          → PR 作成（本スキル）
+/gh-start 42    → Issue 駆動開発（実装・コミット）
+/gh-pr          → PR 作成（本スキル）
                    ↓ Hook が自動レビュー
-/gh:review      → レビュー指摘への対応
-/gh:issue close → Issue クローズ・振り返り
+/gh-review      → レビュー指摘への対応
+/gh-issue close → Issue クローズ・振り返り
 ```

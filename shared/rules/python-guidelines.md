@@ -16,18 +16,16 @@
 4. **型ヒント**: `__init__` に `-> None` を付与（ANN204）
 5. **日時**: `datetime.now(timezone.utc)` を使用（DTZ005）
 6. **非同期**: while/sleepを避け、Eventを使用（ASYNC110）
-7. **テスト**: 空、単一、境界値、無効値、NaN のケースを網羅
-8. **CancelledError**: `except Exception:` の前に `except asyncio.CancelledError: raise` 必須（asyncループ内）
-9. **Queue型**: `asyncio.Queue[dict[str, Any]]` 禁止。frozen dataclass使用
-10. **No Fallback**: `except: pass` / `except: return None` 禁止。エラーは明示的に処理または伝播。必須設定値に `dict.get(k, default)` 禁止
-11. **PEP 758 (Python 3.14+)**: `except A, B, C:` は括弧なしで有効。Python 2構文ではない。ruff formatは括弧を削除する
-12. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
-13. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
-14. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
-15. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
-16. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
-17. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
-18. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
+7. **CancelledError**: `except Exception:` の前に `except asyncio.CancelledError: raise` 必須（asyncループ内）
+8. **Queue型**: `asyncio.Queue[dict[str, Any]]` 禁止。frozen dataclass使用
+9. **PEP 758 (Python 3.14+)**: `except A, B, C:` は括弧なしで有効。Python 2構文ではない。ruff formatは括弧を削除する
+10. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
+11. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
+12. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
+13. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
+14. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
+15. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
+16. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
 
 ### 主要な型安全ガード
 
