@@ -23,8 +23,9 @@
       "Bash(gh run view *)",
       "Bash(gh search *)",
       "Bash(git add *)",
+      "Bash(git branch --list *)",
+      "Bash(git branch --list)",
       "Bash(git branch)",
-      "Bash(git branch --list*)",
       "Bash(git commit *)",
       "Bash(git diff *)",
       "Bash(git fetch *)",
@@ -32,15 +33,12 @@
       "Bash(git ls-files *)",
       "Bash(git rev-parse *)",
       "Bash(git show *)",
-      "Bash(git status)",
       "Bash(git status *)",
+      "Bash(git status)",
       "Bash(grep *)",
       "Bash(head *)",
       "Bash(ls *)",
       "Bash(mkdir *)",
-      "Bash(npm run build*)",
-      "Bash(npm run lint*)",
-      "Bash(npm run test*)",
       "Bash(pwd)",
       "Bash(rm -f /tmp/*)",
       "Bash(stat *)",
@@ -48,8 +46,8 @@
       "Bash(test *)",
       "Bash(touch *)",
       "Bash(uv run mypy *)",
-      "Bash(uv run pytest)",
       "Bash(uv run pytest *)",
+      "Bash(uv run pytest)",
       "Bash(uv run ruff *)",
       "Bash(wc *)",
       "Bash(which *)",
@@ -194,7 +192,9 @@
       "Bash(npx *)",
       "Bash(pnpm dlx *)",
       "Bash(pnpm publish *)"
-    ]
+    ],
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable"
   },
   "hooks": {
     "ConfigChange": [
@@ -319,8 +319,15 @@
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
     "filesystem": {
-      "allowRead": [
-        "~/.config/gh"
+      "denyRead": [
+        "~/.config",
+        "~/.local/state",
+        "~/.local/share",
+        "~/.cache",
+        "~/.claude",
+        "~/.claude.json",
+        "~/.codex",
+        "~/.agents"
       ]
     },
     "credentials": {
@@ -397,23 +404,14 @@
         }
       ]
     },
-    "network": {
-      "allowedDomains": [
-        "github.com",
-        "*.github.com",
-        "*.githubusercontent.com",
-        "registry.npmjs.org",
-        "pypi.org",
-        "files.pythonhosted.org"
-      ]
-    }
+    "excludedCommands": [
+      "gh *"
+    ]
   },
   "autoUpdatesChannel": "latest",
   "tui": "default",
-  "disableAutoMode": "disable",
   "theme": "light-ansi",
   "editorMode": "vim",
-  "skipAutoPermissionPrompt": false,
   "autoMode": {
     "environment": [
       "Personal development environment on WSL2",
@@ -425,6 +423,5 @@
   "model": "sonnet",
   "effortLevel": "medium",
   "autoCompactEnabled": true,
-  "autoMemoryEnabled": true,
-  "disableBypassPermissionsMode": "disable"
+  "autoMemoryEnabled": true
 }

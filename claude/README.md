@@ -58,11 +58,13 @@ bypassPermissions モードは、公式ガイダンス上 container / VM / sandb
 
 日常の低プロンプト運用は bypass なしで成立する:
 
-- **sandbox auto-allow**（sandbox 有効時の既定）: sandbox 内で実行できる Bash は prompt なしで走る（FS は workspace 限定、network は allowlist + 初回 prompt）
+- **sandbox auto-allow**（sandbox 有効時の既定）: sandbox 内で実行できる Bash は prompt なしで走る
+- **sandbox の境界（read と write を区別する）**: **write は workspace + session temp に限定**（OS-level 強制）。**read は既定で host 全体に及ぶ**ため、user 設定の `filesystem.denyRead` で `~/.config`・`~/.local/state|share`・`~/.cache`・`~/.claude`・`~/.codex`・`~/.agents` 等の private tree を deny し、`credentials.files` で既知 credential を deny している。**workspace-only read が必要なプロジェクトでは** [docs/templates/project-sandbox-settings.json](../docs/templates/project-sandbox-settings.json) を当該プロジェクトの `.claude/settings.json` へ追加する（user 設定の `.` は `~/.claude` に解決されるため project 側にしか置けない）
+- **network egress**: 事前許可 domain なし（未知 domain は sandbox の初回 prompt。child process の外部送信も domain 承認を経る）。`gh` は `excludedCommands` により sandbox 外で実行され、permission rule（read-only allow / mutation ask）で gate される
 - **workspace 限定の file 許可**（`Read(**)` / `Edit(**)`）: project 内の読み書きは prompt なし（project 外は通常フロー）
-- prompt が出るのは、**外部副作用**（`git push`・PR/issue 作成・`gh api`・`curl`・registry 操作・`npx` 等の任意 package 実行）と**破壊的 git 操作**（checkout/switch/stash/worktree/pull/`branch -D`/`commit --amend`）の ask rule のみ — PDF の「明示要求なしに push・PR・外部投稿・破壊的操作をしない」の permission-layer 強制
+- prompt が出るのは、**外部副作用**（`git push`・PR/issue 作成・`gh api`・`curl`・registry 操作・`npx` 等の任意 package 実行）・**破壊的 git 操作**（checkout/switch/stash/worktree/pull/`branch -D`）・**初回の network domain** のみ。`git commit --amend` は順序非依存の deterministic hook が deny する（history rewrite は手動操作）
 
-bypass が不可欠な作業（完全無人運用など）は、公式の [dev container](https://code.claude.com/docs/en/devcontainer)（default-deny firewall 付き）等の隔離環境で行う。
+導入後は `scripts/check-runtime.sh` で Claude Code version が検証済み下限（2.1.218）以上であることを確認する（下限未満は設定が部分適用になり得るため明示エラー）。bypass が不可欠な作業（完全無人運用など）は、公式の [dev container](https://code.claude.com/docs/en/devcontainer)（default-deny firewall 付き）等の隔離環境で行う。
 
 ### シークレットスキャン（コミットするマシンでは必須）
 

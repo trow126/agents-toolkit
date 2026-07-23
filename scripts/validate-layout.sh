@@ -343,6 +343,25 @@ if [[ -f claude/settings.json ]]; then
       fi
     done <<< "$BROAD_ALLOWS"
   fi
+  # H-012: bypassPermissions lockout は documented path(permissions 配下)に正しい値で存在すること
+  if ! jq -e '.permissions.disableBypassPermissionsMode == "disable"' claude/settings.json >/dev/null 2>&1; then
+    fail "bypass lockout contract: claude/settings.json の permissions.disableBypassPermissionsMode が \"disable\" ではない(欠落・誤配置・誤値)"
+  fi
+  # root-level の非公式/誤配置キーを拒否する(runtime に無視されると lockout が成立しない)
+  ROOT_MISPLACED="$(jq -r 'keys[] | select(. == "disableBypassPermissionsMode" or . == "disableAutoMode" or . == "skipAutoPermissionPrompt")' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$ROOT_MISPLACED" ]]; then
+    while IFS= read -r k; do
+      fail "misplaced root-level settings key: '$k'(documented path は permissions 配下。root の unknown key は無視され得る)"
+    done <<< "$ROOT_MISPLACED"
+  fi
+  # H-007: runner script の no-space wildcard(word boundary なし。任意 script 名 prefix に match)を拒否する
+  RUNNER_WILDCARDS="$(jq -r '.permissions.allow[]? | select(test("^Bash\\((npm|pnpm|bun|yarn) run .*[^ ]\\*\\)$"))' claude/settings.json 2>/dev/null || true)"
+  if [[ -n "$RUNNER_WILDCARDS" ]]; then
+    while IFS= read -r rule; do
+      fail "no-space runner wildcard in allow: '$rule'(word boundary がなく任意 script 名 prefix に match する。exact か space-star を使う)"
+    done <<< "$RUNNER_WILDCARDS"
+  fi
+
   # H-010: 現行 Claude Code の file permission check にmatchしない path rule 形式を拒否する
   # (path rule が有効なのは Read()/Edit() のみ。Write()/NotebookEdit()/Glob() の path 形式は unmatched)
   UNSUPPORTED_RULES="$(jq -r '(.permissions.allow[]?, .permissions.ask[]?, .permissions.deny[]?) | select(test("^(Write|NotebookEdit|Glob)\\("))' claude/settings.json | sort -u)"

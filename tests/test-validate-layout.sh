@@ -182,7 +182,7 @@ assert_contains "未消費shared ruleが列挙される" "$out" "shared rule not
 # =========================================================================
 REPO7="$SANDBOX/repo7"
 build_fixture "$REPO7"
-echo '{"defaultMode": "bypassPermissions"}' > "$REPO7/claude/settings.json"
+echo '{"permissions": {"defaultMode": "bypassPermissions", "disableBypassPermissionsMode": "disable"}}' > "$REPO7/claude/settings.json"
 printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO7/install/manifest.tsv"
 git -C "$REPO7" add -A
 out=""
@@ -306,7 +306,7 @@ assert_contains "TOML literal string pinが列挙される" "$out" "codex/litera
 # =========================================================================
 REPO11C="$SANDBOX/repo11c"
 build_fixture "$REPO11C"
-printf '{"permissions": {"allow": ["Read", "Bash(git *)", "Bash(npm *)", "Bash(uv run *)", "Write(**)"]}}\n' > "$REPO11C/claude/settings.json"
+printf '{"permissions": {"disableBypassPermissionsMode": "disable", "allow": ["Read", "Bash(git *)", "Bash(npm *)", "Bash(uv run *)", "Bash(npm run test*)", "Write(**)"]}}\n' > "$REPO11C/claude/settings.json"
 printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11C/install/manifest.tsv"
 git -C "$REPO11C" add -A
 out=""
@@ -318,6 +318,29 @@ assert_contains "広域Bash wildcardが列挙される" "$out" "broad permission
 assert_contains "runner wildcard(npm)が列挙される" "$out" "broad permission allow 'Bash(npm *)'"
 assert_contains "runner wildcard(uv run)が列挙される" "$out" "broad permission allow 'Bash(uv run *)'"
 assert_contains "unsupported path rule(Write)が列挙される" "$out" "unsupported path-scoped permission rule (matches nothing in current Claude Code): 'Write(**)'"
+assert_contains "no-space runner wildcardが列挙される" "$out" "no-space runner wildcard in allow: 'Bash(npm run test*)'"
+
+# =========================================================================
+# 11e. bypass lockout の欠落・誤配置・誤値は非ゼロ(H-012)
+# =========================================================================
+REPO11E="$SANDBOX/repo11e"
+build_fixture "$REPO11E"
+printf '{"permissions": {"defaultMode": "default"}, "disableBypassPermissionsMode": "disable"}\n' > "$REPO11E/claude/settings.json"
+printf 'link-file\tclaude/settings.json\t.claude/settings.json\n' >> "$REPO11E/install/manifest.tsv"
+git -C "$REPO11E" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11E" 2>&1)" || rc=$?
+assert_exit_nonzero "root 配置の lockout は失敗する" "$rc"
+assert_contains "lockout 欠落(permissions 配下)が列挙される" "$out" "bypass lockout contract"
+assert_contains "root 誤配置キーが列挙される" "$out" "misplaced root-level settings key: 'disableBypassPermissionsMode'"
+
+printf '{"permissions": {"defaultMode": "default", "disableBypassPermissionsMode": "enable"}}\n' > "$REPO11E/claude/settings.json"
+git -C "$REPO11E" add -A
+out=""
+rc=0
+out="$(run_validate "$REPO11E" 2>&1)" || rc=$?
+assert_exit_nonzero "誤値の lockout は失敗する" "$rc"
 
 # =========================================================================
 # 11d. model scanner は非対応YAML構文で fail-closed になる(H-001)

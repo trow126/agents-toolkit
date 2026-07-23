@@ -43,4 +43,4 @@
 # 起動運用
 
 - `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
-- bypassPermissions モードは共有設定で無効化済み（`disableBypassPermissionsMode`）。低プロンプト運用は sandbox auto-allow（sandbox 有効時の既定。sandbox 内 Bash は prompt なし）が担い、prompt が出るのは外部副作用（push・PR/issue 作成・`gh api`・`curl` 等）と破壊的 git 操作の ask rule のみ。bypass が不可欠な作業は公式 devcontainer 等の隔離環境で行う
+- bypassPermissions モードは共有設定で無効（`permissions.disableBypassPermissionsMode`）。低プロンプト運用は sandbox auto-allow が担い（write は workspace 限定、read は denyRead で private tree を遮断、egress は domain 初回 prompt）、prompt が出るのは外部副作用・破壊的 git 操作の ask と初回 domain のみ。`git commit --amend` は hook が順序非依存で deny。bypass が不可欠な作業は公式 devcontainer 等の隔離環境で行う

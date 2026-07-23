@@ -75,6 +75,18 @@ measure_tree() {
   # tier_aliases は agent frontmatter 由来のみを数える(定義は v2 レポートから不変)
   echo "tier_aliases: $( (grep 'claude/agents/' <<< "$scan" | grep -c ':alias:') || true)"
 
+  if [[ -f "$root/claude/settings.json" ]] && command -v jq >/dev/null; then
+    echo "permissions_allow_count: $(jq '.permissions.allow | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    echo "permissions_ask_count: $(jq '.permissions.ask // [] | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    echo "permissions_deny_count: $(jq '.permissions.deny | length' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+    echo "bypass_lockout_ok: $(jq -r 'if .permissions.disableBypassPermissionsMode == "disable" then "yes" else "no" end' "$root/claude/settings.json" 2>/dev/null || echo 'n/a')"
+  else
+    echo "permissions_allow_count: n/a"
+    echo "permissions_ask_count: n/a"
+    echo "permissions_deny_count: n/a"
+    echo "bypass_lockout_ok: n/a"
+  fi
+
   local uncond=0
   for f in "$root/claude/skills/gh:start/SKILL.md" "$root/claude/skills/gh-start/SKILL.md"; do
     [[ -f "$f" ]] || continue

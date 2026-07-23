@@ -2,7 +2,7 @@
 
 2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
 
-**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ **v5（本版。要件所有者の決定により bypass launcher を廃止し、残件を全件反映）**。対応内訳は末尾「レビュー対応履歴」。
+**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ v5 → 統合再レビュー3（REQUEST_CHANGES: H-012・H-013・H-007・H-011・H-014・H-015・H-016・H-017）→ **v6（本版。live 実機検証を除く全件を実装反映）**。対応内訳は末尾「レビュー対応履歴」。**本文は現在状態（current state）を記述し、過去版の設計は「レビュー対応履歴」に SUPERSEDED として残す。**
 
 ## Baseline（変更前の検証記録）
 
@@ -17,30 +17,30 @@
 
 | 指標（script の出力 key） | before | after | 削減 |
 |---|---|---|---|
-| combined_always_on_total | 43,068 | 32,637 | **−24.2%** |
+| combined_always_on_total | 43,068 | 32,863 | **−23.7%** |
 | 　codex_agents_md_bytes | 23,116 | 15,271 | **−33.9%** |
-| 　claude_always_on_total | 19,952 | 17,366¹ | −13.0% |
+| 　claude_always_on_total | 19,952 | 17,592¹ | −11.8% |
 | custom_agents | 14 | 9 | **−36%** |
 | claude_skills | 21 | 13 | **−38%** |
 | codex_skills | 4 | 5² | +1 |
 | hook_scripts / hook_registrations | 9 / 9 | 7 / 8 | −22% / −11% |
 | shared_rules + claude_rules | 16 + 7 | 13 + 5 | −22% |
-| full_model_pins（settings + agent frontmatter + TOML） | 1 | **0** | −100% |
+| full_model_pins | 1 | **0** | −100% |
 | tier_aliases（agent frontmatter。pin と別指標） | **14** | 9 | −36% |
 | unconditional_delegation_gh_start | 1 | **0** | −100% |
 | always_on_learnings_paths | 2 | **0** | −100% |
 | duplicated_principles_greppable（script 判定 3 シグネチャ） | 3 | **0** | −100% |
 | 同・手動評価分³ | 2 | 0 | −100% |
 
-削減率の丸め: 小数 1 桁（四捨五入）。after 値の機械照合用ブロック（`tests/test-report-consistency.sh` が `measure-metrics.sh --repo .` と verbatim 照合し、stale なら CI が失敗する — ATK-007）:
+削減率の丸め: 小数 1 桁（四捨五入）。after 値と permission policy の機械照合用ブロック（`tests/test-report-consistency.sh` が `measure-metrics.sh --repo .` と verbatim 照合し、stale なら CI が失敗する — ATK-007/H-016。**permission 件数と bypass lockout もここが正**）:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4380
-claude_always_rules_bytes: 2132
-claude_always_on_total: 17366
+claude_md_bytes: 4447
+claude_always_rules_bytes: 2291
+claude_always_on_total: 17592
 codex_agents_md_bytes: 15271
-combined_always_on_total: 32637
+combined_always_on_total: 32863
 custom_agents: 9
 claude_skills: 13
 codex_skills: 5
@@ -50,12 +50,16 @@ shared_rules: 13
 claude_rules: 5
 full_model_pins: 0
 tier_aliases: 9
+permissions_allow_count: 53
+permissions_ask_count: 51
+permissions_deny_count: 77
+bypass_lockout_ok: yes
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 ```
 <!-- END metrics:after -->
 
-¹ v3-v5 で private routing 契約・permission 方針の明文化により CLAUDE.md は 4,380 bytes（v1 の 2,909 から増）。削減は rules 統合・import 削減・learnings 遅延化による。² python-quality は AGENTS.md からの移設（3.6 の承認済み例外）。³ grep で機械判定できない 2 組 = YAGNI の意味重複と git 安全（rule 文 vs settings deny）。統合・削除済みだが判定は手動評価であることを明記する。
+¹ v3-v6 で private routing 契約・permission/sandbox 方針の明文化により CLAUDE.md は 4,447 bytes（v1 の 2,909 から増）。削減は rules 統合・import 削減・learnings 遅延化による。² python-quality は AGENTS.md からの移設（3.6 の承認済み例外）。³ 手動評価 2 組の内訳は v2 と同じ。
 
 **典型 task の handoff 定義**: 「明確な小規模 Issue を `/gh-start` で処理する際の実装委譲回数」。before = SKILL.md がタスクごとの `general-purpose` 委譲を無条件強制（N タスク = N handoff。script の unconditional_delegation_gh_start = 1 が該当テンプレートの存在を示す）。after = 0（owner 完遂既定。委譲は 4 条件の明示該当時のみ + checkpoint に理由記録）。検証: `tests/test-gh-start-contract.sh`（**内容: gh-issue-fetch の runtime smoke + gh-start SKILL の静的契約検査**。Claude Code 本体の skill 起動〜実装までを駆動する integration test ではない — H-004 対応の正確な名称）。
 
@@ -69,16 +73,16 @@ always_on_learnings_paths: 0
 | 4 | `disable-model-invocation: true` は公式 | code.claude.com/docs/en/skills | break-consensus の手動起動保証 | 高 |
 | 5 | TodoWrite 廃止・MultiEdit 非掲載 | 公式 docs + GitHub issues | 依存 skill を archive | 中〜高 |
 | 6 | Agent Teams は experimental・既定無効・token 消費大 | code.claude.com/docs/en/agent-teams | 共有有効化を撤去。opt-in は shell 環境変数 | 高 |
-| 7 | `bypassPermissions` は prompt injection 保護なし。`failIfUnavailable: false` は**警告後に unsandboxed 実行**（fail-open）、`true` は起動拒否（fail-closed）。`sandbox.credentials.files` の deny が公式（v2.1.187+）。既定 read policy は credential file を読める | code.claude.com/docs/en/sandboxing, /permission-modes | 共有既定を default + failIfUnavailable: true + credentials deny へ。bypass は環境検証ゲート付き launcher に隔離 | 高 |
+| 7 | `bypassPermissions` は prompt injection 保護なし。`failIfUnavailable: false` は**警告後に unsandboxed 実行**（fail-open）、`true` は起動拒否（fail-closed）。`sandbox.credentials.files` の deny が公式（v2.1.187+）。既定 read policy は credential file を読める | code.claude.com/docs/en/sandboxing, /permission-modes | 共有既定を default + failIfUnavailable: true + credentials deny へ（**launcher 隔離の記述は SUPERSEDED — v5 で launcher 廃止**） | 高 |
 | 8 | documented scope に user-level `settings.local.json` は**存在しない**（user は `~/.claude/settings.json`、local は `<project>/.claude/settings.local.json`）。マージ規則は scalar override / **array-valued settings は一般に連結・重複排除**（v4 で行 14 に精緻化。当初の「permission のみマージ」という要約は v4 で訂正済み） | code.claude.com/docs/en/settings | 誤った scope 記述を全修正（README / rules / classification） | 高 |
 | 9 | model alias: sonnet = daily coding、低 effort = 低コスト | code.claude.com/docs/en/model-config | 共有既定 `sonnet` + `medium` | 高 |
 | 10 | Codex user skills は `~/.agents/skills`、AGENTS.md 連結 32KiB 上限 | developers.openai.com/codex/* | python-quality を同所へ、AGENTS.md 15.3KB | 高 |
 | 11 | 発想均質化・novelty 監査・実験変換の実証研究 | break-consensus references/evidence.md | Stage 設計根拠 | 高 |
-| 12 | bare `Read`/`Edit`/`WebFetch` は全対象に match。`Bash(git *)` は push も match。ask rule は bypassPermissions 中も prompt を強制。`--dangerously-skip-permissions` 相当のセッションは container/VM/sandbox-runtime 内で起動すべき | code.claude.com/docs/en/permissions, /permission-modes, /sandbox-environments | H-007 の permission 全面縮小 + ask gate。bypass は srt 隔離必須化 | 高 |
-| 13 | `@anthropic-ai/sandbox-runtime`（srt）は Claude Code プロセス全体（tools・MCP・hooks）を隔離。`srt [--settings file] <command>`、設定は network.allowedDomains / filesystem.{denyRead,allowWrite} 等。beta research preview | code.claude.com/docs/en/sandbox-environments + sandbox-runtime README | claude-bypass の隔離 runtime に採用（設定 template 同梱） | 高 |
+| 12 | bare `Read`/`Edit`/`WebFetch` は全対象に match。`Bash(git *)` は push も match。ask rule は bypassPermissions 中も prompt を強制。`--dangerously-skip-permissions` 相当のセッションは container/VM/sandbox-runtime 内で起動すべき | code.claude.com/docs/en/permissions, /permission-modes, /sandbox-environments | H-007 の permission 全面縮小 + ask gate（**srt 隔離必須化は SUPERSEDED — v5 で launcher 廃止し bypass 自体を lockout**） | 高 |
+| 13 | `@anthropic-ai/sandbox-runtime`（srt）は Claude Code プロセス全体（tools・MCP・hooks）を隔離。`srt [--settings file] <command>`、設定は network.allowedDomains / filesystem.{denyRead,allowWrite} 等。beta research preview | code.claude.com/docs/en/sandbox-environments + sandbox-runtime README | **SUPERSEDED**: v4 で採用したが v5 で launcher ごと廃止（歴史的記録として保持） | 高 |
 | 14 | settings の array-valued settings は一般にスコープ間で連結・重複排除（permissions に限らず sandbox filesystem/credentials/network arrays も）。scalar は高優先 override | code.claude.com/docs/en/settings, /sandboxing | settings-syntax.md を修正（ATK-006） | 高 |
 
-未検証事項: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法（ユーザー実設定の注記として維持）。(c) issue #16180 の現況。(d) sandbox fail-closed 構成の WSL2 実機動作（bubblewrap/socat 導入が前提。README に導入手順を明記）。
+未検証事項（すべて実機依存。`scripts/check-runtime.sh` + README の手動チェックリストで補完）: (a) TodoWrite→TaskCreate の公式移行文書（確信度 85%）。(b) Codex plugin `approval_mode` 記法。(c) **live Claude Code での lockout 実挙動**（`--permission-mode bypassPermissions` の拒否・startup warning 0 件）。(d) **WSL2 実機での sandbox denyRead/egress の OS-level 強制**。(c)(d) は本環境（Claude Code 実行不可・非 WSL2）では検証不能のため、導入時に実機で確認する。
 
 ## 縮約の実施内容（Phase 3、v5 時点の最終状態）
 
@@ -88,19 +92,18 @@ always_on_learnings_paths: 0
 - claude/rules: workflow.md / workspace.md を統合削除。settings-syntax.md は公式の scope・マージ仕様に合わせて全面修正
 - codex/AGENTS.md: python-guidelines / issue-completeness / learnings を遅延化。−33.9%
 
-### 3.2 実行時既定値と permission policy（ATK-002/004/006・H-006/007 最終形）
+### 3.2 実行時既定値と permission / sandbox policy（v6 最終形。source of truth と一致）
 
-`claude/settings.json`（source of truth と本節は一致する）:
+- `model: "sonnet"` / `effortLevel: "medium"`。model pin/alias は共有 scanner（**対応構文限定 parser** — 非対応構文・decode 不能は明示エラーで fail-closed）で検査
+- **bypass lockout（H-012）**: `permissions.disableBypassPermissionsMode: "disable"` を **documented path（permissions 配下）** に配置。旧 root 配置と非公式 root キー（`skipAutoPermissionPrompt` 等）は撤去。validator が「permissions 配下・値 disable・root 誤配置なし」を構造検査し、欠落/誤配置/誤値の negative fixture 付き
+- **permissions.allow（53 rule）**: read-only git/gh・`git add`/`git commit`・`uv run pytest|ruff|mypy`（space-star）・安全 utility・workspace 限定 `Read(**)`/`Edit(**)`・ドメイン限定 WebFetch。**npm run 系はゼロ**（no-space wildcard `npm run test*` は任意 script 名 `test:publish` 等に match するため全廃し、validator が no-space runner wildcard を拒否 — H-007）
+- **permissions.ask（51 rule）**: 外部副作用（push・PR/issue/release/repo/api/workflow・curl・registry mutation）・任意 package 実行（npx/npm exec/pnpm dlx/bunx）・破壊的 git（checkout/switch/stash/worktree/pull/rebase/branch -D 等）
+- **deterministic hook（H-011/H-014）**: `pre-bash-validate-hook` を fail-closed 化（jq 欠落・malformed JSON・schema 不一致 = exit 2 で block）。`.env` 遮断は path-aware（`config/.env` 等の nested path・subprocess reader・redirection を含む）。**`git commit --amend` は option 順序非依存の argv 判定で deny**（`git -c`/`-C` 前置・`-S --amend` 順も検出。通常 commit は対象外）。テスト: `tests/test-pre-bash-hook.sh`（21 assertion）
+- **sandbox（H-013。read と write を区別）**: write = workspace + session temp（OS-level）。**read は既定 host-wide のため** `filesystem.denyRead` で `~/.config`・`~/.local/state|share`・`~/.cache`・`~/.claude`・`~/.claude.json`・`~/.codex`・`~/.agents` を deny（private routing・XDG state・agent config・session 履歴を遮断）+ `credentials.files` 8 path + `credentials.envVars` 9 変数。**`~/.config/gh` の一般 allowRead を撤去**し、`gh` は `excludedCommands` で sandbox 外実行（permission rule で gate）。**workspace-only read が必要な project は同梱 template（docs/templates/project-sandbox-settings.json: denyRead ~/ + allowRead .）を project 設定へ**（user 設定の `.` は ~/.claude に解決されるため project 側にのみ置ける — 公式 recipe）
+- **network egress（H-007）**: 事前許可 domain を全廃（`sandbox.network` なし = 未知 domain は初回 prompt）。repo 管理の child process が外部送信する場合も domain 承認を経る。known-domain 常時許可による「private read → 許可 domain へ exfil」chain を遮断
+- 危険設定・broad allow の再導入は waiver 必須（schema 検査付き）。**runtime 互換（H-017）**: 検証済み下限 2.1.218 を `scripts/check-runtime.sh`（doctor）が検査し、下限未満は明示エラー
 
-- `model: "sonnet"` / `effortLevel: "medium"`（full model pin 0。validator と metrics は**対応構文を限定した共有 scanner**（canonical block-style frontmatter + JSON + tomllib TOML。quoted/literal 値対応）で横断検査し、**非対応構文・decode 不能は明示エラーで fail-closed**（黙って 0 件と報告しない — H-001） ）
-- `permissions.defaultMode: "default"`（無条件 bypass なし）
-- **permissions.allow（H-007/H-011 対応で最終縮小）**: bare tool・`Bash(git|gh|curl *)` に加え、v5 で **runner wildcard（`npm *`/`pnpm *`/`bun *`/`uv run *`/env 系）と破壊的 git subcommand（checkout/switch/branch/stash/worktree/pull）の allow も全廃**。残る allow は read-only git/gh・`git add`/`git commit`（amend 除く）・narrow runner（`npm run test|lint|build`、`uv run pytest|ruff|mypy`）・安全な unix utility・workspace 限定 `Read(**)`/`Edit(**)`（**`Write(**)` は現行仕様で match しない path rule のため撤去し、file-edit policy は `Edit(**)` に一本化 — H-010**）・ドメイン限定 WebFetch。allow 外のコマンドは sandbox auto-allow（sandbox 内・workspace 限定）で走る
-- **permissions.ask（55 rule）**: 外部副作用（`git push`・`gh pr|issue|release|repo|api|workflow` の変更系・`curl`・registry mutation `npm publish|unpublish|deprecate|owner|access|dist-tag|token|login`）+ **任意 package 実行（`npx`/`npm exec`/`npm x`/`pnpm dlx`/`bunx`）** + **破壊的 git 操作（`checkout`/`switch`/`stash`/`worktree`/`pull`/`rebase`/`commit --amend`/`branch -D|-d|-m|-M|--delete|--force`）**。deny > ask > allow のため sandbox auto-allow 中も明示 prompt を強制する
-- `sandbox`: `enabled: true` / `failIfUnavailable: true`（fail-closed） / `allowUnsandboxedCommands: false` / `credentials.files` で `~/.ssh` 等 8 path の read deny / **`credentials.envVars` で GITHUB_TOKEN・GH_TOKEN・NPM_TOKEN・ANTHROPIC_API_KEY・AWS_* 等 9 変数を sandboxed subprocess から deny** / `network.allowedDomains` で sandboxed Bash の egress を 6 domain に限定
-- Agent Teams 環境変数なし（opt-in は shell profile の `export`）
-- 危険設定・broad allow を共有既定へ戻す場合は waiver 必須。**waiver 自体も schema 検査**（5 列非空・実在日・`docs/waivers/environments.txt` の承認済み environment のみ。不正行は未使用でも FAIL — H-008）
-
-**bypassPermissions の扱い（v5 = launcher 廃止）**: v4 の srt launcher に対し、統合再レビュー2 は (a) srt 実行体の bootstrap trust（PATH/npx 解決・version 未固定 — H-009）、(b) srt profile の境界の広さ（home read・`~/.claude` write・GitHub/npm/PyPI egress — ATK-004）を BLOCKING と判定した。完全対応には固定版 srt の検証付き配布・一時 HOME・credential broker・実 WSL2 での live adversarial integration test が必要で、個人 dotfiles で維持するのは過剰と判断し、**要件所有者の決定（2026-07-23）で launcher・profile・template・専用テストを全て削除**した。共有設定に `disableBypassPermissionsMode: "disable"`（レビュー推奨の安全側既定）を追加し、validator の stale-reference 検査へ bypass 関連名を登録して再導入を検出する。**H-009 と ATK-004 は対象機構の廃止により解消**。低プロンプト運用は sandbox auto-allow + workspace 限定 allow が担い（日常 Bash・編集は prompt なし）、prompt は外部副作用・破壊的操作の ask のみ。bypass が不可欠な作業は公式 dev container（default-deny firewall 付き）等の隔離環境で行う。
+**bypassPermissions の経緯（履歴）**: v3 で waiver 付き共有既定 → v4 で srt launcher 隔離 → **v5 で launcher 廃止 + lockout（現在状態）**。詳細は「レビュー対応履歴」。
 
 ### 3.3 agents（14 → 9）/ 3.4 skills（21 → 13）/ 3.5 hooks（9 → 7）
 
@@ -131,7 +134,7 @@ v2 から変更なし（手動起動限定、Stage 1-7、standard/deep は別 co
 - shell 構文（bash -n 全 .sh）/ JSON（jq）: PASS
 - `scripts/validate-layout.sh`（10 検査。構造的 pin scan・broad-allow 検査・waiver schema 検査を含む。WARN 0 件）: PASS
 - `sync-shared-rules.sh --check`: OK
-- `tests/test-*.sh` **10 本**（bypass テスト削除・report-consistency テスト追加）: PASS（negative fixture: quoted YAML・literal TOML pin / quoted-key・invalid-UTF-8 の scanner fail-closed / runner wildcard・unsupported path rule / broad allow / waiver schema 4 種 / stale report 数値 をすべて拒否することを含む）
+- `tests/test-*.sh` **11 本**（新規: test-pre-bash-hook）: PASS（negative fixture: lockout 欠落/誤配置/誤値 / no-space runner wildcard / quoted・literal pin / scanner fail-closed / broad allow / waiver schema 4 種 / stale report 数値 / hook の malformed input・jq 欠落・nested .env・amend 順序 variant をすべて拒否することを含む）
 - `python-refactor-analysis` pytest: 20 passed
 - bootstrap e2e（clean HOME、test-gh-start-contract 内）: PASS
 - `scripts/package-release.sh --check`: PASS
@@ -188,3 +191,16 @@ ATK-001 parser 復帰 + e2e / ATK-002 sonnet+medium / ATK-003 単一 owner 化 /
 | H-010 | `Write(**)` を削除（現行仕様で file permission check に match する path rule は Read/Edit のみ）。file-edit policy は `Edit(**)` に一本化し、validator に `Write(...)`/`NotebookEdit(...)`/`Glob(...)` path rule の拒否検査 + fixture を追加 |
 | ATK-006 | レポート内に残っていた旧「permission のみマージ」記述（evidence 行・v3 履歴）を全箇所「scalar override / array 連結・重複排除」へ訂正し、履歴には v4 訂正済みと明記 |
 | ATK-007 | after 計測値を最終 HEAD で再計測して表を更新（combined 32,637 / claude 17,366 / claude_md 4,380、丸め規則明記）。レポートに machine-readable な metrics:after ブロックを埋め込み、`tests/test-report-consistency.sh` が実測と verbatim 照合（stale なら CI 失敗。stale fixture の self-check 付き） |
+
+### 統合再レビュー3 → v6（H-012〜H-017・H-007/H-011/ATK-004 再対応）
+
+| ID | v6 対応 |
+|---|---|
+| H-012 | lockout を documented path（`permissions.disableBypassPermissionsMode`）へ移動し、非公式 root キー（`skipAutoPermissionPrompt`・root の disableAutoMode/disableBypassPermissionsMode）を撤去。validator に「permissions 配下・値 disable・root 誤配置なし」の構造検査 + 欠落/誤配置/誤値 fixture を追加。live 実機での拒否確認は未検証事項として明記 |
+| H-013 / ATK-004 | sandbox read 境界を明示: `filesystem.denyRead` で private tree 8 系統を deny、`~/.config/gh` の一般 allowRead を撤去（gh は excludedCommands で sandbox 外 + permission gate）。workspace-only read の project template を同梱し、README/レポートを「write=workspace 限定・read=denyRead 方式」の正確な記述へ修正 |
+| H-007 | no-space runner wildcard（`npm run test*` 等）を全廃 + validator 拒否検査。事前許可 egress domain を全廃し、child process の外部送信も sandbox の初回 domain prompt を経る構成へ（既知 domain への無承認 exfil chain を遮断） |
+| H-011 | `git commit --amend` を hook の order 非依存 argv 判定で deterministic に deny（`-S --amend`・`git -c`/`-C` 前置 fixture 付き）。ask の string-prefix には依存しない |
+| H-014 | pre-bash-validate-hook を fail-closed 化: jq 欠落・malformed JSON・command 欠落/空 = exit 2。`.env` 検査を path-aware 化（nested `config/.env`・wc/readlink/file 等の reader・redirection）。専用テスト（21 assertion）を追加し CI 実行 |
+| H-015 | safety.md の複合コマンド根拠を現行仕様（separator ごとに独立判定）へ修正し style 方針と明記。settings-syntax.md の `:*` を「末尾でのみ space-star と同等の legacy-equivalent」へ修正 |
+| H-016 | classification.md の claude-bypass 案内を REMOVED 注記へ置換。evidence matrix の launcher 採用行に SUPERSEDED を明記し、本文=現在状態 / 履歴=SUPERSEDED の分離方針を宣言。permission 件数・bypass lockout を metrics block（機械照合対象）に追加し、prose の件数は block を正とする |
+| H-017 | `scripts/check-runtime.sh`（doctor）を追加: 検証済み下限 2.1.218 を `claude --version` で検査し、下限未満は明示エラー（silent continuation なし）。startup warning 0 件の目視確認を案内。README の導入手順に組込み |

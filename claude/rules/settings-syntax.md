@@ -10,8 +10,8 @@ paths:
 
 - `Bash:*`, `Read:*`, `WebFetch:*` は**無効な構文**
 - ツール全体を許可するには `"Bash"`, `"Read"` 等（`:*` なし）
-- 引数プレフィックスマッチ: `Bash(git *)` (space-star)。`Bash(git:*)` は deprecated
-- Ref: https://github.com/anthropics/claude-code/issues/3428
+- 引数プレフィックスマッチ: trailing space-star `Bash(git *)` を canonical 表記とする。suffix `:*`（`Bash(git:*)`）は末尾でのみ space-star と同等に認識される legacy-equivalent（deprecated と断定しない。permission dialog は space-star を生成する。確認日 2026-07-23）
+- no-space wildcard（例 `Bash(npm run test*)`）は word boundary を持たず任意の後続文字列に match するため、allow には使わない（validator が拒否する）
 
 ## Settings 階層
 
