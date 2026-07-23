@@ -2,7 +2,7 @@
 
 2026 年時点の主要コーディングエージェント（Claude Code 2.1.x / Codex CLI）と Agent Skills 公式仕様に合わせた近代化。目的は (1) 継ぎ足された機構の証拠に基づく約 30% 縮約、(2) 手動起動型の革新探索 skill（`break-consensus`）の追加。
 
-**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ v5 → 統合再レビュー3（REQUEST_CHANGES: H-012・H-013・H-007・H-011・H-014・H-015・H-016・H-017）→ v6 → 統合再レビュー4（REQUEST_CHANGES: H-018・H-019・H-007・H-011・H-014・H-013・H-016・H-017 — 合成後の実効ポリシー検査）→ v7 → 適合性レビュー（REQUEST_CHANGES: B-01・C-01・H-01・H-02・M-01・M-02・M-03 — 要件適合と unsandboxed egress）→ **v8（本版。static に検証可能な全指摘を実装反映。live 実機項目は未検証事項、要件書の完全版照合 B-01 は所有者提示待ち）**。対応内訳は末尾「レビュー対応履歴」。**本文は現在状態（current state）を記述し、過去版の設計は「レビュー対応履歴」に SUPERSEDED として残す。**
+**改訂履歴**: v1（初回実装）→ レビュー1（ATK-001〜015）→ v2 → 再レビュー（ATK-004/006/007/011・H-001〜005）→ v3 → 統合再レビュー（REQUEST_CHANGES: H-007・ATK-004・H-006・H-001・ATK-006・H-008）→ v4 → 統合再レビュー2（REQUEST_CHANGES: H-009・H-007・ATK-004・H-011・H-001・H-010・ATK-006・ATK-007）→ v5 → 統合再レビュー3（REQUEST_CHANGES: H-012・H-013・H-007・H-011・H-014・H-015・H-016・H-017）→ v6 → 統合再レビュー4（REQUEST_CHANGES: H-018・H-019・H-007・H-011・H-014・H-013・H-016・H-017 — 合成後の実効ポリシー検査）→ v7 → 適合性レビュー（REQUEST_CHANGES: B-01・C-01・H-01・H-02・M-01・M-02・M-03 — 要件適合と unsandboxed egress）→ **v8（本版。static に検証可能な全指摘を実装反映。live 実機項目は未検証事項。B-01 は所有者が 2026-07-24 に「15p が全文」と確認し、転写 + 導出仕様を正本として承認 — クローズ。EX-002（auto memory）も同日追認済み）**。対応内訳は末尾「レビュー対応履歴」。**本文は現在状態（current state）を記述し、過去版の設計は「レビュー対応履歴」に SUPERSEDED として残す。**
 
 ## Baseline（変更前の検証記録）
 
@@ -241,7 +241,7 @@ ATK-001 parser 復帰 + e2e / ATK-002 sonnet+medium / ATK-003 単一 owner 化 /
 
 | ID | v8 対応 |
 |---|---|
-| B-01 | 原本切れを再読で確定（p.15 は Stage 5 冒頭 2 行 + 下半分空白で終了）。versioned 転写 [docs/requirements/requirements-transcription-260722.md](../requirements/requirements-transcription-260722.md) を追加し、実装 Stage 6–7 が §4.1 目的の明文（既視感排除・反証可能性評価・最小実験変換）からの導出であることを明記。**完全版要件書の提示は所有者依頼中**（提示後に Stage 5 後半以降を一対一照合） |
+| B-01 | 原本切れを再読で確定（p.15 は Stage 5 冒頭 2 行 + 下半分空白で終了）。**所有者が 2026-07-24 に「15 ページが全文（原本もここで終わる）」と確認** — 後続ページの欠落ではない。versioned 転写 [docs/requirements/requirements-transcription-260722.md](../requirements/requirements-transcription-260722.md) を正本テキストとして追加し、実装 Stage 6–7 + 出力契約を「§4.1 目的の明文（既視感排除・反証可能性評価・最小実験変換）からの導出仕様」として所有者承認。**クローズ** |
 | C-01 | `gh` の read 系 allow 10 件（search/issue list|view/pr list|view|diff|checks/repo view/run list|view）を全て ask へ移動（allow は固定 argv の `gh auth status` のみ）。validator に「excludedCommands の command word と交差する allow は audited exact list 以外 fail」検査 + fixture（audited の誤検出なし含む）を追加。metrics に `unsandboxed_query_capable_allows: 0` を追加し consistency test の照合対象へ |
 | H-01 | `sandbox.filesystem.allowRead` を追加（`~/.claude/bin`・`~/.claude/skills`・`~/.config/agents-toolkit` — deny tree 内で sandbox 内実行に必要な最小 subtree の再開。公式仕様の「narrower allow が denied region を再開する」挙動）。validator に deny↔allowRead の presence contract + fixture を追加。実 sandbox での helper 起動 smoke は未検証事項 (e) に追加 |
 | H-02 | `tests/test-check-runtime.sh`・`tests/test-uvw.sh` の git mode を 100755 へ修正（`git update-index --chmod=+x`）。validator に check 11「直接実行 surface（tests/test-\*.sh・scripts/\*.sh・hooks・bin・bootstrap）の executable bit」を追加 + 非実行 fixture。検証は CI と同じ直接実行方式で全 13 本 PASS を確認 |
