@@ -106,7 +106,7 @@ PDF の「新しい skill を 1 つだけ追加」に対し、active skill direc
 - `claude/skills/break-consensus`（**新規挙動** — PDF Phase 4 が指定する 1 件）
 - `codex/skills/python-quality`（**既存指示の移設** — AGENTS.md に常時インラインだった python-guidelines の遅延ロード先。新規挙動なし。Codex に path-scoped rules 機構がないため、skill が唯一の遅延ロード単位）
 
-分類: added directory 2 / relocated content 1 / **new behavior 1**。python-quality を AGENTS.md へ戻すと常時ロード +3.2KB（縮約目標と衝突）のため、移設例外として記録する。**要件所有者（ユーザー）の承認が必要** — 却下の場合は python-guidelines を AGENTS.md インラインへ戻す 1 コミットで復元可能。
+分類: added directory 2 / relocated content 1 / **new behavior 1**。python-quality を AGENTS.md へ戻すと常時ロード +3.2KB（縮約目標と衝突）のため、移設例外として記録する。**承認: 要件所有者が 2026-07-23 に例外を承認済み**（「例外で良い」）。
 
 ### 3.7 private routing の消費契約（ATK-011）
 
@@ -135,7 +135,7 @@ Stage 構成: 1 Problem Frame → 2 Consensus Map（合意領域を封鎖 baseli
 ## 運用上の注意（breaking changes）
 
 1. スラッシュコマンド改名: `/gh:pr` → `/gh-pr` 等
-2. **settings.json の既定値変更**: model `sonnet` / effort `medium` / permissions `default` / sandbox 有効 / Agent Teams 無効。従来の緩い設定（bypassPermissions 等）が必要な machine は untracked の `settings.local.json` に置くか、`docs/waivers/settings-waivers.tsv` に期限付き waiver を登録する
+2. **settings.json の既定値変更**: model `sonnet` / effort `medium` / sandbox 有効（`allowUnsandboxedCommands: false`）/ Agent Teams 無効 / `skipDangerousModePermissionPrompt` 削除。`defaultMode: bypassPermissions` は**要件所有者の決定（2026-07-23）により期限付き waiver（`docs/waivers/settings-waivers.tsv`、expires 2027-07-23）とともに共有既定へ復帰** — validator check 8 は waiver 有効期間中 WARN 扱い、期限切れで FAIL に転じ再判断を強制する。旧構成と異なり sandbox が有効なため、防御レイヤーは以前より厚い。sandbox が有効に動作する machine で unsandboxable なコマンドの拒否が実務を妨げる場合は、`allowUnsandboxedCommands` の waiver 追加または `settings.local.json` での調整を検討する
 3. 削除 agent（fast-worker / project-orchestrator / plan-reviewer-* / security-reviewer）を参照する private 設定があれば更新が必要
 4. Codex の Python 品質ゲートは `python-quality` skill の自動発火に依存（明示起動は `$python-quality`）
 5. 復元はすべて `docs/archive/skills/` + git 履歴から可能
@@ -147,13 +147,13 @@ Stage 構成: 1 Problem Frame → 2 Consensus Map（合意領域を封鎖 baseli
 | ATK-001 | `parse_issue.py` を `claude/bin/` へ復帰、`gh-issue-fetch.sh` を SCRIPT_DIR 相対解決に変更、gh-start Technical Details / `gtr-start` の旧参照更新、`tests/test-gh-start-contract.sh` で fake gh e2e + パーサー欠落時の非ゼロ終了 + 旧参照ゼロを検証 |
 | ATK-002 | settings を `sonnet` + `medium` へ。full pin は validator check 8 の検査対象（full-model-pin）に追加。エスカレーション条件は model-routing に集約 |
 | ATK-003 | gh-start Phase 2 を単一 owner 既定に改訂。委譲は 4 条件の明示該当時のみ + checkpoint に理由記録。無条件テンプレート 0 を静的テストで担保 |
-| ATK-004 | bypassPermissions / skipDangerousModePermissionPrompt / allowUnsandboxedCommands / sandbox 無効を共有設定から除去。check 8 を waiver 必須の fatal に変更（期限付き waiver TSV、fixture テスト付き） |
+| ATK-004 | skipDangerousModePermissionPrompt / allowUnsandboxedCommands / sandbox 無効を共有設定から除去し、check 8 を waiver 必須の fatal に変更（期限付き waiver TSV、fixture テスト付き）。bypassPermissions のみ要件所有者の決定（2026-07-23）で期限付き waiver とともに共有既定へ復帰（sandbox 有効化は維持） |
 | ATK-005 | learnings の CLAUDE.md import と AGENTS.md 埋め込みを廃止。必要時参照 + knowledge-audit skill への遅延同期に変更（計測: 常時ロード learnings 0） |
 | ATK-006 | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` を共有設定から削除。settings.local.json での opt-in を CLAUDE.md に明記 |
 | ATK-007 | `scripts/measure-metrics.sh` を同梱（定義付き）。full pin / tier alias / 無条件委譲を分離計測し、本レポートの表を再計測値で更新 |
 | ATK-008 | Stage 6 を別 context auditor 必須（standard/deep）に改訂。入力契約（rationale 不渡し）と出力要件（検索式・範囲・最近傍・根拠・未検証範囲）を明記。light は独立性なしを明示 |
 | ATK-009 | 全 active skill の `allowed-tools` を space 区切りへ統一。validator check 9（name/dir 一致・名前規則・description 長・allowed-tools 形式）を追加、fixture テスト付き。「適合」主張を core spec 検査範囲と vendor extension に分離 |
-| ATK-010 | 純増 2 件を「new behavior 1 + relocated content 1」として本レポート 3.6 に例外記録。要件所有者の承認待ちと復元手順を明記 |
+| ATK-010 | 純増 2 件を「new behavior 1 + relocated content 1」として本レポート 3.6 に例外記録。要件所有者が 2026-07-23 に承認済み |
 | ATK-011 | private-routing を opt-in active config と一意定義し、消費者・起動条件・不在時挙動を CLAUDE.md に明文化。classification.md の旧記述を更新 |
 | ATK-012 | baseline 証跡を `docs/reports/baseline-2026-07-23.txt` として同梱（SHA-256 記載） |
 | ATK-013 | safety.md / gtr-start / gh-start / classification.md の stale 参照を修正。validator check 10（stale reference、fixture テスト付き）を追加し再発を CI で検出 |
