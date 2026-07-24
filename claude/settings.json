@@ -4,6 +4,7 @@
     "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
     "pr": ""
   },
+  "model": "claude-fable-5[1m]",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
@@ -31,12 +32,11 @@
     }
   },
   "language": "japanese",
+  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
   "tui": "default",
+  "autoMemoryEnabled": false,
   "theme": "light-ansi",
   "editorMode": "vim",
-  "model": "sonnet",
-  "effortLevel": "medium",
-  "autoCompactEnabled": true,
-  "autoMemoryEnabled": false
+  "autoCompactEnabled": true
 }
