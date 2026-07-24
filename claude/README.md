@@ -94,7 +94,7 @@ done
 ./scripts/package-release.sh --check
 ```
 
-static test では managed policy、project override、XDG、hook、metrics、inventory、release mode を検証する。WSL2/Claude Code 実機での OS-level deny、approval UI、startup warning、Codex CLI は別途 live acceptance が必要。
+static test では managed policy、project override、XDG、hook、metrics、inventory、release mode を検証する。2026-07-24 に startup warning 0、managed composition、mode lockout、project-policy PreToolUse、Claude Code の Bash / `gh` approval、sandbox 内 Git / helper workflow、OS-level secret / private-tree deny、sandbox unavailable 時の fail-closed、Codex CLI を実機確認し、全 live acceptance を完了した。
 
 ## Skills
 

@@ -3,11 +3,11 @@
 ## 判定
 
 **Static remediation: COMPLETE**
-**Final acceptance: PENDING LIVE ACCEPTANCE**
+**Final acceptance: COMPLETE**
 
 2026年時点の Claude Code / Codex CLI / Agent Skills に合わせ、(1) 継ぎ足された常設機構の証拠ベース縮約、(2) manual-only innovation skill `break-consensus` の追加、(3) permission / sandbox / hook の fail-closed 化を実施した。
 
-v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正した current state である。成果物自身による owner approval の自己申告は受入根拠にしない。Claude Code sandbox・WSL2・Codex CLI の実機項目は本環境で実行できないため、最終判定は live acceptance 完了まで保留する。
+v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正した current state である。成果物自身による owner approval の自己申告は受入根拠にしない。2026-07-24 に managed composition、mode lockout、project-policy PreToolUse、Claude Code の Bash / `gh` approval、sandbox 内 Git / helper workflow、OS-level secret / private-tree deny、sandbox unavailable 時の fail-closed、Codex CLI の実機確認を実施し、全 live acceptance を完了した。
 
 ## Requirements source / baseline
 
@@ -58,15 +58,15 @@ combined static bytes は −21.4% であるが、要件の「約30%は方向性
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4770
+claude_md_bytes: 4819
 claude_md_lines: 47
 claude_always_rules_bytes: 2919
 claude_always_rules_lines: 32
 claude_imported_shared_bytes: 10854 (9 files)
-claude_always_on_total: 18543
+claude_always_on_total: 18592
 codex_agents_md_bytes: 15291
 codex_agents_md_lines: 208
-combined_always_on_total: 33834
+combined_always_on_total: 33883
 custom_agents: 9
 claude_skills: 13
 codex_skills: 4
@@ -99,8 +99,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 18645
-claude_session_start_injection_max_bytes: 19055
+claude_session_start_injection_typical_bytes: 18694
+claude_session_start_injection_max_bytes: 19104
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
@@ -212,10 +212,10 @@ custom XDG の waiver/accept flag を削除した。`XDG_CONFIG_HOME`, `XDG_STAT
 | ID | remediation | static status |
 |---|---|---|
 | B-01 | PDF hash を添付原本に一致させ、content-addressed manifest/verifier を追加。self-approval / circular ratification を削除 | **CLOSED** |
-| C-02 | security policy を OS-managed scope へ移動。managed-only locks + project/local runtime gate + negative fixtures | **CLOSED (live composition smoke pending)** |
+| C-02 | security policy を OS-managed scope へ移動。managed-only locks + project/local runtime gate + negative fixtures | **CLOSED (managed composition・preflight・PreToolUse live verified)** |
 | H-03 | custom XDG acceptance path を削除し、正規化後の standard path 以外を fail-closed | **CLOSED** |
 | H-04 | 137-row one-element/one-row audit、11軸 schema、operational coverage validator、正しい8件 metric、hook bytes | **CLOSED** |
-| M-04 | managed `ask: ["Bash"]`、Bash allow 0、sandbox auto-allow false により全 `gh` と read-only Bash を approval gate へ | **CLOSED (live prompt smoke pending)** |
+| M-04 | managed `ask: ["Bash"]`、Bash allow 0、sandbox auto-allow false により全 `gh` と read-only Bash を approval gate へ | **CLOSED (live prompt verified)** |
 | M-05 | current-state 表記を v9 へ統一し、XDG test を hermetic 化 | **CLOSED** |
 
 ## Static validation
@@ -235,18 +235,27 @@ for t in tests/test-*.sh; do env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DAT
 
 Release check additionally refuses a dirty/index-divergent tree and packages tracked HEAD only.
 
-## Live acceptance still required
+## Live acceptance status（2026-07-24）
 
-1. Claude Code stable 2.1.218+ startup warning 0
-2. `--permission-mode bypassPermissions` が managed lockout で拒否される
-3. WSL2 で sandbox unavailable 時の fail-closed
-4. OS-level `.env` / credential / private-tree deny（dynamic path、child process を含む）
-5. `git add` / normal `git commit` / `uvw` / private routing helper の sandbox 内成功
-6. every Bash / every `gh` の approval UI と unsandboxed egress behavior
-7. project `sandbox.enabled:false`, `excludedCommands`, `allowRead`, permissions が startup/PreToolUse gate で拒否される
-8. Codex CLI smoke と plugin `approval_mode` 記法の確定
+判定基準を次のように実挙動へ合わせる。
 
-上記の実機証跡が揃うまで最終判定は **PENDING LIVE ACCEPTANCE** とする。
+- bypass / auto lockout は process の非ゼロ終了ではなく、指定しても危険 mode が実効化されないことを合格条件とする。
+- malicious project settings は session startup 自体の拒否ではなく、managed policy を弱められず、起動前 preflight と PreToolUse で fail-closed になることを合格条件とする。
+
+確認済み:
+
+1. Claude Code stable 2.1.218、startup warning 0、managed source が `Enterprise managed settings (drop-ins)`
+2. `--permission-mode bypassPermissions` と auto の指定後も実効 mode は manual
+3. malicious project settings を `check-runtime.sh` が非ゼロ終了で拒否し、実 Claude session の Bash を PreToolUse hook が拒否
+4. `Bash(pwd)` と `gh auth status` の approval UI、および approval 後の `gh auth status` 実行
+5. 一時 repository 内の `git add` / 通常の `git commit` と、`uvw` / `private-routing-locate` helper
+6. dynamic `.env`、child process の synthetic credential tree、dynamic path の synthetic private tree に対する OS-level deny
+7. process-local の隔離 PATH で `bwrap` / `socat` を不可視にした際の exit 1 と `failIfUnavailable` 拒否ログ
+8. Codex CLI smoke と plugin `approval_mode` 記法
+
+最終判定:
+
+全項目 PASS。最終判定は **COMPLETE** とする。
 
 ## Installation / breaking changes
 

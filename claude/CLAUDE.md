@@ -43,5 +43,5 @@
 # 起動運用
 
 - `claude` は常にプロジェクトディレクトリから起動する。`$HOME` 直下からの起動は禁止（cwd 全体スキャンで RSS 15-17GB・3 分超ハングの実測あり。`.claudeignore` は起動時スキャンに効かない: 2026-04-19 検証済み）
-- security policy は OS-managed scope に置き、bypass/auto mode を無効化する。`permissions.ask: ["Bash"]` と `autoAllowBashIfSandboxed: false` により、組み込み read-only 判定を含む全 Bash は毎回標準 approval を経る。全 `gh` も同じ rule で ask。project/local の `permissions`・`hooks`・`sandbox` は `project-policy-gate` が起動時と PreToolUse 前に fail-closed で拒否する。事前許可 domain は0件。`git commit --amend` は hook が literal 共起で denyする
+- security policy は OS-managed scope に置き、bypass/auto mode を実効化させない。`permissions.ask: ["Bash"]` と `autoAllowBashIfSandboxed: false` により、組み込み read-only 判定を含む全 Bash は毎回標準 approval を経る。全 `gh` も同じ rule で ask。project/local の `permissions`・`hooks`・`sandbox` は起動前の `scripts/check-runtime.sh` と各 Bash の PreToolUse 前に `project-policy-gate` が fail-closed で拒否する。事前許可 domain は0件。`git commit --amend` は hook が literal 共起で denyする
 - sandbox 内の uv は `~/.claude/bin/uvw` を経由する（既定 cache が write 境界外のため。cache 等は session temp へ固定される）。`git config`・`git init` 等 `.git/config`・`.git/hooks` へ書く操作は sandbox が deny するため手動 shell で行う
