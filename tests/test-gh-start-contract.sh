@@ -94,7 +94,8 @@ fi
 # =========================================================================
 # 4. 静的契約: 旧パーサーパス参照なし / 無条件委譲テンプレートなし / 条件付き委譲規約あり
 # =========================================================================
-if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" "$REPO_ROOT/claude/skills/gh-start/SKILL.md"; then
+GH_START_SKILL="$REPO_ROOT/shared/skills/claude-code/gh-start/SKILL.md"
+if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" "$GH_START_SKILL"; then
   ok "旧 issue-parser パス参照が残っていない"
 else
   ng "旧 issue-parser パス参照が残っている"
@@ -104,14 +105,14 @@ if [[ -f "$REPO_ROOT/claude/bin/parse_issue.py" ]]; then
 else
   ng "claude/bin/parse_issue.py が存在しない"
 fi
-if ! grep -q 'subagent_type: "general-purpose"' "$REPO_ROOT/claude/skills/gh-start/SKILL.md"; then
+if ! grep -q 'subagent_type: "general-purpose"' "$GH_START_SKILL"; then
   ok "gh-start に無条件 general-purpose 委譲テンプレートがない"
 else
   ng "gh-start に無条件委譲テンプレートが残っている"
 fi
-if grep -q '委譲の条件（例外）' "$REPO_ROOT/claude/skills/gh-start/SKILL.md" \
-   && grep -q 'context isolation' "$REPO_ROOT/claude/skills/gh-start/SKILL.md" \
-   && grep -q '自分で実装・テスト・修正まで完遂する' "$REPO_ROOT/claude/skills/gh-start/SKILL.md"; then
+if grep -q '委譲の条件（例外）' "$GH_START_SKILL" \
+   && grep -q 'context isolation' "$GH_START_SKILL" \
+   && grep -q '自分で実装・テスト・修正まで完遂する' "$GH_START_SKILL"; then
   ok "gh-start が単一 owner 既定 + 条件付き委譲規約を持つ"
 else
   ng "gh-start の単一 owner / 条件付き委譲規約が見つからない"

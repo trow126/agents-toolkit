@@ -1,16 +1,17 @@
 ---
 name: gh-review
-description: Use when processing review feedback on an existing PR（「レビュー対応して」「指摘を反映して」$gh-review <PR番号>）. 全レビューソース（CodeRabbit・セルフレビュー・Claude等）の指摘を統合処理し、修正・テスト・再プッシュまで一貫実行。
+description: Use when processing review feedback on an existing PR（「レビュー対応して」「指摘を反映して」/gh-review <PR番号>）. 全レビューソース（CodeRabbit・セルフレビュー・Codex等）の指摘を統合処理し、修正・テスト・再プッシュまで一貫実行。
+argument-hint: "[pr-number]"
 ---
 
-# gh-review - 統合レビュー対応コマンド
+# /gh-review - 統合レビュー対応コマンド
 
-> **核心**: 全ソース（CodeRabbit・セルフレビュー・Claude等）のレビュー指摘を統合し、Issue要件・プロジェクト方針との整合性を確認してから対応
+> **核心**: 全ソース（CodeRabbit・セルフレビュー・Codex等）のレビュー指摘を統合し、Issue要件・プロジェクト方針との整合性を確認してから対応
 
 ## Triggers
 - CodeRabbitがPRにレビューコメントを投稿した後
 - セルフレビュー（Automated Code Review）がPRコメントとして投稿された後
-- Claude等の外部レビューボットがレビューを投稿した後
+- Codex等の外部レビューボットがレビューを投稿した後
 - レビュー指摘への対応が必要な時
 - PR修正サイクルの実行
 
@@ -18,20 +19,20 @@ description: Use when processing review feedback on an existing PR（「レビ�
 
 ```bash
 # PR番号を指定してレビュー対応開始
-$gh-review 17
+/gh-review 17
 
 # 特定の指摘のみ処理
-$gh-review 17 --comments 1,3,5
+/gh-review 17 --comments 1,3,5
 
 # 自動採用モード（Trivial指摘のみ自動修正）
-$gh-review 17 --auto-trivial
+/gh-review 17 --auto-trivial
 
 # ドライラン（修正内容を確認のみ）
-$gh-review 17 --dry-run
+/gh-review 17 --dry-run
 ```
 
 
-> **詳細フェーズ説明**: Phase 0-6 の具体的な yaml ブロック・ASCII art 表示例・分析ポイント・連携ポイントは [`references/phases-reference.md`](./references/phases-reference.md) を参照。
+> **詳細フェーズ説明**: Phase 0-6 の具体的な yaml ブロック・ASCII art 表示例・分析ポイント・連携ポイントは [`references/phases-reference.md`](../../gh-review/references/phases-reference.md) を参照。
 
 ## Options
 
@@ -40,7 +41,7 @@ $gh-review 17 --dry-run
 --auto-trivial      # Trivial指摘は自動採用
 --auto-all          # 全指摘を自動採用（確認なし・危険）
 --comments <1,2,3>  # 特定のコメントのみ処理
---source <cr,sr,cx> # ソースフィルタ（cr=CodeRabbit, sr=Self-Review, cx=Claude）
+--source <cr,sr,cx> # ソースフィルタ（cr=CodeRabbit, sr=Self-Review, cx=Codex）
 --skip-tests        # テスト実行をスキップ（非推奨）
 --no-push           # コミットまでで停止（pushしない）
 --no-debt-tracking  # 技術的負債記録をスキップ（非推奨）
@@ -68,7 +69,7 @@ $gh-review 17 --dry-run
 
 ## 実行指示
 
-**あなたは今、`gh-review` コマンドを実行しています。**
+**あなたは今、`/gh-review` コマンドを実行しています。**
 
 ### 見逃し防止ルール
 
@@ -76,7 +77,7 @@ $gh-review 17 --dry-run
 絶対禁止事項:
   - ❌ 「対応済み」マークを見て自動スキップ
   - ❌ 「推奨」「Trivial」を確認なしでスキップ
-  - ❌ Phase 3 のユーザーへの選択肢提示を省略
+  - ❌ Phase 3 の AskUserQuestion を省略
   - ❌ コメント件数を確認せず完了宣言
 
 jq 構文ルール (gh api --jq):
@@ -87,7 +88,7 @@ jq 構文ルール (gh api --jq):
 
 必須確認事項:
   - ✅ 取得した全コメントを一覧表形式でユーザーに提示
-  - ✅ 推奨アクションを提示し、選択肢を示して一括確認
+  - ✅ 推奨アクションを提示し、AskUserQuestion で一括確認
   - ✅ 「対応済み」でもユーザーに報告
   - ✅ 完了前に対応サマリーを表示（採用/却下/スキップ件数）
 ```
@@ -99,12 +100,12 @@ jq 構文ルール (gh api --jq):
 1. Phase 0: コンテキスト読み込み
    - PR情報取得（ブランチ名、関連Issue）
    - Issue要件取得
-   - AGENTS.md / docs/PLAN.md 読み込み
+   - CLAUDE.md / docs/PLAN.md 読み込み
    - claudedocs/technical_debt.md 読み込み → 未対応件数表示
    - ローカルブランチ準備
 
 2. Phase 1: レビューコメント取得（🔴 全件・全ソース取得必須）
-   - gh api でインラインコメント取得（CodeRabbit, Claude等）
+   - gh api でインラインコメント取得（CodeRabbit, Codex等）
    - gh api でPRコメント取得 → "## Automated Code Review" をパース（Self-Review）
    - severity/category で分類
    - ソース別・合計コメント数を記録: "N件のコメントを取得（CR: X, SR: Y, CX: Z）"
@@ -117,7 +118,7 @@ jq 構文ルール (gh api --jq):
 
 4. Phase 3: ユーザー判断（🔴 必須・一括確認）
    - 全コメントを一覧表形式で表示
-   - 選択肢を示して1回で一括確認（推奨通り/個別調整/全採用/全スキップ）
+   - AskUserQuestion 1回で一括確認（推奨通り/個別調整/全採用/全スキップ）
    - 「個別に調整」選択時のみ詳細確認モードへ
    - 却下確定後に CodeRabbit へ一括返信
 
@@ -150,10 +151,10 @@ jq 構文ルール (gh api --jq):
 ## 関連コマンド
 
 ```bash
-$gh-start 42        # Issue作業開始
-$gh-pr              # PR作成
-$gh-review 17       # レビュー対応（このコマンド）
-$gh-issue close 42  # Issue完了・振り返り
+/gh-start 42        # Issue作業開始
+/gh-pr              # PR作成
+/gh-review 17       # レビュー対応（このコマンド）
+/gh-issue close 42  # Issue完了・振り返り
 ```
 
 ## Tips
@@ -167,7 +168,7 @@ $gh-issue close 42  # Issue完了・振り返り
 
 **Last Updated**: 2026-03-20
 **Version**: 2.0.0
-**Changelog**:
-- v2.0.0 - 統合レビュー対応: セルフレビュー（Automated Code Review）・外部レビューボットのマルチソース統合、ソース別フィルタ、重複検出、セルフレビュー固有判断基準
+**Changelog**: 
+- v2.0.0 - 統合レビュー対応: セルフレビュー（Automated Code Review）・Codex等のマルチソース統合、ソース別フィルタ、重複検出、セルフレビュー固有判断基準
 - v1.2.0 - Phase 3.5 技術的負債追跡を追加し、長期的な見落としを防止
 - v1.1.0 - コメント見落とし防止のためのCRITICALセクションを追加（Phase 3 の強制実行）

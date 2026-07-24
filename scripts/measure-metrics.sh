@@ -31,6 +31,28 @@ print(len(active))
 PY
 }
 
+installed_skill_count() {
+  local root="$1" scope="$2"
+  local manifest="$root/install/manifest.tsv"
+  if [[ -f "$manifest" ]]; then
+    awk -F'\t' -v scope="$scope" '
+      $0 !~ /^#/ && NF == 3 {
+        n = split($3, part, "/")
+        if (part[1] == scope && part[2] == "skills" &&
+            (n == 3 || (n == 4 && part[4] == "SKILL.md"))) {
+          names[part[3]] = 1
+        }
+      }
+      END { print length(names) }
+    ' "$manifest"
+    return
+  fi
+
+  local source_root="$root/claude/skills"
+  [[ "$scope" == ".agents" ]] && source_root="$root/codex/skills"
+  find "$source_root" -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null | wc -l
+}
+
 measure_tree() {
   local root="$1"
   local claude_md=0 always_rules=0 imports=0 import_count=0 agents_md=0
@@ -74,8 +96,8 @@ measure_tree() {
   echo "combined_always_on_total: $((claude_total + agents_md))"
 
   echo "custom_agents: $(find "$root/claude/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
-  echo "claude_skills: $(find "$root/claude/skills" -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null | wc -l)"
-  echo "codex_skills: $(find "$root/codex/skills" -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null | wc -l)"
+  echo "claude_skills: $(installed_skill_count "$root" .claude)"
+  echo "codex_skills: $(installed_skill_count "$root" .agents)"
   echo "hook_scripts: $(find "$root/claude/hooks" -maxdepth 1 -name '*.sh' 2>/dev/null | wc -l)"
 
   local user_settings="$root/claude/settings.json"
@@ -154,7 +176,10 @@ measure_tree() {
   fi
 
   local uncond=0
-  for f in "$root/claude/skills/gh:start/SKILL.md" "$root/claude/skills/gh-start/SKILL.md"; do
+  for f in \
+    "$root/claude/skills/gh:start/SKILL.md" \
+    "$root/claude/skills/gh-start/SKILL.md" \
+    "$root/shared/skills/claude-code/gh-start/SKILL.md"; do
     [[ -f "$f" ]] || continue
     uncond=$((uncond + $(grep -c 'subagent_type: "general-purpose"' "$f" || true)))
   done

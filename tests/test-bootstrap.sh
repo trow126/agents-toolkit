@@ -438,6 +438,50 @@ assert_exit_nonzero "managed policy 欠落で --apply は失敗する" "$rc"
 assert_contains "managed policy 欠落を明示する" "$out" "managed policy is not installed"
 assert_false "managed policy 前提失敗時は user symlink を作らない" test -e "$HOME10/.claude/CLAUDE.md"
 
+# =========================================================================
+# 11. 旧 SKILL.md 単体 symlink topology は、完全一致時だけ link-dir へ移行
+# =========================================================================
+REPO11="$SANDBOX/repo11"
+HOME11="$SANDBOX/home11"
+build_fixture_repo "$REPO11"
+mkdir -p "$REPO11/shared/skills/codex/sample-skill" "$REPO11/shared/skills/sample-skill/references" "$HOME11/.agents/skills/sample-skill"
+printf '%s\n' '---' 'name: sample-skill' 'description: Fixture skill.' '---' > "$REPO11/shared/skills/codex/sample-skill/SKILL.md"
+printf 'fixture reference\n' > "$REPO11/shared/skills/sample-skill/references/reference.md"
+printf 'link-dir\tshared/skills/codex/sample-skill\t.agents/skills/sample-skill\n' >> "$REPO11/install/manifest.tsv"
+ln -s "$REPO11/shared/skills/sample-skill/templates/cmd.codex.md" "$HOME11/.agents/skills/sample-skill/SKILL.md"
+ln -s "$REPO11/shared/skills/sample-skill/references" "$HOME11/.agents/skills/sample-skill/references"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO11" "$HOME11" "$NO_OVERLAY" --dry-run 2>&1)" || rc=$?
+assert_exit_zero "旧 skill topology の dry-run は成功する" "$rc"
+assert_contains "dry-run は legacy migration を列挙する" "$out" "would migrate legacy skill links"
+assert_false "dry-run は旧 skill directory を変更しない" test -L "$HOME11/.agents/skills/sample-skill"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO11" "$HOME11" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_zero "旧 skill topology の apply は成功する" "$rc"
+assert_contains "apply は legacy migration を記録する" "$out" "migrated:"
+assert_true "旧 skill directory は variant directory symlink になる" test -L "$HOME11/.agents/skills/sample-skill"
+assert_eq "移行後 skill の解決先" "$REPO11/shared/skills/codex/sample-skill" "$(readlink -f "$HOME11/.agents/skills/sample-skill")"
+
+# =========================================================================
+# 12. 旧 topology に未管理内容が混在する場合は fail-fast で保持
+# =========================================================================
+REPO12="$SANDBOX/repo12"
+HOME12="$SANDBOX/home12"
+build_fixture_repo "$REPO12"
+mkdir -p "$REPO12/shared/skills/codex/sample-skill" "$HOME12/.agents/skills/sample-skill"
+printf '%s\n' '---' 'name: sample-skill' 'description: Fixture skill.' '---' > "$REPO12/shared/skills/codex/sample-skill/SKILL.md"
+printf 'link-dir\tshared/skills/codex/sample-skill\t.agents/skills/sample-skill\n' >> "$REPO12/install/manifest.tsv"
+ln -s "$REPO12/shared/skills/sample-skill/templates/cmd.codex.md" "$HOME12/.agents/skills/sample-skill/SKILL.md"
+printf 'SENTINEL\n' > "$HOME12/.agents/skills/sample-skill/user-owned"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO12" "$HOME12" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_nonzero "未管理内容を含む旧 skill directory は拒否する" "$rc"
+assert_contains "混在時は手動退避を要求する" "$out" "手動で退避してから再実行してください"
+assert_eq "拒否後も未管理内容を保持する" "SENTINEL" "$(cat "$HOME12/.agents/skills/sample-skill/user-owned")"
+
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "PASS: all assertions succeeded"

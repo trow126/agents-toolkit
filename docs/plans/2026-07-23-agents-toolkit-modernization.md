@@ -55,6 +55,7 @@ combined static bytes は −22.3% であるが、要件の「約30%は方向性
 ### Machine-readable after block
 
 `tests/test-report-consistency.sh` は次のブロックを `measure-metrics.sh --repo .` の**全 key と完全一致**で照合する。
+`claude_skills` と `codex_skills` は source directory 数ではなく、`install/manifest.tsv` が各 runtime へ配布する一意な skill 名を数える。
 
 <!-- BEGIN metrics:after -->
 ```
@@ -68,8 +69,8 @@ codex_agents_md_bytes: 15291
 codex_agents_md_lines: 208
 combined_always_on_total: 33444
 custom_agents: 9
-claude_skills: 13
-codex_skills: 4
+claude_skills: 14
+codex_skills: 18
 hook_scripts: 7
 hook_registrations: 8
 shared_rules: 13
@@ -134,9 +135,9 @@ settings、manifest、bootstrap、migration、validation、packaging、CI、issu
 
 - `claude/agents/code-reviewer.md`
 - `claude/agents/plan-reviewer.md`
-- `claude/skills/gh-review/SKILL.md`
-- `claude/skills/plan-review/SKILL.md`
-- `claude/skills/pr-review/SKILL.md`
+- `shared/skills/claude-code/gh-review/SKILL.md`
+- `shared/skills/claude-code/plan-review/SKILL.md`
+- `shared/skills/claude-code/pr-review/SKILL.md`
 - `claude/hooks/pr-review-hook.sh`
 - `claude/bin/gh-progress-sync.sh`
 - `claude/bin/gh-retrospective.sh`

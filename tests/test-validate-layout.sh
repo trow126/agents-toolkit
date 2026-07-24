@@ -139,6 +139,9 @@ run_case forbidden-runtime \
 run_case manifest-four-columns \
   'printf "link-file\tclaude/CLAUDE.md\t.claude/duplicate.md\textra\n" >> "$repo/install/manifest.tsv"' \
   '3列が必要です(実際: 4列)'
+run_case codex-skill-file-link \
+  'printf "link-file\tcodex/AGENTS.md\t.agents/skills/sample-skill/SKILL.md\n" >> "$repo/install/manifest.tsv"' \
+  'Codex skill は SKILL.md 単体ではなく実ファイルを含むディレクトリを link-dir で配布してください'
 run_case manifest-orphan \
   'printf "orphan\n" > "$repo/claude/orphan.md"; git -C "$repo" add claude/orphan.md' \
   'tracked file not covered by manifest or allowlist: claude/orphan.md'
@@ -180,7 +183,10 @@ run_case invalid-waiver-schema \
   'waiver schema:'
 run_case invalid-skill-schema \
   'sed -i "s/name: sample-skill/name: wrong-name/" "$repo/claude/skills/sample-skill/SKILL.md"' \
-  "name 'wrong-name' != directory 'sample-skill'"
+  "name 'wrong-name' != skill directory 'sample-skill'"
+run_case invalid-shared-variant-skill-schema \
+  'mkdir -p "$repo/shared/skills/codex/sample-skill"; printf "%s\n" "---" "name: wrong-name" "description: Invalid nested fixture." "---" "# Sample" > "$repo/shared/skills/codex/sample-skill/SKILL.md"' \
+  "skill schema: shared/skills/codex/sample-skill/SKILL.md: name 'wrong-name' != skill directory 'sample-skill'"
 run_case stale-reference \
   'printf "/gh:start\n" >> "$repo/claude/rules/sample.md"' \
   'stale reference in claude/rules/sample.md'

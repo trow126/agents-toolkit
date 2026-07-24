@@ -36,7 +36,7 @@ decision-integrity	codex/AGENTS.md
 quality-priority	codex/AGENTS.md
 test-policy	codex/AGENTS.md
 git-workflow	codex/AGENTS.md
-learnings	claude/skills/knowledge-audit/SKILL.md
+learnings	shared/skills/knowledge-audit/SKILL.md
 python-guidelines	codex/references/python-quality.md
 python-guidelines	claude/rules/python.md
 failure-investigation	codex/AGENTS.md

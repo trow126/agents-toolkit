@@ -105,6 +105,10 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       ;;
   esac
 
+  if [[ "$mode" == "link-file" && "$target" =~ ^\.agents/skills/[^/]+/SKILL\.md$ ]]; then
+    fail "install/manifest.tsv:$line_no: Codex skill は SKILL.md 単体ではなく実ファイルを含むディレクトリを link-dir で配布してください: $target"
+  fi
+
   if [[ -e "$REPO_ROOT/$src" || -L "$REPO_ROOT/$src" ]]; then
     src_real="$(realpath -e -- "$REPO_ROOT/$src")"
     if [[ "$src_real" != "$REPO_ROOT" && "$src_real" != "$REPO_ROOT/"* ]]; then
@@ -146,7 +150,11 @@ done < <(git ls-files)
 # =========================================================================
 echo "== 4. tracked files outside manifest coverage =="
 ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md" "claude/managed-settings.json")
-ALLOWLIST_PREFIX=("claude/githooks/")
+ALLOWLIST_PREFIX=(
+  "claude/githooks/"
+  "shared/skills/break-consensus/references/"
+  "shared/skills/gh-review/references/"
+)
 
 is_covered() {
   local f="$1" e p i m s
@@ -477,7 +485,13 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 errors = []
-for pattern in ("claude/skills/*/SKILL.md", "codex/skills/*/SKILL.md", "shared/skills/*/SKILL.md"):
+for pattern in (
+    "claude/skills/*/SKILL.md",
+    "codex/skills/*/SKILL.md",
+    "shared/skills/*/SKILL.md",
+    "shared/skills/claude-code/*/SKILL.md",
+    "shared/skills/codex/*/SKILL.md",
+):
     for sk in sorted(root.glob(pattern)):
         rel = sk.relative_to(root)
         text = sk.read_text(encoding="utf-8")
@@ -496,8 +510,9 @@ for pattern in ("claude/skills/*/SKILL.md", "codex/skills/*/SKILL.md", "shared/s
             elif cur is not None:
                 fields.setdefault(cur, []).append(line.strip())
         name = (fields.get("name") or [""])[0]
-        if name != sk.parent.name:
-            errors.append(f"{rel}: name '{name}' != directory '{sk.parent.name}'")
+        expected_name = sk.parent.name
+        if name != expected_name:
+            errors.append(f"{rel}: name '{name}' != skill directory '{expected_name}'")
         if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", name or "") or len(name) > 64:
             errors.append(f"{rel}: name '{name}' violates Agent Skills spec (a-z0-9, hyphen, <=64)")
         desc_lines = fields.get("description")

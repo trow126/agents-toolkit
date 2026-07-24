@@ -177,6 +177,40 @@ guard_not_old_layout() {
   fi
 }
 
+# 2026-07-24 の誤った共有化では、Codex が発見しない SKILL.md 単体 symlink を
+# 実ディレクトリ内へ配布していた。現在の variant directory link へ安全に更新できるのは、
+# その旧 generated topology と完全一致し、ユーザー所有の内容が一切ない場合だけとする。
+is_legacy_shared_skill_dir() {
+  local target_abs="$1" src_abs="$2"
+  local rel agent_kind skill_name old_skill_src entries
+
+  [[ -d "$target_abs" && ! -L "$target_abs" ]] || return 1
+  [[ "$src_abs" == "$REPO_DIR/shared/skills/"* ]] || return 1
+
+  rel="${src_abs#"$REPO_DIR/shared/skills/"}"
+  agent_kind="${rel%%/*}"
+  skill_name="${rel#*/}"
+  [[ "$skill_name" != "$rel" && "$skill_name" != */* ]] || return 1
+
+  case "$agent_kind" in
+    claude-code) old_skill_src="$REPO_DIR/shared/skills/$skill_name/templates/cmd.claude-code.md" ;;
+    codex) old_skill_src="$REPO_DIR/shared/skills/$skill_name/templates/cmd.codex.md" ;;
+    *) return 1 ;;
+  esac
+
+  entries="$(find "$target_abs" -mindepth 1 -maxdepth 1 -printf '%f\n' | LC_ALL=C sort)"
+  if [[ "$entries" != "SKILL.md" && "$entries" != $'SKILL.md\nreferences' ]]; then
+    return 1
+  fi
+  [[ -L "$target_abs/SKILL.md" ]] || return 1
+  [[ "$(readlink "$target_abs/SKILL.md")" == "$old_skill_src" ]] || return 1
+
+  if [[ "$entries" == $'SKILL.md\nreferences' ]]; then
+    [[ -L "$target_abs/references" ]] || return 1
+    [[ "$(readlink "$target_abs/references")" == "$REPO_DIR/shared/skills/$skill_name/references" ]] || return 1
+  fi
+}
+
 # 1エントリ分の symlink 状態を検証し、apply=true なら実際に symlink を作成する
 link_entry() {
   local target_abs="$1" src_abs="$2" apply="$3"
@@ -192,6 +226,28 @@ link_entry() {
     exit 1
   fi
   if [[ -e "$target_abs" ]]; then
+    if is_legacy_shared_skill_dir "$target_abs" "$src_abs"; then
+      if [[ "$apply" == "true" ]]; then
+        local legacy_backup="$target_abs.agents-toolkit-legacy.$$"
+        if [[ -e "$legacy_backup" || -L "$legacy_backup" ]]; then
+          echo "ERROR: legacy skill migration の退避先が既に存在します: $legacy_backup" >&2
+          exit 1
+        fi
+        mv "$target_abs" "$legacy_backup"
+        if ! ln -s "$src_abs" "$target_abs"; then
+          mv "$legacy_backup" "$target_abs"
+          echo "ERROR: legacy skill migration に失敗したため旧 directory を復元しました: $target_abs" >&2
+          exit 1
+        fi
+        [[ -L "$legacy_backup/references" ]] && unlink "$legacy_backup/references"
+        unlink "$legacy_backup/SKILL.md"
+        rmdir "$legacy_backup"
+        echo "migrated: $target_abs -> $src_abs"
+      else
+        echo "would migrate legacy skill links: $target_abs -> $src_abs"
+      fi
+      return 0
+    fi
     echo "ERROR: $target_abs に実体が存在します。手動で退避してから再実行してください" >&2
     exit 1
   fi
@@ -223,6 +279,9 @@ preflight_targets() {
       continue
     fi
     if [[ -e "$target_abs" ]]; then
+      if is_legacy_shared_skill_dir "$target_abs" "$src_abs"; then
+        continue
+      fi
       echo "ERROR: $target_abs に実体が存在します。手動で退避してから再実行してください" >&2
       exit 1
     fi
