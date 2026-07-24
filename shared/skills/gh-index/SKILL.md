@@ -26,7 +26,7 @@ description: Use when planning Issues for a project or when the user asks to sur
 
 ### Phase 1: Discovery（探索）
 
-1. **プロジェクト全体スキャン**: `Glob` / `Grep` / `Read` / 必要最小限の `Bash(find ...)`
+1. **プロジェクト全体スキャン**: ファイル検索 / 内容検索(grep相当) / ファイル読み込み / 必要最小限の `find` コマンド
 2. **技術スタック検出**:
    - 言語: `.py`, `.ts`, `.js`, `.go`, `.rs` 等
    - フレームワーク: package.json, pyproject.toml, Cargo.toml
@@ -35,18 +35,18 @@ description: Use when planning Issues for a project or when the user asks to sur
 4. **エントリポイント**: main.*, index.*, src/*, app/*
 
 ```
-調査ツール:
-- `Glob("**/*")`
-- `Grep` で TODO/FIXME/依存関係パターンを検索
-- `Read` で設定ファイルと主要コードを確認
-- `Bash(find ...)` は巨大リポジトリの件数確認など必要時のみ使用
+調査手段:
+- ファイル検索(`**/*` 相当)で全体構成を把握
+- 内容検索で TODO/FIXME/依存関係パターンを検索
+- ファイル読み込みで設定ファイルと主要コードを確認
+- `find` コマンドは巨大リポジトリの件数確認など必要時のみ使用
 ```
 
 ---
 
 ### Phase 2: Deep Analysis（詳細分析）
 
-1. **シンボル抽出**: 主要コードファイルを `Read` / `Grep` で確認し、公開 class/function/API を抽出
+1. **シンボル抽出**: 主要コードファイルを読み込み・内容検索で確認し、公開 class/function/API を抽出
 2. **依存関係マッピング**:
    - 外部: requirements.txt, package.json の依存関係
    - 内部: import/require パターン
@@ -63,10 +63,10 @@ description: Use when planning Issues for a project or when the user asks to sur
    - 技術的負債: TODO/FIXME/HACK コメント
 
 ```
-調査ツール:
-- `Grep` で `class|def|function|export|TODO|FIXME|HACK` を検索
-- `Grep` で `password|secret|api_key|token` を検索
-- `Read` で候補ファイルの周辺文脈を確認
+調査手段:
+- 内容検索で `class|def|function|export|TODO|FIXME|HACK` を検索
+- 内容検索で `password|secret|api_key|token` を検索
+- ファイル読み込みで候補ファイルの周辺文脈を確認
 ```
 
 ---
@@ -215,13 +215,13 @@ Generated: {timestamp}
 
 ## Tool Integration
 
-| フェーズ | ツール | 目的 |
+| フェーズ | 手段 | 目的 |
 |---------|-------------|------|
-| Discovery | Glob / Bash(find) | フルディレクトリスキャン |
-| Discovery | Glob / Read | 設定/ドキュメントファイルの特定 |
-| Analysis | Grep / Read | コードシンボルの抽出 |
-| Analysis | Grep | パターン/懸念事項の検出 |
-| Output | Write | project_index.md の書き込み |
+| Discovery | ファイル検索 / `find` | フルディレクトリスキャン |
+| Discovery | ファイル検索 / ファイル読み込み | 設定/ドキュメントファイルの特定 |
+| Analysis | 内容検索 / ファイル読み込み | コードシンボルの抽出 |
+| Analysis | 内容検索 | パターン/懸念事項の検出 |
+| Output | ファイル書き込み | project_index.md の書き込み |
 
 ---
 
@@ -279,7 +279,7 @@ Generated: {timestamp}
 ```
 User: /gh-index
 
-Claude:
+Assistant:
 1. [Discovery] プロジェクト構造をスキャン中...
    - 検出: Python プロジェクト (pyproject.toml)
    - フレームワーク: FastAPI
@@ -307,7 +307,7 @@ Claude:
 ```
 User: /gh-index src/
 
-Claude:
+Assistant:
 1. [Discovery] src/ のみをスキャン中...
    ...
 ```
@@ -337,14 +337,14 @@ Claude:
    - 引数なし: ユーザーのカレントディレクトリを対象にする
 
 2. **Phase 1 - Discovery**:
-   - `Glob` でファイル構成を確認
-   - 必要時のみ `Bash(find ...)` で件数や深さを確認
+   - ファイル検索でファイル構成を確認
+   - 必要時のみ `find` コマンドで件数や深さを確認
    - 設定ファイルから言語/フレームワークを検出
    - ドキュメントファイルの棚卸
 
 3. **Phase 2 - Analysis**:
-   - 主要コードファイルを `Read` / `Grep` で確認
-   - `Grep` でTODO/FIXME/セキュリティ懸念を検出
+   - 主要コードファイルを読み込み・内容検索で確認
+   - 内容検索でTODO/FIXME/セキュリティ懸念を検出
    - 品質メトリクスを計算
 
 4. **Phase 3 - Indexing**:

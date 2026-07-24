@@ -193,7 +193,7 @@
     
     （以下同様に全件表示）
 
-11. AskUserQuestion（1回のみ・一括確認）:
+11. ユーザーへ一括確認（1回のみ、選択肢提示）:
 
     "上記の推奨アクションで進めますか？"
     
@@ -206,7 +206,7 @@
 
 12. 「個別に調整する」選択時のみ詳細確認:
 
-    AskUserQuestion（multiSelect: true）:
+    ユーザーへ複数選択確認（対象を複数選べる形で提示）:
     "変更したい指摘を選択してください"
     
     選択肢:
@@ -267,7 +267,7 @@
 
     技術的に正しい指摘を「スコープ外」で却下する場合:
 
-    AskUserQuestion:
+    ユーザーへ選択肢提示:
       "⚠️ 技術的に正しい指摘をスコープ外で却下します。
        
        指摘: src/auth.py:45 - 入力バリデーション追加
@@ -324,21 +324,23 @@
 
 ### Phase 5: 検証
 
+> `uv` のキャッシュ path が sandbox の write 境界外にある環境（例: Claude Code sandbox）では、素の `uv run` の代わりに sandbox 互換の uv ラッパー（`~/.claude/bin/uvw run` 等）を使う。
+
 ```yaml
 14. Lint チェック:
-    ~/.claude/bin/uvw run ruff check src/ scripts/
+    uv run ruff check src/ scripts/
 
     エラー時:
-    - 自動修正可能 → ~/.claude/bin/uvw run ruff check --fix
+    - 自動修正可能 → uv run ruff check --fix
     - 手動修正必要 → 該当箇所を表示
 
 15. フォーマットチェック:
-    ~/.claude/bin/uvw run ruff format --check src/ scripts/
+    uv run ruff format --check src/ scripts/
 
-    差分あり → ~/.claude/bin/uvw run ruff format src/ scripts/
+    差分あり → uv run ruff format src/ scripts/
 
 16. テスト実行:
-    ~/.claude/bin/uvw run pytest tests/ -v
+    uv run pytest tests/ -v
 
     失敗時:
     - 失敗テストを表示
@@ -356,7 +358,7 @@
 ```yaml
 18. 確認付きコミット:
 
-    AskUserQuestion:
+    ユーザーへ選択肢提示:
       "📋 コミット・プッシュを実行しますか？
 
        修正ファイル: 3 files

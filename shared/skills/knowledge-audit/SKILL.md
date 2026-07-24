@@ -98,7 +98,7 @@ Display the audit report. Ask user to confirm before proceeding to Phase 2.
 
 ### Phase 2: Compression (Write)
 
-**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use UTF-8-safe Python transforms (`~/.claude/bin/uvw run python` in the Claude Code sandbox) or **Bash** `sed`. Verify output after editing Japanese files.
+**CRITICAL: UTF-8 safety**. All learnings files contain Japanese. Use UTF-8-safe Python transforms or **Bash** `sed`. Verify output after editing Japanese files.
 
 #### Step 0: Backup
 
@@ -177,7 +177,7 @@ Follow a compressed v2.0 reference format (`~/projects/reference-project-a/claud
 
 #### Step 2: Write Compressed File
 
-Use `Write` or Bash to write the new file, then verify UTF-8 output.
+Write the new file, then verify UTF-8 output.
 
 #### Step 3: Update Global Knowledge & Candidate Ledger
 

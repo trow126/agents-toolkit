@@ -32,7 +32,7 @@ argument-hint: "[pr-number]"
 ```
 
 
-> **詳細フェーズ説明**: Phase 0-6 の具体的な yaml ブロック・ASCII art 表示例・分析ポイント・連携ポイントは [`${CLAUDE_SKILL_DIR}/phases-reference.md`](./phases-reference.md) を参照。
+> **詳細フェーズ説明**: Phase 0-6 の具体的な yaml ブロック・ASCII art 表示例・分析ポイント・連携ポイントは [`references/phases-reference.md`](./references/phases-reference.md) を参照。
 
 ## Options
 

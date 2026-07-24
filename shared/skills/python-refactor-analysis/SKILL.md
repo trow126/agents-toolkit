@@ -27,21 +27,15 @@ flag before relying on dead-code/refactor-probe findings.
 
 ## Invocation
 
-Use the bundled wrapper; it pins uv's mutable state (cache/python/tools) to the
-session temp directory, so it works inside the Claude Code sandbox where uv's
-default paths are outside the write boundary. This skill does not fall back to
-bare `python`:
+Use the bundled wrapper (`scripts/refactor-analyze` under this skill's own
+directory — e.g. `~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze`
+or `~/.agents/skills/python-refactor-analysis/scripts/refactor-analyze`); it pins
+uv's mutable state (cache/python/tools) to the session temp directory, so it works
+even where uv's default paths are outside the write boundary. This skill does not
+fall back to bare `python`:
 
 ```bash
-~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
-  <repo> --profile full
-```
-
-Equivalent via the toolkit-wide uv wrapper (`~/.claude/bin/uvw`):
-
-```bash
-~/.claude/bin/uvw run --project "${CLAUDE_SKILL_DIR}" \
-  refactor-analyze <repo> --profile full
+<this-skill-dir>/scripts/refactor-analyze <repo> --profile full
 ```
 
 Reports are written to `<repo>/.analysis` by default, regardless of the current
@@ -51,7 +45,7 @@ For strict runs, prefer an explicit long timeout around the command:
 
 ```bash
 timeout 1800 \
-  ~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
+  <this-skill-dir>/scripts/refactor-analyze \
   <repo> --profile full --timeout 300
 ```
 
@@ -59,8 +53,7 @@ For a quick preview that skips Rope probes but still writes the structure/import
 complexity reports:
 
 ```bash
-~/.claude/skills/python-refactor-analysis/scripts/refactor-analyze \
-  <repo> --profile full --skip-refactor-probes
+<this-skill-dir>/scripts/refactor-analyze <repo> --profile full --skip-refactor-probes
 ```
 
 Project checks are uv-only. `ruff`, `mypy`, `pytest`, and optional checks are run as
