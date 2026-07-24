@@ -17,7 +17,8 @@ link-file	shared/skills/break-consensus/templates/cmd.claude-code.md	.claude/ski
 link-dir	shared/skills/break-consensus/references	.claude/skills/break-consensus/references
 link-file	shared/skills/break-consensus/templates/cmd.codex.md	.agents/skills/break-consensus/SKILL.md
 link-dir	shared/skills/break-consensus/references	.agents/skills/break-consensus/references
-link-dir	claude/skills/config-audit	.claude/skills/config-audit
+link-file	shared/skills/config-audit/templates/cmd.claude-code.md	.claude/skills/config-audit/SKILL.md
+link-file	shared/skills/config-audit/templates/cmd.codex.md	.agents/skills/config-audit/SKILL.md
 link-dir	shared/skills/gh-index	.claude/skills/gh-index
 link-dir	shared/skills/gh-index	.agents/skills/gh-index
 link-file	shared/skills/gh-issue/templates/cmd.claude-code.md	.claude/skills/gh-issue/SKILL.md
@@ -28,11 +29,14 @@ link-file	shared/skills/gh-review/templates/cmd.claude-code.md	.claude/skills/gh
 link-dir	shared/skills/gh-review/references	.claude/skills/gh-review/references
 link-file	shared/skills/gh-review/templates/cmd.codex.md	.agents/skills/gh-review/SKILL.md
 link-dir	shared/skills/gh-review/references	.agents/skills/gh-review/references
-link-dir	claude/skills/gh-start	.claude/skills/gh-start
+link-file	shared/skills/gh-start/templates/cmd.claude-code.md	.claude/skills/gh-start/SKILL.md
+link-file	shared/skills/gh-start/templates/cmd.codex.md	.agents/skills/gh-start/SKILL.md
 link-dir	shared/skills/knowledge-audit	.claude/skills/knowledge-audit
 link-dir	shared/skills/knowledge-audit	.agents/skills/knowledge-audit
-link-dir	claude/skills/model-routing	.claude/skills/model-routing
-link-dir	claude/skills/plan-review	.claude/skills/plan-review
+link-file	shared/skills/model-routing/templates/cmd.claude-code.md	.claude/skills/model-routing/SKILL.md
+link-file	shared/skills/model-routing/templates/cmd.codex.md	.agents/skills/model-routing/SKILL.md
+link-file	shared/skills/plan-review/templates/cmd.claude-code.md	.claude/skills/plan-review/SKILL.md
+link-file	shared/skills/plan-review/templates/cmd.codex.md	.agents/skills/plan-review/SKILL.md
 link-file	shared/skills/pr-review/templates/cmd.claude-code.md	.claude/skills/pr-review/SKILL.md
 link-file	shared/skills/pr-review/templates/cmd.codex.md	.agents/skills/pr-review/SKILL.md
 link-dir	shared/skills/python-refactor-analysis	.claude/skills/python-refactor-analysis
