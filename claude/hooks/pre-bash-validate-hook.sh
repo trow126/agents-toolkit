@@ -4,19 +4,15 @@
 # 位置づけ(重要):
 #   本 hook は raw command string に対する quote 正規化つき heuristic であり、
 #   「事故と平易な迂回の防止層」である。shell 評価後の argv は解析しない(できない)ため、
-#   security boundary としては扱わない。最終境界は次の決定論的レイヤが担う:
-#     - filesystem: permission の Read/Edit deny が sandbox filesystem へ統合され
-#       OS-level で child process にも適用される(`Read(//**/.env)` 等)
-#     - 破壊的操作の外部反映: `git push` 等の managed ask（Bash は auto-allow 無効で常に approval）
-#     - shell 経由の再評価: `Bash(bash *)`/`Bash(sh *)` 等の deny、`git -c*` 等の ask
-#     - project/local settings: managed scope 専用の security surface が存在すれば
-#       project-policy-gate が PreToolUse を exit 2 で block する(C-02)
+#   security boundary としては扱わない。現行 owner policy は bypassPermissions かつ
+#   sandbox 無効のため、permission deny/ask や OS-level sandbox という下位境界はない。
+#   project-policy-gate と本 hook の literal 検査は事故防止として exit 2 で block するが、
+#   runtime 構築 path や未知の迂回を完全には遮断しない。
 #
 # 方針:
 #   - fail-closed: 入力の parse 失敗・依存欠落・schema 不一致は exit 2(block)
 #   - 検査は quote 除去後の文字列(NORM)に対して行う(`--am""end` の類を吸収)
-#   - runtime 構築 path(base64 復号や変数連結で literal が現れないもの)は本 hook の対象外。
-#     その場合も上記 OS/permission 境界が実アクセスを遮断する
+#   - runtime 構築 path(base64 復号や変数連結で literal が現れないもの)は本 hook の対象外
 # exit 2 = block(stderr が理由)。それ以外の非ゼロは non-blocking のため、
 # block 意図の失敗はすべて明示的に exit 2 へ変換する。
 set -euo pipefail
@@ -82,8 +78,7 @@ fi
 
 # Block .env content reads while allowing existence checks.
 # 事故防止層: literal(quote 分割含む)の .env 読み取りを block する。
-# runtime 構築 path は permission の Read(//**/.env) deny → sandbox filesystem 統合が
-# OS-level で遮断する(本 hook の対象外)。
+# runtime 構築 path は本 hook の対象外であり、sandbox 無効時は別の下位境界もない。
 # path-aware: 先頭・区切り文字・"/" の直後の .env を対象にする(nested `config/.env` を含む — H-014)
 if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9._-])\.env([.-][A-Za-z0-9_.-]+)?([^A-Za-z0-9._-]|$)'; then
     # Dangerous readers: anything that emits file contents or sources them

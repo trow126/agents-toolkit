@@ -23,9 +23,30 @@ expect_ok "current managed/user split validates" python3 "$CHECK" --user "$USER"
 
 python3 - "$MANAGED" <<'PY'
 import json,sys
-p=sys.argv[1]; d=json.load(open(p)); d['permissions']['ask']=['Bash(gh auth status)']; json.dump(d,open(p,'w'))
+p=sys.argv[1]; d=json.load(open(p)); d['permissions']['ask']=['Bash']; json.dump(d,open(p,'w'))
 PY
-expect_fail "narrow ask list cannot replace the all-Bash approval rule" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+expect_fail "ask rules are rejected in bypassPermissions mode" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['permissions']['defaultMode']='default'; json.dump(d,open(p,'w'))
+PY
+expect_fail "default permission mode must remain bypassPermissions" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['permissions']['disableBypassPermissionsMode']='disable'; json.dump(d,open(p,'w'))
+PY
+expect_fail "bypassPermissions lockout is rejected" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d.pop('skipDangerousModePermissionPrompt'); json.dump(d,open(p,'w'))
+PY
+expect_fail "dangerous mode confirmation must be explicitly skipped" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
 cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
 
 python3 - "$MANAGED" <<'PY'
@@ -61,6 +82,34 @@ import json,sys
 p=sys.argv[1]; d=json.load(open(p)); d.pop('allowManagedPermissionRulesOnly'); json.dump(d,open(p,'w'))
 PY
 expect_fail "missing managed permission lock is rejected" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['sandbox']['enabled']=True; json.dump(d,open(p,'w'))
+PY
+expect_fail "sandbox must remain disabled" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['sandbox']['failIfUnavailable']=True; json.dump(d,open(p,'w'))
+PY
+expect_fail "sandbox fail-closed mode is rejected" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['sandbox']['allowUnsandboxedCommands']=False; json.dump(d,open(p,'w'))
+PY
+expect_fail "unsandboxed commands must remain enabled" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['sandbox']['autoAllowBashIfSandboxed']=False; json.dump(d,open(p,'w'))
+PY
+expect_fail "sandbox auto-allow must remain enabled" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
 cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
 
 cat > "$SANDBOX/project.json" <<'JSON'

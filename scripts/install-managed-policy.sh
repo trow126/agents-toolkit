@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# install-managed-policy.sh — Claude Code managed security policy installer/checker.
-# Security-critical settings are copied to the documented OS-managed drop-in
-# directory. bootstrap refuses to link user settings until this exact policy is
-# installed, so project/local settings cannot replace the security boundary.
+# install-managed-policy.sh — Claude Code managed owner policy installer/checker.
+# The reviewed no-prompt preference and managed hooks are copied to the
+# documented OS-managed drop-in directory. bootstrap refuses to link user
+# settings until this exact policy is installed.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -116,7 +116,7 @@ check_target() {
     echo "ERROR: managed policy must be root-owned (uid=$owner): $TARGET" >&2
     return 1
   fi
-  echo "OK: managed security policy installed ($TARGET, sha256=$source_sha)"
+  echo "OK: managed owner policy installed ($TARGET, sha256=$source_sha)"
 }
 
 case "$MODE" in

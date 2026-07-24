@@ -118,10 +118,10 @@ expect_allow ".env の existence check(stat)は許可" 'stat .env'
 expect_allow "無関係な command は許可" 'echo hello'
 
 # hook 層の対象外(literal が現れない runtime 構築)を明示する scope テスト。
-# これらは OS-level 境界(Read(//**/.env) deny → sandbox filesystem 統合)が実アクセスを
-# 遮断する担当であり、hook は block しない(= exit 0 が本 hook の仕様)
-expect_allow "scope: base64 復号 path は hook 層の対象外(OS 境界の担当)" 'cat "$(printf Y29uZmlnLy5lbnY= | base64 -d)"'
-expect_allow "scope: 変数連結 path は hook 層の対象外(OS 境界の担当)" 'a=config/.e; b=nv; cat "$a$b"'
+# 現行 owner policy は sandbox 無効のため別の下位境界もなく、hook は
+# block しない(= exit 0 が本 hook の仕様)。
+expect_allow "scope: base64 復号 path は hook 層の対象外(下位境界なし)" 'cat "$(printf Y29uZmlnLy5lbnY= | base64 -d)"'
+expect_allow "scope: 変数連結 path は hook 層の対象外(下位境界なし)" 'a=config/.e; b=nv; cat "$a$b"'
 
 # ---- 4. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
 expect_block "--amend(標準順)を block" 'git commit --amend -m x'

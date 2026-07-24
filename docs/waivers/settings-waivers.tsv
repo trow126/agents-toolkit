@@ -3,5 +3,6 @@
 # pattern は check 8 の pattern 名: bypassPermissions / danger-full-access /
 #   skipDangerousModePermissionPrompt / allowUnsandboxedCommands / full-model-pin
 # 有効期限内の行がある場合のみ、該当 file×pattern は FAIL ではなく WARN になる。
-# 危険設定は共有既定に残さない。bypassPermissions モードは共有設定で無効化済み
-# （disableBypassPermissionsMode）。bypass が不可欠な作業は公式 devcontainer 等の隔離環境で行う。
+# 現行 managed policy の owner 選択による bypassPermissions は
+# docs/reports/accepted-exceptions.md の EX-003 で管理する。本表は validator が
+# 個別の期限付き例外を要求する設定だけに使用する。

@@ -2,12 +2,12 @@
 
 ## 判定
 
-**Static remediation: COMPLETE**
-**Final acceptance: COMPLETE**
+**Historical v9 remediation / acceptance: COMPLETE**
+**Current permission/sandbox posture: OWNER OVERRIDE ACTIVE (EX-003)**
 
 2026年時点の Claude Code / Codex CLI / Agent Skills に合わせ、(1) 継ぎ足された常設機構の証拠ベース縮約、(2) manual-only innovation skill `break-consensus` の追加、(3) permission / sandbox / hook の fail-closed 化を実施した。
 
-v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正した current state である。成果物自身による owner approval の自己申告は受入根拠にしない。2026-07-24 に managed composition、mode lockout、project-policy PreToolUse、Claude Code の Bash / `gh` approval、sandbox 内 Git / helper workflow、OS-level secret / private-tree deny、sandbox unavailable 時の fail-closed、Codex CLI の実機確認を実施し、全 live acceptance を完了した。
+v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正し、2026-07-24 に fail-closed policy の全 live acceptance を完了した。その後、repository owner が「完全に以前どおり: bypassPermissions に戻す」と明示したため、現行 managed policy は `bypassPermissions` 既定・confirmation 省略・sandbox 無効へ変更された。M-04/C-02 の prompt/sandbox 保護は現行 runtime には適用されず、EX-003 の owner override として管理する。過去の acceptance 証跡は履歴として保持する。
 
 ## Requirements source / baseline
 
@@ -31,11 +31,11 @@ scripts/measure-metrics.sh --before-ref 7d193c2 --after-ref HEAD
 
 | metric | before | after | change |
 |---|---:|---:|---:|
-| combined static always-on bytes | 43,068 | 33,515 | **−22.2%** |
-| Claude static always-on bytes | 19,952 | 18,224 | −8.7% |
+| combined static always-on bytes | 43,068 | 33,444 | **−22.3%** |
+| Claude static always-on bytes | 19,952 | 18,153 | −9.0% |
 | Codex AGENTS.md bytes | 23,116 | 15,291 | **−33.9%** |
 | CLAUDE.md lines | 59 | 47 | −20.3% |
-| Claude always-on rules lines | 68 | 26 | **−61.8%** |
+| Claude always-on rules lines | 68 | 27 | **−60.3%** |
 | custom agents | 14 | 9 | **−35.7%** |
 | Claude skills | 21 | 13 | **−38.1%** |
 | Codex skills | 4 | 4 | ±0 |
@@ -50,7 +50,7 @@ scripts/measure-metrics.sh --before-ref 7d193c2 --after-ref HEAD
 | SessionStart message max | unbounded | 512 bytes | bounded |
 | Phase 1 audited elements | — | 137 | one row per element |
 
-combined static bytes は −22.2% であるが、要件の「約30%は方向性であり数合わせで価値ある機構を削らない」に従い、agents / skills / rules / handoff / duplicate / review mechanism を複数指標で縮約した。security contract の managed-scope 明文化により一部 instruction は増加している。
+combined static bytes は −22.3% であるが、要件の「約30%は方向性であり数合わせで価値ある機構を削らない」に従い、agents / skills / rules / handoff / duplicate / review mechanism を複数指標で縮約した。managed-scope contract の明文化により一部 instruction は増加している。
 
 ### Machine-readable after block
 
@@ -58,15 +58,15 @@ combined static bytes は −22.2% であるが、要件の「約30%は方向性
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4819
+claude_md_bytes: 4815
 claude_md_lines: 47
-claude_always_rules_bytes: 2551
-claude_always_rules_lines: 26
+claude_always_rules_bytes: 2484
+claude_always_rules_lines: 27
 claude_imported_shared_bytes: 10854 (9 files)
-claude_always_on_total: 18224
+claude_always_on_total: 18153
 codex_agents_md_bytes: 15291
 codex_agents_md_lines: 208
-combined_always_on_total: 33515
+combined_always_on_total: 33444
 custom_agents: 9
 claude_skills: 13
 codex_skills: 4
@@ -81,9 +81,11 @@ custom_builtin_agent_overlaps: 0
 full_model_pins: 0
 tier_aliases: 9
 permissions_allow_count: 4
-permissions_ask_count: 1
+permissions_ask_count: 0
 permissions_deny_count: 87
-bypass_lockout_ok: yes
+bypass_permissions_default: yes
+dangerous_mode_prompt_skipped: yes
+sandbox_enabled: no
 auto_mode_lockout_ok: yes
 effective_preallowed_domains_count: 0
 unsandboxed_query_capable_allows: 0
@@ -93,14 +95,14 @@ managed_permission_lock_ok: yes
 managed_hooks_lock_ok: yes
 managed_read_lock_ok: yes
 managed_domain_lock_ok: yes
-sandbox_auto_allow_bash: no
+sandbox_auto_allow_bash: yes
 auto_memory_enabled: no
 session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 18326
-claude_session_start_injection_max_bytes: 18736
+claude_session_start_injection_typical_bytes: 18255
+claude_session_start_injection_max_bytes: 18665
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
@@ -146,7 +148,7 @@ settings、manifest、bootstrap、migration、validation、packaging、CI、issu
 ### Managed/user split
 
 - `claude/settings.json`: non-security user preference のみ。`autoMemoryEnabled: false`
-- `claude/managed-settings.json`: permissions、sandbox、credentials、hooks、`permissions.disableBypassPermissionsMode`、top-level `disableAutoMode`、`requiredMinimumVersion: 2.1.218`
+- `claude/managed-settings.json`: owner 選択の `bypassPermissions`、disabled sandbox、credentials、hooks、top-level `disableAutoMode`、`requiredMinimumVersion: 2.1.218`
 - `scripts/install-managed-policy.sh`: OS-managed drop-in へ exact root-owned copy を導入
 - `bootstrap.sh`: managed copy の identity / owner / mode を確認するまで user symlink を作らない
 
@@ -174,17 +176,18 @@ Managed locks:
 
 negative fixtures は `sandbox.enabled:false`、`excludedCommands:["cat *"]`、`allowRead:["~/.claude"]`、project/local permission allow、`BASH_ENV` injection を個別に拒否する。
 
-## Bash / network / gh policy
+## Current Bash / network / gh policy
 
-- managed Bash allow: **0**
-- managed `permissions.ask: ["Bash"]` + `autoAllowBashIfSandboxed: false`: 組み込み read-only 判定を含む全 Bash は standard approval
-- `gh *` は sandbox excluded command だが、全 Bash ask により `gh auth status` を含む全 `gh` operation を ask
-- pre-allowed domain: **0**
-- `WebFetch(domain:...)` allow: **0**
-- bypassPermissions / auto mode: disabled
-- `.env`, credentials, `.git/config`, `.git/hooks/**`: managed deny
+- `permissions.defaultMode: "bypassPermissions"`
+- `skipDangerousModePermissionPrompt: true`
+- `permissions.ask`: **0**
+- `sandbox.enabled: false`
+- `sandbox.failIfUnavailable: false`
+- `sandbox.allowUnsandboxedCommands: true`
+- `permissions.allow` / `ask` / `deny` と sandbox filesystem/network は現行 runtime の enforcement ではない
+- managed hooks と project-policy gate は事故防止として維持するが、完全な security boundary ではない
 
-旧「全 domain が初回 prompt」の保証は sandboxed egress に限定されていた一方、`gh auth status` が unsandboxed allow だった。v9 は managed `ask: ["Bash"]` を採用し、Bash allow を0件、sandbox auto-allow を無効にしたため、組み込み read-only command と unsandboxed `gh` の双方で M-04/C-02 の prompt bypass を解消した。
+v9 の全 Bash approval、bypass lockout、fail-closed sandbox は当時の acceptance 対象としては成立していたが、EX-003 により現行 policy では意図的に supersede された。
 
 ## XDG / H-03
 
@@ -203,7 +206,7 @@ custom XDG の waiver/accept flag を削除した。`XDG_CONFIG_HOME`, `XDG_STAT
 - SessionStart/PostCompact output: JSON-safe、各512 bytes以下
 - new behavior skill: `claude/skills/break-consensus` の1件のみ
 - Python quality guidance: `codex/references/python-quality.md`（非 skill）
-- active accepted exception: 0 (`docs/reports/accepted-exceptions.md`)
+- active accepted exception: 1 (`docs/reports/accepted-exceptions.md`, EX-003)
 
 `break-consensus` は manual invocation、Consensus Map、Assumption Destruction、Remote Mechanism Transfer、Forced Heterogeneity、独立 novelty audit、反証可能な minimum experiment を実装する。通常の bug fix / incident / migration / simple implementation へ自動適用しない。
 
@@ -212,10 +215,10 @@ custom XDG の waiver/accept flag を削除した。`XDG_CONFIG_HOME`, `XDG_STAT
 | ID | remediation | static status |
 |---|---|---|
 | B-01 | PDF hash を添付原本に一致させ、content-addressed manifest/verifier を追加。self-approval / circular ratification を削除 | **CLOSED** |
-| C-02 | security policy を OS-managed scope へ移動。managed-only locks + project/local runtime gate + negative fixtures | **CLOSED (managed composition・preflight・PreToolUse live verified)** |
+| C-02 | security policy を OS-managed scope へ移動。managed-only locks + project/local runtime gate + negative fixtures | **HISTORICALLY CLOSED; prompt/sandbox enforcement is SUPERSEDED by EX-003** |
 | H-03 | custom XDG acceptance path を削除し、正規化後の standard path 以外を fail-closed | **CLOSED** |
 | H-04 | 137-row one-element/one-row audit、11軸 schema、operational coverage validator、正しい8件 metric、hook bytes | **CLOSED** |
-| M-04 | managed `ask: ["Bash"]`、Bash allow 0、sandbox auto-allow false により全 `gh` と read-only Bash を approval gate へ | **CLOSED (live prompt verified)** |
+| M-04 | managed `ask: ["Bash"]`、Bash allow 0、sandbox auto-allow false により全 `gh` と read-only Bash を approval gate へ | **HISTORICALLY CLOSED; SUPERSEDED by EX-003** |
 | M-05 | current-state 表記を v9 へ統一し、XDG test を hermetic 化 | **CLOSED** |
 
 ## Static validation
@@ -235,7 +238,7 @@ for t in tests/test-*.sh; do env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DAT
 
 Release check additionally refuses a dirty/index-divergent tree and packages tracked HEAD only.
 
-## Live acceptance status（2026-07-24）
+## Historical live acceptance status（2026-07-24 / pre-EX-003）
 
 判定基準を次のように実挙動へ合わせる。
 
@@ -253,9 +256,7 @@ Release check additionally refuses a dirty/index-divergent tree and packages tra
 7. process-local の隔離 PATH で `bwrap` / `socat` を不可視にした際の exit 1 と `failIfUnavailable` 拒否ログ
 8. Codex CLI smoke と plugin `approval_mode` 記法
 
-最終判定:
-
-全項目 PASS。最終判定は **COMPLETE** とする。
+当時の最終判定は全項目 PASS / **COMPLETE**。EX-003 適用後の現行 runtime は prompt/sandbox に関する 2、4、5、6、7 の保証を持たない。
 
 ## Installation / breaking changes
 
@@ -268,7 +269,7 @@ sudo ./scripts/install-managed-policy.sh --apply
 
 - slash command: `/gh:*` → `/gh-*`
 - patch は mailbox series のため `git am agents-toolkit-modernization-final.patch`
-- Bash prompt 頻度は v8 より増える（安全上の意図した変更）
+- 現行 owner policy では Bash を含む permission prompt は表示しない
 - custom XDG は非対応
 - project/local security settings は非対応
 - `.env.example` も deny 対象。必要なら `env.example` へ改名

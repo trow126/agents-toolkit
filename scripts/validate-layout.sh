@@ -341,7 +341,7 @@ fi
 # =========================================================================
 # 9. security / managed policy / waiver governance
 # =========================================================================
-echo "== 9. managed security policy and dangerous settings =="
+echo "== 9. managed owner policy and governed settings =="
 WAIVER_FILE="$REPO_ROOT/docs/waivers/settings-waivers.tsv"
 WAIVER_ENVS="$REPO_ROOT/docs/waivers/environments.txt"
 TODAY="$(date +%F)"
@@ -390,9 +390,9 @@ has_waiver() {
   return 1
 }
 
-# C-02: security policy must be in managed scope, and the user file must be
-# free of security keys. This checker also enforces the lock keys, mandatory
-# Bash approval gate, helper allowRead paths, and zero pre-approved domains.
+# The owner policy must be in managed scope, and the user file must be free of
+# managed keys. The checker enforces bypass/sandbox intent, managed locks,
+# helper paths, hooks, and an unambiguous dormant ruleset.
 if [[ ! -x "$POLICY_CHECK" ]]; then
   fail "managed policy checker missing or non-executable: scripts/check-managed-policy.py"
 else
@@ -436,15 +436,15 @@ if [[ -f "$MANAGED_SETTINGS" ]]; then
     while IFS= read -r rule; do fail "git-workflow-breaking deny: '$rule'"; done <<< "$GIT_BROAD_DENIES"
   fi
 
-  # Any Bash allow would intersect with project-added excludedCommands and
-  # recreate a no-prompt unsandboxed path. check-managed-policy.py also checks
-  # this; keep the explicit diagnostic here for fixture readability.
+  # bypassPermissions ignores permission allow rules. Keep Bash allows empty so
+  # the dormant ruleset remains unambiguous if the owner later restores prompts.
   BASH_ALLOWS="$(jq -r '.permissions.allow[]? | select(startswith("Bash("))' "$MANAGED_SETTINGS" 2>/dev/null || true)"
   if [[ -n "$BASH_ALLOWS" ]]; then
     while IFS= read -r rule; do fail "managed Bash allow is forbidden: '$rule'"; done <<< "$BASH_ALLOWS"
   fi
 
-  # No pre-approved egress domain in either sandbox or WebFetch allow rules.
+  # Keep the dormant sandbox/WebFetch rules free of pre-approved domains so a
+  # later return to sandboxed execution does not inherit an accidental allow.
   EFFECTIVE_DOMAINS="$(jq -r '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")) | sub("^WebFetch\\(domain:"; "") | sub("\\)$"; ""))] | .[]' "$MANAGED_SETTINGS" 2>/dev/null || true)"
   if [[ -n "$EFFECTIVE_DOMAINS" ]]; then
     while IFS= read -r dom; do fail "pre-allowed egress domain: '$dom'"; done <<< "$EFFECTIVE_DOMAINS"

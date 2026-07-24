@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Validate the toolkit's user/managed Claude Code policy split.
 
-The security boundary lives in OS-managed settings. Lower-scope settings may be
-supplied as fixtures; any project or project-local security-policy surface is
-rejected because excluded-command and other array composition can otherwise
-weaken the effective boundary.
+The managed policy makes the owner's no-prompt execution preference explicit
+and keeps hooks/version requirements consistent across lower scopes. Project or
+project-local policy surfaces are rejected so repositories cannot silently
+change that machine-level choice.
 """
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ SECURITY_KEYS = {
     "allowManagedPermissionRulesOnly",
     "disableAutoMode",
     "requiredMinimumVersion",
+    "skipDangerousModePermissionPrompt",
 }
 
 REQUIRED_DENIES = {
@@ -114,8 +115,8 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
         errors,
     )
     require(
-        permissions.get("disableBypassPermissionsMode") == "disable",
-        'managed permissions.disableBypassPermissionsMode must be "disable"',
+        "disableBypassPermissionsMode" not in permissions,
+        "managed permissions must not disable bypassPermissions",
         errors,
     )
     require(
@@ -129,13 +130,18 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
         errors,
     )
     require(
-        permissions.get("defaultMode") == "default",
-        'managed permissions.defaultMode must be "default"',
+        managed.get("skipDangerousModePermissionPrompt") is True,
+        "managed skipDangerousModePermissionPrompt must be true",
         errors,
     )
     require(
-        ask == ["Bash"],
-        "managed permissions.ask must be exactly [\"Bash\"] so built-in read-only Bash commands and excludedCommands cannot bypass approval",
+        permissions.get("defaultMode") == "bypassPermissions",
+        'managed permissions.defaultMode must be "bypassPermissions"',
+        errors,
+    )
+    require(
+        not ask,
+        "managed permissions.ask must be empty in bypassPermissions mode",
         errors,
     )
     missing_denies = sorted(REQUIRED_DENIES.difference(deny))
@@ -149,20 +155,20 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
     require(isinstance(sandbox, dict), "managed sandbox must be an object", errors)
     if not isinstance(sandbox, dict):
         sandbox = {}
-    require(sandbox.get("enabled") is True, "managed sandbox.enabled must be true", errors)
+    require(sandbox.get("enabled") is False, "managed sandbox.enabled must be false", errors)
     require(
-        sandbox.get("failIfUnavailable") is True,
-        "managed sandbox.failIfUnavailable must be true",
+        sandbox.get("failIfUnavailable") is False,
+        "managed sandbox.failIfUnavailable must be false",
         errors,
     )
     require(
-        sandbox.get("allowUnsandboxedCommands") is False,
-        "managed sandbox.allowUnsandboxedCommands must be false",
+        sandbox.get("allowUnsandboxedCommands") is True,
+        "managed sandbox.allowUnsandboxedCommands must be true",
         errors,
     )
     require(
-        sandbox.get("autoAllowBashIfSandboxed") is False,
-        "managed sandbox.autoAllowBashIfSandboxed must be false so every Bash command keeps an approval gate",
+        sandbox.get("autoAllowBashIfSandboxed") is True,
+        "managed sandbox.autoAllowBashIfSandboxed must be true",
         errors,
     )
 
@@ -214,11 +220,11 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
 def validate_lower_scope(
     data: dict[str, Any], label: str, managed_summary: dict[str, Any], errors: list[str]
 ) -> list[str]:
-    """Reject security policy at project/project-local scope.
+    """Reject managed owner policy at project/project-local scope.
 
     Managed precedence and the available managed-only locks cover most scalar
     and allowlist settings, but excludedCommands and related arrays still need a
-    fail-closed project gate.  The toolkit therefore reserves all permission,
+    deterministic project gate. The toolkit therefore reserves all permission,
     hook, and sandbox policy for managed scope.
     """
 
@@ -234,6 +240,7 @@ def validate_lower_scope(
         "disableAllHooks",
         "disableAutoMode",
         "requiredMinimumVersion",
+        "skipDangerousModePermissionPrompt",
     ):
         if key in data:
             attempted.append(f"{label}.{key}")
@@ -297,7 +304,7 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print("OK: managed security policy and user-settings split are valid")
+    print("OK: managed bypass policy and user-settings split are valid")
     return 0
 
 

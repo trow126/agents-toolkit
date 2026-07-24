@@ -1,12 +1,12 @@
 # Claude Code configuration
 
-[agents-toolkit](../README.md) の Claude Code 用 source。user directory には `install/manifest.tsv` の対象だけを symlink し、security policy は別途 OS-managed scope へ root-owned file として導入する。
+[agents-toolkit](../README.md) の Claude Code 用 source。user directory には `install/manifest.tsv` の対象だけを symlink し、owner policy は別途 OS-managed scope へ root-owned file として導入する。
 
 ## 構成
 
 - `CLAUDE.md`: 常時 instruction、単一 owner と routing の最小契約
 - `settings.json`: model、effort、status line、plugin、`autoMemoryEnabled: false` などの**非 security** user preference
-- `managed-settings.json`: permission、sandbox、credentials、hooks、`permissions.disableBypassPermissionsMode`、top-level `disableAutoMode`、`requiredMinimumVersion: 2.1.218`
+- `managed-settings.json`: owner 選択の `bypassPermissions`、sandbox、credentials、hooks、top-level `disableAutoMode`、`requiredMinimumVersion: 2.1.218`
 - `bin/`: deterministic helper。`project-policy-gate` は project/local security override を拒否する
 - `hooks/`: managed policy からのみ登録される lifecycle / PreToolUse hook
 - `rules/`, `agents/`, `skills/`: path-scoped knowledge、specialist、manual skill
@@ -16,12 +16,11 @@
 ### 前提
 
 - Claude Code 2.1.218 stable 以上
-- Linux / WSL2: `bubblewrap` と `socat`
 - `jq`, Python 3, Git
 - GitHub workflow を使う場合のみ、認証済みの `gh`
 
 ```bash
-sudo apt-get install bubblewrap socat jq   # Ubuntu / Debian / WSL2
+sudo apt-get install jq   # Ubuntu / Debian / WSL2
 cd ~/agents-toolkit
 sudo ./scripts/install-managed-policy.sh --apply
 ./bootstrap.sh --apply
@@ -52,21 +51,16 @@ custom XDG base directory は非対応。`XDG_CONFIG_HOME` 等が `$HOME` 配下
 
 ## Permission / sandbox 方針
 
-- `bypassPermissions` と auto mode は managed policy で無効
-- `sandbox.enabled: true`, `failIfUnavailable: true`, `allowUnsandboxedCommands: false`
-- managed `permissions.ask: ["Bash"]` + `autoAllowBashIfSandboxed: false`: **組み込み read-only command を含む全 Bash は sandbox 内外を問わず標準 approval を経る**
-- managed `permissions.allow` は `Agent`, `Read(**)`, `Edit(**)`, `WebSearch` のみ。Bash allow は0件
-- `gh *` は credential 利用のため sandbox 外だが、managed `ask: ["Bash"]` により `gh auth status` を含む全 `gh` operation を ask にする
-- pre-allowed domain は0件。`WebFetch(domain:...)` allow も置かない
-- `denyRead` で private tree を遮断し、`~/.claude/bin`, `~/.claude/skills`, `~/.config/agents-toolkit` だけを narrow `allowRead` で再開
-- `.env`、credential、`.git/config`、`.git/hooks/**` は managed deny。literal command は PreToolUse hook でも事故防止する
-- `git commit --amend` は hook で over-block 側に拒否。history rewrite はユーザーが sandbox 外で明示実行する
-
-`Read(**)` / `Edit(**)` は project path を対象とする。Bash、network、外部副作用は approval を伴うため、従来の「低プロンプト」動作より安全側に変更される。
+- owner の明示選択により `permissions.defaultMode: "bypassPermissions"` と `skipDangerousModePermissionPrompt: true`
+- `permissions.ask` は空。Bash、file tool、network、外部副作用を含め Claude Code の permission prompt は表示しない
+- `sandbox.enabled: false`, `failIfUnavailable: false`, `allowUnsandboxedCommands: true`
+- `bypassPermissions` では `permissions.allow` / `ask` / `deny` は enforcement layer にならず、sandbox の filesystem / network 設定も無効
+- managed hooks と project-policy gate は引き続き実行する。literal `.env` 読み取り、block device write、`git commit --amend` 等を事故防止として拒否するが、完全な security boundary ではない
+- permission/sandbox の旧 fail-closed 構成と live acceptance は履歴として文書に残すが、現行 runtime を保護する根拠にはしない
 
 ## uv と Git
 
-sandbox 内の Python tooling は `~/.claude/bin/uvw` を使用する。wrapper は uv の cache/data/config を session temp へ向け、private tree の denyRead を緩和しない。
+`~/.claude/bin/uvw` は引き続き利用できるが、sandbox 無効の現行構成では必須ではない。wrapper は uv の cache/data/config を一時領域へ分離する。
 
 ```bash
 ~/.claude/bin/uvw run --frozen pytest -q
@@ -74,7 +68,7 @@ sandbox 内の Python tooling は `~/.claude/bin/uvw` を使用する。wrapper 
 ~/.claude/bin/uvw run mypy .
 ```
 
-`.git/config` / `.git/hooks/**` write は deny のため、`git config`, `git init`, `git remote add` は手動 shell で実行する。通常の `git add` / `git commit` は live acceptance test の対象。
+Git 操作は permission prompt なしで実行される。リポジトリの Git workflow とユーザーの明示承認境界は引き続き守る。
 
 ## Context 注入
 
@@ -94,7 +88,7 @@ done
 ./scripts/package-release.sh --check
 ```
 
-static test では managed policy、project override、XDG、hook、metrics、inventory、release mode を検証する。2026-07-24 に startup warning 0、managed composition、mode lockout、project-policy PreToolUse、Claude Code の Bash / `gh` approval、sandbox 内 Git / helper workflow、OS-level secret / private-tree deny、sandbox unavailable 時の fail-closed、Codex CLI を実機確認し、全 live acceptance を完了した。
+static test では owner 選択の managed bypass policy、project override、XDG、hook、metrics、inventory、release mode を検証する。2026-07-24 の approval/sandbox live acceptance は当時の fail-closed policy に対する履歴であり、その後の owner override により現行 runtime には適用されない。
 
 ## Skills
 

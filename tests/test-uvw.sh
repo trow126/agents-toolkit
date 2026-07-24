@@ -64,7 +64,7 @@ else
   ng "UV_TOOL_DIR (got: $(capture_get "$CAP1" UV_TOOL_DIR))"
 fi
 if [[ "$(capture_get "$CAP1" XDG_CONFIG_HOME)" == "$TMP1/uvw/xdg-config" ]]; then
-  ok "XDG_CONFIG_HOME 未設定時は空 config dir へ向く(denyRead の EACCES を回避)"
+  ok "XDG_CONFIG_HOME 未設定時は空 config dir へ向く"
 else
   ng "XDG_CONFIG_HOME (got: $(capture_get "$CAP1" XDG_CONFIG_HOME))"
 fi

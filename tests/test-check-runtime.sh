@@ -78,7 +78,7 @@ expect_rc "claude 欠落 + --soft-missing は NOTE 続行" 0 "-" --soft-missing
 rc=0
 env HOME="$TEST_HOME" XDG_CONFIG_HOME="$SANDBOX/custom-config" PATH="$STUBBIN:$PATH" CLAUDE_STUB_VERSION="2.1.218" \
   "$DOCTOR" >/dev/null 2>&1 || rc=$?
-if [[ "$rc" -eq 1 ]]; then ok "custom XDG_CONFIG_HOME は reject(denyRead 前提と不一致)"; else ng "custom XDG が exit $rc"; fi
+if [[ "$rc" -eq 1 ]]; then ok "custom XDG_CONFIG_HOME は reject(toolkit path contract と不一致)"; else ng "custom XDG が exit $rc"; fi
 
 rc=0
 env HOME="$TEST_HOME" XDG_DATA_HOME="$SANDBOX/custom-data" PATH="$STUBBIN:$PATH" CLAUDE_STUB_VERSION="2.1.218" \

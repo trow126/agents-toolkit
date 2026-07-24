@@ -155,8 +155,14 @@ run_case managed-bash-allow \
   'jq ".permissions.allow += [\"Bash(gh auth status)\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
   'managed permissions must not pre-approve Bash commands'
 run_case sandbox-auto-allow \
-  'jq ".sandbox.autoAllowBashIfSandboxed=true" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
-  'managed sandbox.autoAllowBashIfSandboxed must be false'
+  'jq ".sandbox.autoAllowBashIfSandboxed=false" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed sandbox.autoAllowBashIfSandboxed must be true'
+run_case bypass-default \
+  'jq ".permissions.defaultMode=\"default\"" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed permissions.defaultMode must be "bypassPermissions"'
+run_case sandbox-enabled \
+  'jq ".sandbox.enabled=true" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed sandbox.enabled must be false'
 run_case missing-helper-read \
   'jq ".sandbox.filesystem.allowRead -= [\"~/.claude/bin\"]" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
   'managed allowRead is missing required toolkit paths: ~/.claude/bin'

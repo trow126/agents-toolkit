@@ -6,6 +6,8 @@
 - static 判定: **COMPLETE**
 - final 判定: **COMPLETE**
 
+> **Post-acceptance owner override (2026-07-24):** この文書の COMPLETE / PASS は fail-closed policy に対する履歴である。その後 owner が「完全に以前どおり: bypassPermissions に戻す」と明示し、現行 policy は permission confirmation 省略・sandbox 無効となった。M-04/C-02 の prompt/sandbox 保護は EX-003 により supersede されている。
+
 ## 指摘対応
 
 | ID | 対応 | 状態 |
@@ -55,7 +57,7 @@
 
 ## Live acceptance 最終判定
 
-全項目 PASS。残件なし。
+当時は全項目 PASS、残件なし。現行状態は冒頭の post-acceptance owner override を参照。
 
 ## 適用
 

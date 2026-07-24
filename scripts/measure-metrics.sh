@@ -107,13 +107,15 @@ measure_tree() {
     echo "permissions_allow_count: $(jq '.permissions.allow // [] | length' "$security_settings")"
     echo "permissions_ask_count: $(jq '.permissions.ask // [] | length' "$security_settings")"
     echo "permissions_deny_count: $(jq '.permissions.deny // [] | length' "$security_settings")"
-    echo "bypass_lockout_ok: $(jq -r 'if .permissions.disableBypassPermissionsMode == "disable" then "yes" else "no" end' "$security_settings")"
+    echo "bypass_permissions_default: $(jq -r 'if .permissions.defaultMode == "bypassPermissions" then "yes" else "no" end' "$security_settings")"
+    echo "dangerous_mode_prompt_skipped: $(jq -r 'if .skipDangerousModePermissionPrompt == true then "yes" else "no" end' "$security_settings")"
+    echo "sandbox_enabled: $(jq -r 'if .sandbox.enabled == true then "yes" else "no" end' "$security_settings")"
     echo "auto_mode_lockout_ok: $(jq -r 'if .disableAutoMode == "disable" then "yes" else "no" end' "$security_settings")"
     echo "effective_preallowed_domains_count: $(jq '[(.sandbox.network.allowedDomains[]? // empty), (.permissions.allow[]? | select(test("^WebFetch\\(domain:")))] | length' "$security_settings")"
     echo "unsandboxed_query_capable_allows: $(jq '[.sandbox.excludedCommands[]? | split(" ")[0]] as $words | [.permissions.allow[]? | select(startswith("Bash(")) | select(. as $r | [$words[] | . as $w | (($r == ("Bash(" + $w + ")")) or ($r | startswith("Bash(" + $w + " ")))] | any)] | length' "$security_settings")"
     echo "managed_bash_allows: $(jq '[.permissions.allow[]? | select(startswith("Bash("))] | length' "$security_settings")"
   else
-    for key in permissions_allow_count permissions_ask_count permissions_deny_count bypass_lockout_ok auto_mode_lockout_ok effective_preallowed_domains_count unsandboxed_query_capable_allows managed_bash_allows; do
+    for key in permissions_allow_count permissions_ask_count permissions_deny_count bypass_permissions_default dangerous_mode_prompt_skipped sandbox_enabled auto_mode_lockout_ok effective_preallowed_domains_count unsandboxed_query_capable_allows managed_bash_allows; do
       echo "$key: n/a"
     done
   fi

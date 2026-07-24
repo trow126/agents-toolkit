@@ -2,16 +2,13 @@
 # check-runtime.sh — Claude Code runtime / 環境前提の doctor(2026-07-23 H-017, 2026-07-24 改訂)
 #
 # 検査内容:
-#   1. XDG base directory が既定値であること(H-013)
-#      sandbox.filesystem.denyRead は literal な ~/.config / ~/.local/state / ~/.local/share /
-#      ~/.cache を遮断する。custom XDG(例: XDG_CONFIG_HOME=/opt/cfg)は denyRead の外側へ
-#      解決されるため private routing / state が sandbox から読めてしまう。既定値以外は
-#      fail-closed でエラーにする。custom XDG の waiver/例外経路は持たない。
-#   2. current project の .claude/settings*.json が managed security policy を
+#   1. XDG base directory が toolkit の対応済み既定値であること(H-013)
+#      install manifest、runtime path、診断の整合を保つため custom XDG はサポートしない。
+#   2. current project の .claude/settings*.json が managed owner policy を
 #      上書き・拡張する security surface を持たないこと(C-02)
 #   3. Claude Code version が検証済み下限以上の stable であること(H-017)
-#      本 toolkit の settings は sandbox.credentials(v2.1.187+)、Read()/Edit() path rule の
-#      現行挙動(v2.1.208+)、permissions.disableBypassPermissionsMode 等に依存する。
+#      本 toolkit の settings は requiredMinimumVersion、
+#      skipDangerousModePermissionPrompt、managed hooks 等の現行挙動に依存する。
 #      検証済み下限: 2.1.218。prerelease(例: 2.1.218-beta.1)は検証対象外として拒否する。
 #      managed policy の requiredMinimumVersion=2.1.218 が対応versionでは startupを拒否する。
 #      それ以前のversionは当該keyを認識しないため、本 script + bootstrap も defense-in-depth
@@ -64,7 +61,7 @@ check_xdg() {
   fi
   default_normalized="$(normalize_path "$default")"
   if [[ "$normalized" != "$default_normalized" ]]; then
-    echo "ERROR: $var=$val resolves to $normalized, but the supported default is $default_normalized. The managed denyRead policy protects only the default XDG trees. Custom XDG is unsupported and is rejected fail-closed." >&2
+    echo "ERROR: $var=$val resolves to $normalized, but the supported default is $default_normalized. Custom XDG is outside the toolkit's installed/runtime path contract." >&2
     fail=1
   fi
 }
@@ -75,7 +72,7 @@ check_xdg XDG_CACHE_HOME  "$HOME/.cache"
 if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
-echo "OK: XDG base directories resolve to supported defaults (managed denyRead premise)"
+echo "OK: XDG base directories resolve to toolkit-supported defaults"
 
 # --- 2. project/local settings gate(C-02) ---
 if [[ ! -x "$PROJECT_POLICY_GATE" ]]; then
@@ -87,7 +84,7 @@ if ! "$PROJECT_POLICY_GATE" --cwd "$PROJECT_CWD" --quiet; then
   echo "ERROR: unsafe project/local Claude settings detected; runtime startup is blocked fail-closed" >&2
   exit 1
 fi
-echo "OK: project/local Claude settings contain no managed-security overrides"
+echo "OK: project/local Claude settings contain no managed-policy overrides"
 
 # --- 3. Claude Code version 検査(H-017) ---
 if ! command -v claude >/dev/null 2>&1; then
@@ -115,7 +112,7 @@ VER="$VER_FULL"
 
 lower="$(printf '%s\n%s\n' "$MINIMUM" "$VER" | sort -V | head -1)"
 if [[ "$lower" != "$MINIMUM" ]]; then
-  echo "ERROR: Claude Code $VER は検証済み下限 $MINIMUM 未満です。設定(sandbox.credentials / path rule / bypass lockout)が部分適用になる恐れがあるため、更新してから利用してください" >&2
+  echo "ERROR: Claude Code $VER は検証済み下限 $MINIMUM 未満です。設定(requiredMinimumVersion / bypassPermissions / managed hooks)が部分適用になる恐れがあるため、更新してから利用してください" >&2
   exit 1
 fi
 
