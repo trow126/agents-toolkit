@@ -31,11 +31,11 @@ scripts/measure-metrics.sh --before-ref 7d193c2 --after-ref HEAD
 
 | metric | before | after | change |
 |---|---:|---:|---:|
-| combined static always-on bytes | 43,068 | 33,834 | **−21.4%** |
-| Claude static always-on bytes | 19,952 | 18,543 | −7.1% |
+| combined static always-on bytes | 43,068 | 33,515 | **−22.2%** |
+| Claude static always-on bytes | 19,952 | 18,224 | −8.7% |
 | Codex AGENTS.md bytes | 23,116 | 15,291 | **−33.9%** |
 | CLAUDE.md lines | 59 | 47 | −20.3% |
-| Claude always-on rules lines | 68 | 32 | **−52.9%** |
+| Claude always-on rules lines | 68 | 26 | **−61.8%** |
 | custom agents | 14 | 9 | **−35.7%** |
 | Claude skills | 21 | 13 | **−38.1%** |
 | Codex skills | 4 | 4 | ±0 |
@@ -50,7 +50,7 @@ scripts/measure-metrics.sh --before-ref 7d193c2 --after-ref HEAD
 | SessionStart message max | unbounded | 512 bytes | bounded |
 | Phase 1 audited elements | — | 137 | one row per element |
 
-combined static bytes は −21.4% であるが、要件の「約30%は方向性であり数合わせで価値ある機構を削らない」に従い、agents / skills / rules / handoff / duplicate / review mechanism を複数指標で縮約した。security contract の managed-scope 明文化により一部 instruction は増加している。
+combined static bytes は −22.2% であるが、要件の「約30%は方向性であり数合わせで価値ある機構を削らない」に従い、agents / skills / rules / handoff / duplicate / review mechanism を複数指標で縮約した。security contract の managed-scope 明文化により一部 instruction は増加している。
 
 ### Machine-readable after block
 
@@ -60,13 +60,13 @@ combined static bytes は −21.4% であるが、要件の「約30%は方向性
 ```
 claude_md_bytes: 4819
 claude_md_lines: 47
-claude_always_rules_bytes: 2919
-claude_always_rules_lines: 32
+claude_always_rules_bytes: 2551
+claude_always_rules_lines: 26
 claude_imported_shared_bytes: 10854 (9 files)
-claude_always_on_total: 18592
+claude_always_on_total: 18224
 codex_agents_md_bytes: 15291
 codex_agents_md_lines: 208
-combined_always_on_total: 33883
+combined_always_on_total: 33515
 custom_agents: 9
 claude_skills: 13
 codex_skills: 4
@@ -99,8 +99,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 18694
-claude_session_start_injection_max_bytes: 19104
+claude_session_start_injection_typical_bytes: 18326
+claude_session_start_injection_max_bytes: 18736
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
