@@ -13,6 +13,10 @@ link-dir	claude/agents	.claude/agents
 link-dir	claude/hooks	.claude/hooks
 link-dir	shared/skills/branch-cleanup	.claude/skills/branch-cleanup
 link-dir	shared/skills/branch-cleanup	.agents/skills/branch-cleanup
+link-dir	shared/skills/implementation-quality	.claude/skills/implementation-quality
+link-dir	shared/skills/implementation-quality	.agents/skills/implementation-quality
+link-dir	shared/skills/git-operations	.claude/skills/git-operations
+link-dir	shared/skills/git-operations	.agents/skills/git-operations
 link-dir	shared/skills/claude-code/break-consensus	.claude/skills/break-consensus
 link-dir	shared/skills/codex/break-consensus	.agents/skills/break-consensus
 link-dir	shared/skills/claude-code/config-audit	.claude/skills/config-audit

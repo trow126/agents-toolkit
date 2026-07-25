@@ -1,13 +1,16 @@
-# agents-toolkit 近代化レポート（v9 / 2026-07-24）
+# agents-toolkit 近代化レポート（v10 / 2026-07-26）
 
 ## 判定
 
 **Historical v9 remediation / acceptance: COMPLETE**
+**v10 Claude 5 context engineering source implementation: COMPLETE**
 **Current permission/sandbox posture: OWNER OVERRIDE ACTIVE (EX-003)**
 
 2026年時点の Claude Code / Codex CLI / Agent Skills に合わせ、(1) 継ぎ足された常設機構の証拠ベース縮約、(2) manual-only innovation skill `break-consensus` の追加、(3) permission / sandbox / hook の fail-closed 化を実施した。
 
 v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正し、2026-07-24 に fail-closed policy の全 live acceptance を完了した。その後、repository owner が「完全に以前どおり: bypassPermissions に戻す」と明示したため、現行 managed policy は `bypassPermissions` 既定・confirmation 省略・sandbox 無効へ変更された。M-04/C-02 の prompt/sandbox 保護は現行 runtime には適用されず、EX-003 の owner override として管理する。過去の acceptance 証跡は履歴として保持する。
+
+v10 はClaude 5世代のprogressive disclosureへ移行した。常時共有ruleを`core-contract` 1本に限定し、詳細品質・Git・障害調査ruleをtask-triggered skillへ移した。active skill entrypointにはmanifest由来の150行・8192 bytes budget、reference graph、consumer map、side-effect authority matrixを適用した。`gh-start`の永続checkpointと、GitHub workflowの自動commit/push/deleteを廃止した。native auto memoryはowner選択どおり無効を維持する。
 
 ## Requirements source / baseline
 
@@ -21,7 +24,7 @@ v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修�
 
 PDF は15ページで、p.15 の `Stage 5: Forced Heterogeneity` 冒頭2文で終了する。Stage 6–7 は PDF p.12 §4.1 の「外部調査による既視感排除」「反証可能性評価」「最小コスト実験」を reversible な実装段階へ分解した**非規範マッピング**であり、PDF に存在しない追加要件としては扱わない。
 
-## Before → after metrics
+## Historical v9 before → after metrics
 
 再現:
 
@@ -52,6 +55,21 @@ scripts/measure-metrics.sh --before-ref 7d193c2 --after-ref HEAD
 
 combined static bytes は −22.3% であるが、要件の「約30%は方向性であり数合わせで価値ある機構を削らない」に従い、agents / skills / rules / handoff / duplicate / review mechanism を複数指標で縮約した。managed-scope contract の明文化により一部 instruction は増加している。
 
+## v10 context baseline → working tree
+
+baseline `a2ef695`に対するlive-tree計測:
+
+| metric | baseline | v10 | change |
+|---|---:|---:|---:|
+| Claude typical session-start injection | 14,748 | 3,673 | **−75.1%** |
+| Codex AGENTS.md bytes | 12,113 | 2,980 | **−75.4%** |
+| combined always-on bytes | 26,759 | 6,551 | **−75.5%** |
+| always-on shared rule files | 9 | 1 | **−88.9%** |
+| active entrypoint over 150 lines / 8192 bytes | 16 / 12 | 0 / 0 | eliminated |
+| native auto memory | disabled | disabled | maintained |
+
+縮約率は受入判定であり、rule削除の目的値ではない。安全・承認・検証の不変条件は`core-contract`へ残し、詳細規約はconsumer contractによりon-demand到達可能である。
+
 ### Machine-readable after block
 
 `tests/test-report-consistency.sh` は次のブロックを `measure-metrics.sh --repo .` の**全 key と完全一致**で照合する。
@@ -59,24 +77,31 @@ combined static bytes は −22.3% であるが、要件の「約30%は方向性
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4486
-claude_md_lines: 45
-claude_always_rules_bytes: 2484
-claude_always_rules_lines: 27
-claude_imported_shared_bytes: 7676 (9 files)
-claude_always_on_total: 14646
-codex_agents_md_bytes: 12113
-codex_agents_md_lines: 144
-combined_always_on_total: 26759
+claude_md_bytes: 2164
+claude_md_lines: 35
+claude_always_rules_bytes: 0
+claude_always_rules_lines: 0
+claude_imported_shared_bytes: 1407 (1 files)
+claude_always_on_total: 3571
+codex_agents_md_bytes: 2980
+codex_agents_md_lines: 38
+combined_always_on_total: 6551
 custom_agents: 9
-claude_skills: 14
-codex_skills: 18
+claude_skills: 16
+codex_skills: 20
+active_skill_entrypoints: 30
+active_skill_entrypoint_bytes: 67120
+active_skill_entrypoint_max_lines: 121
+active_skill_entrypoint_over_150_lines: 0
+active_skill_entrypoint_over_8192_bytes: 0
+shared_rules_always_on_bytes: 1407
+shared_rules_on_demand_bytes: 12039
 hook_scripts: 7
 hook_registrations: 8
-shared_rules: 13
-claude_rules: 5
+shared_rules: 11
+claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 137
+inventory_audited_elements: 141
 review_progress_retrospective_mechanisms: 8
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
@@ -102,8 +127,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 14748
-claude_session_start_injection_max_bytes: 15158
+claude_session_start_injection_typical_bytes: 3673
+claude_session_start_injection_max_bytes: 4083
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
@@ -112,7 +137,7 @@ duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs do
 
 ## Phase 1 inventory / H-04
 
-Canonical source: `docs/reports/inventory-elements.tsv`（137 unique rows）
+Canonical source: `docs/reports/inventory-elements.tsv`（141 unique rows）
 Rendered review: `docs/reports/inventory-matrix.md`
 
 各行は以下の11軸を持つ。

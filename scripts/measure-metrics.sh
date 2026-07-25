@@ -53,6 +53,87 @@ installed_skill_count() {
   find "$source_root" -mindepth 2 -maxdepth 2 -name 'SKILL.md' 2>/dev/null | wc -l
 }
 
+active_skill_metrics() {
+  local root="$1"
+  python3 - "$root" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest = root / "install" / "manifest.tsv"
+entrypoints: set[Path] = set()
+if manifest.is_file():
+    for raw in manifest.read_text(encoding="utf-8").splitlines():
+        if not raw or raw.startswith("#"):
+            continue
+        fields = raw.split("\t")
+        if len(fields) != 3:
+            continue
+        _mode, source, target = fields
+        if not (target.startswith(".claude/skills/") or target.startswith(".agents/skills/")):
+            continue
+        source_path = root / source
+        skill_path = source_path / "SKILL.md" if source_path.is_dir() else source_path
+        if skill_path.is_file():
+            entrypoints.add(skill_path)
+
+total_bytes = 0
+max_lines = 0
+over_lines = 0
+over_bytes = 0
+for path in entrypoints:
+    data = path.read_bytes()
+    line_count = len(data.splitlines())
+    total_bytes += len(data)
+    max_lines = max(max_lines, line_count)
+    over_lines += int(line_count > 150)
+    over_bytes += int(len(data) > 8192)
+
+print(f"active_skill_entrypoints: {len(entrypoints)}")
+print(f"active_skill_entrypoint_bytes: {total_bytes}")
+print(f"active_skill_entrypoint_max_lines: {max_lines}")
+print(f"active_skill_entrypoint_over_150_lines: {over_lines}")
+print(f"active_skill_entrypoint_over_8192_bytes: {over_bytes}")
+PY
+}
+
+shared_rule_load_metrics() {
+  local root="$1"
+  python3 - "$root" <<'PY'
+import csv
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+contract = root / "docs" / "contracts" / "context-consumers.tsv"
+if not contract.is_file():
+    print("shared_rules_always_on_bytes: n/a")
+    print("shared_rules_on_demand_bytes: n/a")
+    raise SystemExit(0)
+
+load_modes: dict[str, set[str]] = {}
+with contract.open(encoding="utf-8", newline="") as handle:
+    reader = csv.DictReader(handle, delimiter="\t")
+    for row in reader:
+        load_modes.setdefault(row["rule"], set()).add(row["load_mode"])
+
+always = 0
+on_demand = 0
+for rule, modes in load_modes.items():
+    path = root / "shared" / "rules" / f"{rule}.md"
+    if not path.is_file():
+        continue
+    size = len(path.read_bytes())
+    if "always" in modes:
+        always += size
+    if "on-demand" in modes:
+        on_demand += size
+
+print(f"shared_rules_always_on_bytes: {always}")
+print(f"shared_rules_on_demand_bytes: {on_demand}")
+PY
+}
+
 measure_tree() {
   local root="$1"
   local claude_md=0 always_rules=0 imports=0 import_count=0 agents_md=0
@@ -98,6 +179,8 @@ measure_tree() {
   echo "custom_agents: $(find "$root/claude/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
   echo "claude_skills: $(installed_skill_count "$root" .claude)"
   echo "codex_skills: $(installed_skill_count "$root" .agents)"
+  active_skill_metrics "$root"
+  shared_rule_load_metrics "$root"
   echo "hook_scripts: $(find "$root/claude/hooks" -maxdepth 1 -name '*.sh' 2>/dev/null | wc -l)"
 
   local user_settings="$root/claude/settings.json"

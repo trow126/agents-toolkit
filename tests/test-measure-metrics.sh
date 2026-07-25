@@ -85,9 +85,12 @@ out="$("$MEASURE" --repo "$REPO_ROOT")"
 assert_metric "実 repo: full pin 0" "$out" "full_model_pins" "0"
 assert_metric "実 repo: 無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "実 repo: learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"
-assert_metric "実 repo: Claude effective skill は14件" "$out" "claude_skills" "14"
-assert_metric "実 repo: Codex effective skill は18件" "$out" "codex_skills" "18"
-assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "137"
+assert_metric "実 repo: Claude effective skill は16件" "$out" "claude_skills" "16"
+assert_metric "実 repo: Codex effective skill は20件" "$out" "codex_skills" "20"
+assert_metric "実 repo: active skill entrypoint は150行以内" "$out" "active_skill_entrypoint_over_150_lines" "0"
+assert_metric "実 repo: active skill entrypoint は8192 bytes以内" "$out" "active_skill_entrypoint_over_8192_bytes" "0"
+assert_metric "実 repo: shared rule always-onはcoreのみ" "$out" "shared_rules_always_on_bytes" "1407"
+assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "141"
 assert_metric "実 repo: review/progress/retrospective active unique path" "$out" "review_progress_retrospective_mechanisms" "8"
 assert_metric "実 repo: built-in agent overlap 0" "$out" "custom_builtin_agent_overlaps" "0"
 assert_metric "実 repo: managed policy present" "$out" "managed_policy_present" "yes"
@@ -104,6 +107,25 @@ assert_metric "実 repo: sandbox Bash auto-allow enabled" "$out" "sandbox_auto_a
 assert_metric "実 repo: auto memory disabled" "$out" "auto_memory_enabled" "no"
 assert_metric "実 repo: SessionStart output bounded" "$out" "session_start_system_message_max_bytes" "512"
 assert_metric "実 repo: PostCompact output bounded" "$out" "post_compact_system_message_max_bytes" "512"
+
+authority="$REPO_ROOT/docs/contracts/skill-authority.tsv"
+if awk -F '\t' '
+  $1 == "implementation-quality" && $2 == "default" &&
+  $3 == "allow" && $4 == "deny" && $5 == "deny" &&
+  $6 == "deny" && $7 == "deny" && $8 == "deny" { found = 1 }
+  END { exit found ? 0 : 1 }
+' "$authority"; then
+  ok "implementation-quality はlocal source/test writeだけを許可する"
+else
+  ng "implementation-quality default authority が不正"
+fi
+
+git_modes="$(awk -F '\t' '$1 == "git-operations" { print $2 }' "$authority" | sort | paste -sd ' ' -)"
+if [[ "$git_modes" == "branch commit default merge push stage" ]]; then
+  ok "git-operations は6つの単一modeに分離されている"
+else
+  ng "git-operations mode contract が不正: $git_modes"
+fi
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

@@ -22,7 +22,7 @@ build_fixture() {
     "$repo/install" "$repo/scripts/lib" \
     "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/skills/sample-skill" "$repo/claude/githooks" \
     "$repo/codex" "$repo/shared/bin" "$repo/shared/rules" \
-    "$repo/docs/waivers" "$repo/docs/requirements" "$repo/docs/reports" "$repo/tests"
+    "$repo/docs/contracts" "$repo/docs/waivers" "$repo/docs/requirements" "$repo/docs/reports" "$repo/tests"
 
   cp "$VALIDATE" "$repo/scripts/validate-layout.sh"
   cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
@@ -58,7 +58,12 @@ allowed-tools: Read Grep
 ---
 # Sample
 SKILL
-  printf '# fixture\n' > "$repo/codex/AGENTS.md"
+  cat > "$repo/codex/AGENTS.md" <<'CODEX'
+# fixture
+<!-- BEGIN shared:rule-b -->
+# synchronized
+<!-- END shared:rule-b -->
+CODEX
 
   cat > "$repo/shared/bin/sync-shared-rules.sh" <<'SYNC'
 #!/usr/bin/env bash
@@ -70,6 +75,15 @@ SYNC
   chmod +x "$repo/shared/bin/sync-shared-rules.sh"
   printf '# imported\n' > "$repo/shared/rules/rule-a.md"
   printf '# synchronized\n' > "$repo/shared/rules/rule-b.md"
+  cat > "$repo/docs/contracts/context-consumers.tsv" <<'CONSUMERS'
+rule	load_mode	consumer	trigger
+rule-a	always	claude/CLAUDE.md	all tasks
+rule-b	always	codex/AGENTS.md	all tasks
+CONSUMERS
+  cat > "$repo/docs/contracts/skill-authority.tsv" <<'AUTHORITY'
+skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
+sample-skill	default	deny	deny	deny	deny	deny	deny	fixture read
+AUTHORITY
 
   printf '# no active waivers\n' > "$repo/docs/waivers/settings-waivers.tsv"
   printf 'fixture-env\n' > "$repo/docs/waivers/environments.txt"
@@ -147,7 +161,7 @@ run_case manifest-orphan \
   'tracked file not covered by manifest or allowlist: claude/orphan.md'
 run_case unconsumed-rule \
   'printf "orphan\n" > "$repo/shared/rules/orphan.md"; git -C "$repo" add shared/rules/orphan.md' \
-  'shared rule not consumed by SYNC_MAP or claude/CLAUDE.md import: shared/rules/orphan.md'
+  'shared rule has no context consumer declaration: orphan'
 run_case user-security-key \
   'jq ". + {sandbox:{enabled:false}}" "$repo/claude/settings.json" > "$repo/u"; mv "$repo/u" "$repo/claude/settings.json"' \
   'user settings must not carry security policy keys'
@@ -187,6 +201,18 @@ run_case invalid-skill-schema \
 run_case invalid-shared-variant-skill-schema \
   'mkdir -p "$repo/shared/skills/codex/sample-skill"; printf "%s\n" "---" "name: wrong-name" "description: Invalid nested fixture." "---" "# Sample" > "$repo/shared/skills/codex/sample-skill/SKILL.md"' \
   "skill schema: shared/skills/codex/sample-skill/SKILL.md: name 'wrong-name' != skill directory 'sample-skill'"
+run_case active-skill-line-budget \
+  'for _ in $(seq 1 151); do printf "line\n" >> "$repo/claude/skills/sample-skill/SKILL.md"; done' \
+  'active skill budget: claude/skills/sample-skill/SKILL.md has'
+run_case missing-skill-reference \
+  'printf "\n[missing](references/missing.md)\n" >> "$repo/claude/skills/sample-skill/SKILL.md"' \
+  'missing Markdown reference: claude/skills/sample-skill/SKILL.md -> references/missing.md'
+run_case missing-consumer-declaration \
+  'sed -i "/^rule-b\t/d" "$repo/docs/contracts/context-consumers.tsv"' \
+  'shared rule has no context consumer declaration: rule-b'
+run_case invalid-authority-value \
+  'sed -i "s/sample-skill\tdefault\tdeny/sample-skill\tdefault\tmaybe/" "$repo/docs/contracts/skill-authority.tsv"' \
+  'repo_write must be allow or deny'
 run_case stale-reference \
   'printf "/gh:start\n" >> "$repo/claude/rules/sample.md"' \
   'stale reference in claude/rules/sample.md'

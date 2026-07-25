@@ -30,21 +30,10 @@ esac
 
 # 同期対応表: 1行 = NAME<TAB>repo相対target
 SYNC_MAP=$(cat <<'EOF'
-karpathy-guidelines	codex/AGENTS.md
-no-fallback	codex/AGENTS.md
-decision-integrity	codex/AGENTS.md
-quality-priority	codex/AGENTS.md
-test-policy	codex/AGENTS.md
-git-workflow	codex/AGENTS.md
-learnings	shared/skills/knowledge-audit/SKILL.md
+core-contract	codex/AGENTS.md
 python-guidelines	codex/references/python-quality.md
 python-guidelines	claude/rules/python.md
-failure-investigation	codex/AGENTS.md
-self-improvement	codex/AGENTS.md
-workspace-hygiene	codex/AGENTS.md
-markdown-rules	codex/AGENTS.md
 markdown-rules	claude/rules/markdown.md
-issue-completeness	codex/skills/issue-writing/SKILL.md
 EOF
 )
 

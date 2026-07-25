@@ -4,12 +4,12 @@
 
 ## 構成
 
-- `CLAUDE.md`: 常時 instruction、単一 owner と routing の最小契約
+- `CLAUDE.md`: `core-contract`、単一 owner、routing、runtime固有事項だけの常時context
 - `settings.json`: model、effort、status line、plugin、`autoMemoryEnabled: false` などの**非 security** user preference
 - `managed-settings.json`: owner 選択の `bypassPermissions`、sandbox、credentials、hooks、top-level `disableAutoMode`、`requiredMinimumVersion: 2.1.218`
 - `bin/`: deterministic helper。`project-policy-gate` は project/local security override を拒否する
 - `hooks/`: managed policy からのみ登録される lifecycle / PreToolUse hook
-- `rules/`, `agents/`, `skills/`: path-scoped knowledge、specialist、manual skill
+- `rules/`, `agents/`, `skills/`: path-scoped knowledge、specialist、progressive-disclosure skill
 
 ## 導入
 
@@ -73,9 +73,11 @@ Git 操作は permission prompt なしで実行される。リポジトリの Gi
 ## Context 注入
 
 - native auto memory は無効
-- learnings は常時 import せず、必要時に参照
+- 常時共有ruleは`core-contract` 1本だけ
+- test、No Fallback、Git、障害調査、learningsは`implementation-quality`、`git-operations`、専用skillから必要時に参照
 - SessionStart / PostCompact の `systemMessage` は JSON-safe helper で各512 bytes以下
-- `scripts/measure-hook-injection.py` が typical/max bytes を再現計測する
+- active skill entrypointは150行・8192 bytes以内。詳細phase・template・exampleは`references/`へ分離
+- `scripts/measure-hook-injection.py`と`measure-metrics.sh`がalways-on/on-demand bytesとskill budgetを再現計測する
 
 ## 検証
 
@@ -92,11 +94,11 @@ static test では owner 選択の managed bypass policy、project override、XD
 
 ## Skills
 
-GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/gh-index`, `/pr-review`, `/branch-cleanup`。
+GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/gh-index`, `/pr-review`, `/branch-cleanup`。local変更、commit、push、PR、commentは各skillのmodeで分離される。
 
-分析・utility: `/break-consensus`（manual only）, `/plan-review`, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。
+品質・Git router: `/implementation-quality`, `/git-operations`。
 
-新規 behavior skill は `break-consensus` の1件のみ。Codex の Python 品質ガイドは skill ではなく `codex/references/python-quality.md` へ遅延参照として配置する。
+分析・utility: `/break-consensus`（manual only）, `/plan-review`, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。`config-audit`と`knowledge-audit`はdefault read-onlyで、書き込みには明示modeが必要。
 
 ## Secret scanning
 

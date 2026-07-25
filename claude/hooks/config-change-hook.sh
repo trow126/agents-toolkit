@@ -25,7 +25,7 @@ HOOK_CWD=$(echo "$INPUT" | jq -r '(.cwd // .tool_input.cwd // "") | if type == "
 # session and restart so managed/user composition is revalidated.
 case "$FILE" in
     "$HOME/.claude/settings.json"|"$HOME/.claude/settings.local.json")
-        block "~/.claude/settings.json must be edited via shell, then Claude restarted (rules/safety.md)"
+        block "~/.claude/settings.json must be edited via shell, then Claude restarted (CLAUDE.md)"
         ;;
 esac
 

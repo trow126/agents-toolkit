@@ -92,7 +92,7 @@ else
 fi
 
 # =========================================================================
-# 4. 静的契約: 旧パーサーパス参照なし / 無条件委譲テンプレートなし / 条件付き委譲規約あり
+# 4. 静的契約: 旧パーサー/checkpointなし・default local only・副作用mode分離
 # =========================================================================
 GH_START_SKILL="$REPO_ROOT/shared/skills/claude-code/gh-start/SKILL.md"
 if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" "$GH_START_SKILL"; then
@@ -110,12 +110,31 @@ if ! grep -q 'subagent_type: "general-purpose"' "$GH_START_SKILL"; then
 else
   ng "gh-start に無条件委譲テンプレートが残っている"
 fi
-if grep -q '委譲の条件（例外）' "$GH_START_SKILL" \
+if grep -q 'single owner' "$GH_START_SKILL" \
    && grep -q 'context isolation' "$GH_START_SKILL" \
-   && grep -q '自分で実装・テスト・修正まで完遂する' "$GH_START_SKILL"; then
+   && grep -q 'task length alone is not a reason' "$GH_START_SKILL"; then
   ok "gh-start が単一 owner 既定 + 条件付き委譲規約を持つ"
 else
   ng "gh-start の単一 owner / 条件付き委譲規約が見つからない"
+fi
+if grep -q -- '--commit' "$GH_START_SKILL" \
+   && grep -q -- '--sync' "$GH_START_SKILL" \
+   && grep -q 'mutually exclusive' "$GH_START_SKILL" \
+   && grep -q 'Default mode never commits, pushes, creates a PR, comments on GitHub' "$GH_START_SKILL"; then
+  ok "gh-start のcommit/sync権限がdefaultから分離されている"
+else
+  ng "gh-start の副作用mode分離契約が見つからない"
+fi
+if grep -q 'Never read, create, migrate, or delete `.claude/checkpoints` or `.codex/checkpoints`' "$GH_START_SKILL"; then
+  ok "gh-start はlegacy checkpointを読み書き・削除しない"
+else
+  ng "gh-start のcheckpoint廃止契約が見つからない"
+fi
+if awk -F'\t' '$1=="gh-start" && $2=="default" && $3=="allow" && $5=="deny" && $6=="deny" && $7=="deny" {found=1} END{exit !found}' \
+  "$REPO_ROOT/docs/contracts/skill-authority.tsv"; then
+  ok "authority contractがgh-start defaultをlocal write onlyに固定する"
+else
+  ng "authority contractのgh-start default行が不正"
 fi
 
 echo

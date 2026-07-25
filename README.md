@@ -10,9 +10,9 @@ AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 |---|---|---|
 | `claude/` | Claude Code 設定 source | `install/manifest.tsv` の各行が `~/.claude/` 配下へ個別 symlink |
 | `codex/` | Codex CLI 設定 source | 同上(`~/.codex/` 配下) |
-| `shared/` | エージェント横断の共有ルール正本 + `agmsg` skill source | 同上(`~/.agents/` 配下) |
+| `shared/` | エージェント横断の共有ルール・skill・reference正本 | 同上(`~/.agents/` 配下) |
 
-credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。`agmsg` の DB/run/team 状態と skill の解析結果等の生成物は XDG state(`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg/`、`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`)へ書き込まれる。
+credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。`agmsg` の DB/run/team 状態は`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg/`、明示的に`config-audit --record`した履歴等は`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`へ書き込まれる。`gh-start`は永続checkpointを作らない。
 
 ## セットアップ(新マシン)
 
@@ -53,7 +53,9 @@ Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
 
 ## 共有ルールの更新
 
-正本 `shared/rules/*.md` を編集後、`shared/bin/sync-shared-rules.sh --write` を実行して `codex/AGENTS.md` 等の消費先マーカー区間へ同期する(Claude 側は `@~/.agents/rules/*.md` を実行時 import するため同期不要)。ドリフトの検証だけ行う場合は `--check` を使う(差分があれば非ゼロ終了)。
+常時正本は`shared/rules/core-contract.md`だけで、Claudeは`CLAUDE.md`からimportし、Codexは`shared/bin/sync-shared-rules.sh --write`でmarker区間へ同期する。詳細ruleは`implementation-quality`、`git-operations`、専用skill、path-scoped ruleから必要時だけ読む。`docs/contracts/context-consumers.tsv`が全ruleのload modeとconsumerを定義する。
+
+Skillの副作用modeは`docs/contracts/skill-authority.tsv`がmachine-readableな正本である。active entrypointはmanifestから導出し、150行・8192 bytes以内、reference実在・非循環、consumer/authority整合を`validate-layout.sh`が検証する。
 
 ## エージェント追加ルール
 
@@ -61,7 +63,8 @@ Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
 2. `install/manifest.tsv` に、追跡したい設定ファイル・ディレクトリごとに `mode<TAB>source<TAB>target` 行を追加する(`mode` は `link-file` または `link-dir`。**ディレクトリ丸ごと symlink は禁止** — runtime writer の混入を防ぐため、source 側で source/runtime を分離してから追加する)
 3. ルート `.gitignore` に `<agent>/*` の default-deny + 追跡したい設定ファイルの allowlist を追加する
 4. `docs/reports/inventory-elements.tsv` に要素別11軸評価を1行追加し、`inventory-matrix.md` を同期する
-5. `./scripts/validate-layout.sh` を実行し、manifest・managed policy・inventory coverage・実行 mode を確認する
+5. rule/skill追加時はcontext consumerまたはauthority contractも更新する
+6. `./scripts/validate-layout.sh` を実行し、manifest・context budget・reference・managed policy・inventory coverage・実行 mode を確認する
 
 ## 既知の例外
 

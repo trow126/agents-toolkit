@@ -54,10 +54,10 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
-| claude-rule:code-quality | `claude/rules/code-quality.md` → `claude/rules/code-quality.md` | — | general code-quality guidance | high | partial / none | path-scoped | low / medium | validator/sync | n/a / lint/validator partial | keep |
+| claude-rule:code-quality | `claude/rules/code-quality.md` → `shared/skills/implementation-quality/SKILL.md` | — | general code-quality guidance | high | partial / implementation-quality | on demand | low / medium | skill contract + runtime discovery | n/a / lint/validator partial | merge/lazy |
 | claude-rule:markdown | `claude/rules/markdown.md` → `claude/rules/markdown.md` | — | Markdown conventions | high | partial / none | path-scoped | low / medium | validator/sync | n/a / lint/validator partial | keep |
 | claude-rule:python | `claude/rules/python.md` → `claude/rules/python.md` | — | Python conventions | high | partial / python-quality reference partial | path-scoped | low / medium | validator/sync | n/a / lint/validator partial | keep |
-| claude-rule:safety | `claude/rules/safety.md` → `claude/rules/safety.md` | — | Claude-specific safety constraints | high | partial / managed policy supplements | always-on small | low / medium | validator/sync | n/a / lint/validator partial | keep |
+| claude-rule:safety | `claude/rules/safety.md` → `claude/CLAUDE.md` | — | Claude-specific safety constraints | high | partial / core contract + managed policy | always-on small | low / medium | validator/sync | n/a / lint/validator partial | merge/core |
 | claude-rule:settings-syntax | `claude/rules/settings-syntax.md` → `claude/rules/settings-syntax.md` | — | settings syntax/scope knowledge | high | partial / validator supplements | path-scoped | low / medium | validator/sync | n/a / lint/validator partial | keep |
 | claude-rule:workflow | `claude/rules/workflow.md` → `-` | — | general workflow instructions | low | partial / shared rules overlap | always-on | low / medium | validator/sync | n/a / lint/validator partial | merge/delete |
 | claude-rule:workspace | `claude/rules/workspace.md` → `-` | — | workspace hygiene | low | partial / shared workspace-hygiene | always-on | low / medium | validator/sync | n/a / lint/validator partial | merge/delete |
@@ -88,6 +88,13 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | claude-skill:python-refactor-analysis | `claude/skills/python-refactor-analysis/SKILL.md` → `shared/skills/python-refactor-analysis/SKILL.md` | — | deterministic Python refactor analysis | high | none / none | manual-only | analysis false positive / medium | pytest suite | yes / yes: analyzer | keep |
 | claude-skill:token-efficiency | `claude/skills/token-efficiency/SKILL.md` → `-` (archive `docs/archive/skills/token-efficiency/SKILL.md`) | — | token-saving advice | low | modern model/context management / CLAUDE.md brevity guidance | manual-only | overcompression / low | archive presence | yes / no | archive |
 | claude-skill:x-article-to-markdown | `claude/skills/x-article-to-markdown/SKILL.md` → `-` (archive `docs/archive/skills/x-article-to-markdown/SKILL.md`) | — | convert X article to Markdown | low | none / none | manual-only | network/content drift / low | archive presence | yes / partial | archive |
+
+## shared-skill
+
+| id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
+|---|---|---|---|---|---|---|---|---|---|---|
+| shared-skill:git-operations | `-` → `shared/skills/git-operations/SKILL.md` | — | mode-separated generic Git operation router | high | none / dedicated gh and cleanup skills | on demand | wrong authority inference / high | authority contract + runtime discovery | yes / git checks | add/lazy |
+| shared-skill:implementation-quality | `-` → `shared/skills/implementation-quality/SKILL.md` | — | context-sensitive quality rule router | high | none / path rules and deterministic checks | on demand | missed quality gate / high | consumer contract + runtime discovery | yes / lint and tests | add/lazy |
 
 ## codex-skill
 
@@ -190,22 +197,29 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
-| shared-rule:decision-integrity | `shared/rules/decision-integrity.md` → `shared/rules/decision-integrity.md` | — | decision-integrity shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
+| shared-rule:decision-integrity | `shared/rules/decision-integrity.md` → `shared/rules/core-contract.md` | always-on | decision-integrity shared guidance | high | partial / core contract | imported or embedded | low / medium | sync + context metrics | n/a / lint/managed policy partial | merge/core |
 | shared-rule:failure-investigation | `shared/rules/failure-investigation.md` → `shared/rules/failure-investigation.md` | — | failure-investigation shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:framework-respect | `shared/rules/framework-respect.md` → `-` | — | framework-respect shared guidance | medium | partial / documented merge | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | merge into karpathy-guidelines |
 | shared-rule:git-safety | `shared/rules/git-safety.md` → `-` | — | git-safety shared guidance | medium | partial / documented merge | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | merge into git-workflow + managed policy |
 | shared-rule:git-workflow | `shared/rules/git-workflow.md` → `shared/rules/git-workflow.md` | — | git-workflow shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:issue-completeness | `shared/rules/issue-completeness.md` → `shared/rules/issue-completeness.md` | — | issue-completeness shared guidance | high | partial / none | not imported by default | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
-| shared-rule:karpathy-guidelines | `shared/rules/karpathy-guidelines.md` → `shared/rules/karpathy-guidelines.md` | — | karpathy-guidelines shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
+| shared-rule:karpathy-guidelines | `shared/rules/karpathy-guidelines.md` → `shared/rules/core-contract.md` | always-on | scoped implementation discipline | high | partial / core contract | imported or embedded | low / medium | sync + context metrics | n/a / lint/managed policy partial | merge/core |
 | shared-rule:learnings | `shared/rules/learnings.md` → `shared/rules/learnings.md` | — | learnings shared guidance | high | partial / none | not imported by default | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep/lazy |
 | shared-rule:markdown-rules | `shared/rules/markdown-rules.md` → `shared/rules/markdown-rules.md` | — | markdown-rules shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:no-fallback | `shared/rules/no-fallback.md` → `shared/rules/no-fallback.md` | — | no-fallback shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:python-guidelines | `shared/rules/python-guidelines.md` → `shared/rules/python-guidelines.md` | — | python-guidelines shared guidance | high | partial / none | not imported by default | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
-| shared-rule:quality-priority | `shared/rules/quality-priority.md` → `shared/rules/quality-priority.md` | — | quality-priority shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
+| shared-rule:quality-priority | `shared/rules/quality-priority.md` → `shared/rules/core-contract.md` | always-on | quality priority guidance | high | partial / core contract | imported or embedded | low / medium | sync + context metrics | n/a / lint/managed policy partial | merge/core |
 | shared-rule:scope-discipline | `shared/rules/scope-discipline.md` → `-` | — | scope-discipline shared guidance | medium | partial / documented merge | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | merge into decision-integrity |
 | shared-rule:self-improvement | `shared/rules/self-improvement.md` → `shared/rules/self-improvement.md` | — | self-improvement shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:test-policy | `shared/rules/test-policy.md` → `shared/rules/test-policy.md` | — | test-policy shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
 | shared-rule:workspace-hygiene | `shared/rules/workspace-hygiene.md` → `shared/rules/workspace-hygiene.md` | — | workspace-hygiene shared guidance | high | partial / none | imported or embedded as configured | low / medium | sync check + grep metrics | n/a / lint/managed policy partial | keep |
+
+## contract
+
+| id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
+|---|---|---|---|---|---|---|---|---|---|---|
+| contract:context-consumers | `-` → `docs/contracts/context-consumers.tsv` | — | context load and consumer declaration | high | none / validator parsing | change-time | stale consumer / high | validator negative fixtures | n/a / yes | add |
+| contract:skill-authority | `-` → `docs/contracts/skill-authority.tsv` | — | skill mode side-effect contract | high | none / tool approval supplements | change-time | authority drift / high | validator + workflow tests | n/a / yes | add |
 
 ## validation
 

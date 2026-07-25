@@ -1,0 +1,33 @@
+skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
+implementation-quality	default	allow	deny	deny	deny	deny	deny	scoped source and test changes only
+git-operations	default	deny	deny	deny	deny	deny	deny	status diff and inspection only
+git-operations	stage	deny	allow	deny	deny	deny	deny	stage reviewed paths only
+git-operations	branch	deny	allow	deny	deny	deny	deny	create or switch the exact feature branch
+git-operations	commit	deny	deny	allow	deny	deny	deny	commit reviewed staged changes
+git-operations	merge	allow	allow	allow	deny	deny	deny	exact local merge with rollback path
+git-operations	push	deny	deny	deny	allow	deny	deny	push the exact branch and remote
+config-audit	default	deny	deny	deny	deny	deny	deny	read-only report
+config-audit	--record	deny	allow	deny	deny	deny	deny	append one XDG history record
+knowledge-audit	default	deny	deny	deny	deny	deny	deny	in-chat report
+knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	selected project knowledge files only
+gh-index	default	deny	deny	deny	deny	deny	deny	in-chat index
+gh-index	--output	allow	deny	deny	deny	deny	deny	exact repo-local path
+gh-start	default	allow	deny	deny	deny	deny	deny	local implementation and tests
+gh-start	--commit	deny	deny	allow	deny	deny	deny	commit previously verified scoped changes
+gh-start	--sync	deny	deny	deny	deny	allow	deny	one Issue status update
+gh-pr	default	deny	deny	deny	deny	deny	deny	validate and prepare
+gh-pr	--push	deny	deny	deny	allow	deny	deny	push current feature branch
+gh-pr	--create	deny	deny	deny	deny	allow	deny	create one PR
+gh-pr	--review-comment	deny	deny	deny	deny	allow	deny	post one review comment
+gh-review	default	allow	deny	deny	deny	deny	deny	local fixes and tests
+gh-review	--commit	deny	deny	allow	deny	deny	deny	commit previously verified fixes
+gh-review	--push	deny	deny	deny	allow	deny	deny	push current branch
+gh-review	--comment	deny	deny	deny	deny	allow	deny	post or resolve one review response per approval
+gh-issue	create	deny	deny	deny	deny	allow	deny	create one Issue
+gh-issue	close	deny	deny	deny	deny	allow	deny	close one Issue
+gh-issue	retro	deny	deny	deny	deny	deny	deny	in-chat retrospective
+gh-issue	retro --apply	allow	deny	deny	deny	deny	deny	write exact project file
+agmsg	read	deny	deny	deny	deny	deny	deny	inbox history team and identity reads
+agmsg	send	deny	allow	deny	deny	deny	deny	send one local SQLite message
+agmsg	join|actas|drop|mode|reset	deny	allow	deny	deny	deny	deny	explicit identity or delivery mutation
+agmsg	spawn|despawn	deny	allow	deny	deny	deny	allow	explicitly named agent process

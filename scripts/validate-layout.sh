@@ -152,12 +152,13 @@ echo "== 4. tracked files outside manifest coverage =="
 ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md" "claude/managed-settings.json")
 ALLOWLIST_PREFIX=(
   "claude/githooks/"
-  "shared/skills/break-consensus/references/"
-  "shared/skills/gh-review/references/"
 )
 
 is_covered() {
   local f="$1" e p i m s
+  if [[ "$f" == shared/skills/*/references/* ]]; then
+    return 0
+  fi
   for e in "${ALLOWLIST_EXACT[@]}"; do
     [[ "$f" == "$e" ]] && return 0
   done
@@ -242,18 +243,82 @@ else
 fi
 
 # =========================================================================
-# 7. 未消費shared rule(SYNC_MAP または claude/CLAUDE.md import のどちらにも登場しない)
+# 7. 未消費shared rule(context consumer contractに宣言され、実consumerから参照されること)
 # =========================================================================
 echo "== 7. unconsumed shared rules =="
-SYNC_NAMES="$(sed -n "/^SYNC_MAP=\$(cat <<'EOF'\$/,/^EOF\$/p" "$SYNC_SCRIPT" | sed '1d;$d' | awk -F'\t' '{print $1}' | sort -u)"
-CLAUDE_MD_NAMES="$(grep -oE '@~/\.agents/rules/[A-Za-z0-9_-]+\.md' "$CLAUDE_MD" | sed -E 's#@~/\.agents/rules/##; s/\.md$//' | sort -u)"
+CONSUMER_CONTRACT="$REPO_ROOT/docs/contracts/context-consumers.tsv"
+CONSUMER_ERRORS="$(python3 - "$REPO_ROOT" "$CONSUMER_CONTRACT" <<'PYCONSUMERS'
+import csv
+import re
+import sys
+from pathlib import Path
 
-for rule_file in "$REPO_ROOT"/shared/rules/*.md; do
-  name="$(basename "$rule_file" .md)"
-  if ! grep -qxF "$name" <<< "$SYNC_NAMES" && ! grep -qxF "$name" <<< "$CLAUDE_MD_NAMES"; then
-    fail "shared rule not consumed by SYNC_MAP or claude/CLAUDE.md import: shared/rules/$name.md"
-  fi
-done
+root = Path(sys.argv[1])
+contract = Path(sys.argv[2])
+expected = ["rule", "load_mode", "consumer", "trigger"]
+errors: list[str] = []
+rows: list[dict[str, str]] = []
+
+if not contract.is_file():
+    errors.append("docs/contracts/context-consumers.tsv is missing")
+else:
+    with contract.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if reader.fieldnames != expected:
+            errors.append(f"context consumer header mismatch: {reader.fieldnames!r}")
+        else:
+            rows = list(reader)
+
+declared: set[str] = set()
+for line_number, row in enumerate(rows, 2):
+    rule = row["rule"].strip()
+    load_mode = row["load_mode"].strip()
+    consumer = row["consumer"].strip()
+    trigger = row["trigger"].strip()
+    if not all((rule, load_mode, consumer, trigger)):
+        errors.append(f"context consumer line {line_number}: fields cannot be empty")
+        continue
+    if load_mode not in {"always", "on-demand"}:
+        errors.append(f"context consumer line {line_number}: invalid load_mode {load_mode!r}")
+    if not (root / "shared" / "rules" / f"{rule}.md").is_file():
+        errors.append(f"context consumer line {line_number}: missing shared/rules/{rule}.md")
+    declared.add(rule)
+
+rule_names = {path.stem for path in (root / "shared" / "rules").glob("*.md")}
+for rule in sorted(rule_names - declared):
+    errors.append(f"shared rule has no context consumer declaration: {rule}")
+for rule in sorted(declared - rule_names):
+    errors.append(f"context consumer declares nonexistent rule: {rule}")
+
+search_roots = [
+    root / "claude" / "CLAUDE.md",
+    root / "codex" / "AGENTS.md",
+    root / "codex" / "references" / "python-quality.md",
+    root / "codex" / "skills",
+    root / "claude" / "rules",
+    root / "shared" / "skills",
+]
+texts: list[str] = []
+for search_root in search_roots:
+    if search_root.is_file():
+        texts.append(search_root.read_text(encoding="utf-8"))
+    elif search_root.is_dir():
+        for path in search_root.rglob("*.md"):
+            texts.append(path.read_text(encoding="utf-8"))
+combined = "\n".join(texts)
+for rule in sorted(rule_names):
+    pattern = rf"(?:shared:|rules/){re.escape(rule)}(?:\.md)?"
+    if re.search(pattern, combined) is None:
+        errors.append(f"shared rule has no resolvable active reference: {rule}")
+
+print("\n".join(errors))
+PYCONSUMERS
+)"
+if [[ -n "$CONSUMER_ERRORS" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "context consumer: $line"
+  done <<< "$CONSUMER_ERRORS"
+fi
 
 # =========================================================================
 # 8. Phase 1 inventory completeness / 11-axis audit (H-04)
@@ -548,10 +613,137 @@ if [[ -n "$SKILL_SCHEMA_ERRORS" ]]; then
 fi
 
 # =========================================================================
-# 11. stale reference(削除・改名済み要素への参照がactive treeに残っていないか)
+# 11. active skill budget・Markdown reference graph・authority contract
+# =========================================================================
+echo "== 11. skill context and authority contracts =="
+SKILL_CONTRACT_ERRORS="$(python3 - "$REPO_ROOT" "$MANIFEST" <<'PYCONTRACT'
+import csv
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest = Path(sys.argv[2])
+errors: list[str] = []
+active: dict[str, set[Path]] = defaultdict(set)
+
+with manifest.open(encoding="utf-8") as handle:
+    for line_number, raw in enumerate(handle, 1):
+        line = raw.rstrip("\n")
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 3:
+            continue
+        _mode, source, target = fields
+        source_path = root / source
+        if target in {".claude/skills", ".agents/skills"} and source_path.is_dir():
+            for skill_path in source_path.glob("*/SKILL.md"):
+                active[skill_path.parent.name].add(skill_path)
+            continue
+        match = re.fullmatch(r"\.(?:claude|agents)/skills/([^/]+)(?:/SKILL\.md)?", target)
+        if match is None:
+            continue
+        skill_path = source_path / "SKILL.md" if source_path.is_dir() else source_path
+        if not skill_path.is_file():
+            errors.append(f"manifest line {line_number}: active skill entrypoint missing: {skill_path.relative_to(root)}")
+            continue
+        active[match.group(1)].add(skill_path)
+
+all_entrypoints = sorted({path for paths in active.values() for path in paths})
+for path in all_entrypoints:
+    data = path.read_bytes()
+    lines = len(data.splitlines())
+    rel = path.relative_to(root)
+    if lines > 150:
+        errors.append(f"active skill budget: {rel} has {lines} lines > 150")
+    if len(data) > 8192:
+        errors.append(f"active skill budget: {rel} has {len(data)} bytes > 8192")
+
+markdown_files = set(all_entrypoints)
+for reference_root in (root / "shared" / "skills").glob("*/references"):
+    markdown_files.update(reference_root.rglob("*.md"))
+
+link_pattern = re.compile(r"\[[^\]]+\]\(([^)#]+\.md)(?:#[^)]+)?\)")
+graph: dict[Path, set[Path]] = defaultdict(set)
+for path in sorted(markdown_files):
+    text = path.read_text(encoding="utf-8")
+    for raw_target in link_pattern.findall(text):
+        target_text = raw_target.strip()
+        if target_text.startswith(("http://", "https://", "~/", "/")):
+            continue
+        target = (path.parent / target_text).resolve()
+        try:
+            target.relative_to(root.resolve())
+        except ValueError:
+            errors.append(f"reference escapes repository: {path.relative_to(root)} -> {target_text}")
+            continue
+        if not target.is_file():
+            errors.append(f"missing Markdown reference: {path.relative_to(root)} -> {target_text}")
+            continue
+        graph[path.resolve()].add(target)
+
+visiting: set[Path] = set()
+visited: set[Path] = set()
+
+def visit(node: Path, chain: list[Path]) -> None:
+    if node in visiting:
+        cycle = chain[chain.index(node):] + [node]
+        errors.append("reference cycle: " + " -> ".join(str(item.relative_to(root.resolve())) for item in cycle))
+        return
+    if node in visited:
+        return
+    visiting.add(node)
+    for target in graph.get(node, set()):
+        visit(target, chain + [target])
+    visiting.remove(node)
+    visited.add(node)
+
+for node in graph:
+    visit(node, [node])
+
+authority = root / "docs" / "contracts" / "skill-authority.tsv"
+expected = ["skill", "mode", "repo_write", "state_write", "commit", "push", "github_write", "delete", "notes"]
+if not authority.is_file():
+    errors.append("docs/contracts/skill-authority.tsv is missing")
+else:
+    with authority.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if reader.fieldnames != expected:
+            errors.append(f"skill authority header mismatch: {reader.fieldnames!r}")
+        else:
+            seen: set[tuple[str, str]] = set()
+            for line_number, row in enumerate(reader, 2):
+                skill = row["skill"].strip()
+                mode = row["mode"].strip()
+                key = (skill, mode)
+                if not skill or not mode or not row["notes"].strip():
+                    errors.append(f"skill authority line {line_number}: fields cannot be empty")
+                    continue
+                if key in seen:
+                    errors.append(f"skill authority line {line_number}: duplicate {skill}/{mode}")
+                seen.add(key)
+                if skill not in active:
+                    errors.append(f"skill authority line {line_number}: inactive skill {skill}")
+                for field in expected[2:8]:
+                    if row[field] not in {"allow", "deny"}:
+                        errors.append(f"skill authority line {line_number}: {field} must be allow or deny")
+
+print("\n".join(errors))
+PYCONTRACT
+)"
+if [[ -n "$SKILL_CONTRACT_ERRORS" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "skill contract: $line"
+  done <<< "$SKILL_CONTRACT_ERRORS"
+fi
+
+# =========================================================================
+# 12. stale reference(削除・改名済み要素への参照がactive treeに残っていないか)
 #     docs/・tests/・本validator自身は対象外(歴史的記述・fixture・deny-list定義のため)
 # =========================================================================
-echo "== 11. stale references in active tree =="
+echo "== 12. stale references in active tree =="
 STALE_PATTERNS=(
   "/gh:(start|pr|issue|review|index|coderabbit)"
   "skills/issue-parser"
@@ -576,11 +768,11 @@ while IFS= read -r f; do
 done < <(git ls-files)
 
 # =========================================================================
-# 12. 直接実行される script の executable bit(適合性レビュー H-02)
+# 13. 直接実行される script の executable bit(適合性レビュー H-02)
 #     CI は tests/test-*.sh を直接実行する。hook / bin / bootstrap も path 起動のため、
 #     git mode 100755 でない tracked file は配布物として壊れている(exit 126)
 # =========================================================================
-echo "== 12. executable bits on direct-execution surfaces =="
+echo "== 13. executable bits on direct-execution surfaces =="
 NONEXEC="$(git ls-files -s -- 'tests/test-*.sh' 'scripts/*.sh' 'claude/hooks/*.sh' 'shared/bin/*' 'claude/bin/*' bootstrap.sh 2>/dev/null | awk '$1 != "100755" {print $1 " " $4}' || true)"
 if [[ -n "$NONEXEC" ]]; then
   while IFS= read -r entry; do
