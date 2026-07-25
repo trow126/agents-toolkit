@@ -59,15 +59,15 @@ combined static bytes は −22.3% であるが、要件の「約30%は方向性
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 4815
-claude_md_lines: 47
+claude_md_bytes: 4486
+claude_md_lines: 45
 claude_always_rules_bytes: 2484
 claude_always_rules_lines: 27
-claude_imported_shared_bytes: 10854 (9 files)
-claude_always_on_total: 18153
-codex_agents_md_bytes: 15291
-codex_agents_md_lines: 208
-combined_always_on_total: 33444
+claude_imported_shared_bytes: 7676 (9 files)
+claude_always_on_total: 14646
+codex_agents_md_bytes: 12113
+codex_agents_md_lines: 144
+combined_always_on_total: 26759
 custom_agents: 9
 claude_skills: 14
 codex_skills: 18
@@ -102,8 +102,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 18255
-claude_session_start_injection_max_bytes: 18665
+claude_session_start_injection_typical_bytes: 14748
+claude_session_start_injection_max_bytes: 15158
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
