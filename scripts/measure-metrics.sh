@@ -122,7 +122,8 @@ measure_tree() {
     echo "ERROR: model scanner failed for $root — metrics abort (fail-closed)" >&2
     exit 1
   fi
-  echo "full_model_pins: $( (grep -c ':pin:' <<< "$scan") || true)"
+  # kind=runtime-pin(claude/settings.json の /model 書き込み)は governance pin に数えない
+  echo "full_model_pins: $( (awk -F: '$3 == "pin"' <<< "$scan" | grep -c .) || true)"
   echo "tier_aliases: $( (grep 'claude/agents/' <<< "$scan" | grep -c ':alias:') || true)"
 
   if [[ -f "$security_settings" ]] && command -v jq >/dev/null; then

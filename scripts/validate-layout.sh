@@ -415,8 +415,14 @@ if grep -q $'\tclaude/managed-settings.json\t' "$MANIFEST" 2>/dev/null; then
 fi
 
 # Full model pins use the shared structural scanner. Scanner failures are fatal.
+# claude/settings.json の model キー（kind=runtime-pin）は /model コマンドが正式に
+# 書き込む runtime 選択のため waiver 不要（可視化のため WARN のみ）。
 PIN_SCAN="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" "$REPO_ROOT" 2>&1)" || fail "model pin scan failed: $PIN_SCAN"
 while IFS=: read -r pfile pline pkind pvalue; do
+  if [[ "$pkind" == "runtime-pin" ]]; then
+    warn "$pfile:$pline: model=$pvalue (runtime-managed via /model)"
+    continue
+  fi
   [[ "$pkind" == "pin" ]] || continue
   if has_waiver "$pfile" "full-model-pin"; then
     warn "$pfile:$pline: model=$pvalue (waived)"

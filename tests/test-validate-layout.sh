@@ -199,6 +199,12 @@ run_case inventory-missing-element \
 run_case unsupported-model-syntax \
   'printf -- "---\n\"model\": opus\n---\n" > "$repo/claude/agents/bad.md"; git -C "$repo" add claude/agents/bad.md' \
   'model pin scan failed:'
+run_case runtime-model-pin-in-settings \
+  'jq ".model=\"claude-foo-9[1m]\"" "$repo/claude/settings.json" > "$repo/u"; mv "$repo/u" "$repo/claude/settings.json"' \
+  PASS
+run_case agent-full-model-pin \
+  'printf -- "---\nname: pinned\nmodel: claude-foo-1\n---\n" > "$repo/claude/agents/pinned.md"; git -C "$repo" add claude/agents/pinned.md' \
+  'dangerous setting without waiver: claude/agents/pinned.md:3: full model pin '"'"'claude-foo-1'"'"''
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then

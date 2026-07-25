@@ -55,10 +55,11 @@ printf '# CLAUDE.md fixture\n' > "$A/claude/CLAUDE.md"
 printf -- '---\nname: a\nmodel: sonnet\n---\n' > "$A/claude/agents/a.md"
 printf -- '---\nname: gh-start\n---\nownerが完遂する\n' > "$A/claude/skills/gh-start/SKILL.md"
 printf '# AGENTS.md fixture(learnings 埋め込みなし)\n' > "$A/codex/AGENTS.md"
+printf '{"model": "claude-foo-9[1m]"}\n' > "$A/claude/settings.json"
 
 out="$("$MEASURE" --repo "$A")"
 assert_metric "改名後 layout の tier alias" "$out" "tier_aliases" "1"
-assert_metric "改名後 layout の full pin" "$out" "full_model_pins" "0"
+assert_metric "改名後 layout の full pin(settings.json の /model 書き込みは runtime-pin として非計上)" "$out" "full_model_pins" "0"
 assert_metric "改名後 layout(gh-start)の無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "改名後 layout の learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"
 

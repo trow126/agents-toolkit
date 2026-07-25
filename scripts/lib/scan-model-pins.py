@@ -9,9 +9,11 @@
   - decode 不能・parse 不能も明示エラーで非ゼロ終了する。
 
 usage: scan-model-pins.py <repo-root>
-output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ（kind = pin | alias | other）
-  pin   = 完全モデル名（claude- で始まる値）
-  alias = sonnet / opus / haiku / fable / inherit / default / best
+output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ（kind = pin | runtime-pin | alias | other）
+  pin         = 完全モデル名（claude- で始まる値）
+  runtime-pin = claude/settings.json の model キーに限る完全モデル名。/model コマンドが
+                正式な挙動として完全モデル名を書き込むため、governance 上の pin とは区別する
+  alias       = sonnet / opus / haiku / fable / inherit / default / best
 exit 0（スキャン自体の失敗のみ非ゼロ）
 """
 import json
@@ -88,7 +90,12 @@ def main() -> int:
                 if re.search(r'"model"\s*:', line):
                     lineno = i
                     break
-            results.append(f"{name}:{lineno}:{classify(v)}:{v}")
+            # /model コマンドは完全モデル名をこのキーへ書き込む（ツールの正式な挙動）。
+            # ユーザーの runtime 選択であり governance 上の pin ではないため区別する。
+            kind = classify(v)
+            if kind == "pin":
+                kind = "runtime-pin"
+            results.append(f"{name}:{lineno}:{kind}:{v}")
 
     # 3. codex/*.toml（tomllib。parse 不能時は正規表現 fallback で quoted/literal string 両対応）
     for f in sorted(root.glob("codex/*.toml")):
