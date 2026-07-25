@@ -1,6 +1,6 @@
 ---
 name: ai-engineer
-description: "本番ML/DLシステムの構築・学習・デプロイ"
+description: "本番ML/DLシステムの構築・学習・デプロイ。Use when: モデル学習パイプライン・特徴量設計・ハイパーパラメータ探索・推論 API・モデルバージョニングなど ML 固有の専門実装。ML を含まない一般的なデータ処理は data-engineer または owner が行う。モデルの独立監査は model-qa-specialist を使う。"
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

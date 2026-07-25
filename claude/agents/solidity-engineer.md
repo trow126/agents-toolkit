@@ -1,6 +1,6 @@
 ---
 name: solidity-engineer
-description: "ガス最適化された安全なDeFiスマートコントラクトの開発"
+description: "ガス最適化された安全なDeFiスマートコントラクトの開発。Use when: Solidity コントラクトの新規実装・修正、フラッシュローン・DEX 統合・プロキシ設計、ガス最適化など実資金を扱う EVM 開発。セキュリティ監査（脆弱性検出・PoC）は blockchain-security-auditor を使う。"
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

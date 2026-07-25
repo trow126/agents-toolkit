@@ -1,6 +1,6 @@
 ---
 name: model-qa-specialist
-description: "MLモデルの品質・公平性・信頼性の独立監査"
+description: "MLモデルの品質・公平性・信頼性の独立監査。Use when: モデルの本番投入前検証、性能主張の独立再現、データ/ターゲットリーク・時間的汚染・サブ集団公平性のチェックが必要な場合。監査のみで実装はしない（修正は ai-engineer または owner が行う）。"
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

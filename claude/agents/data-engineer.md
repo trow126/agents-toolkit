@@ -1,6 +1,6 @@
 ---
 name: data-engineer
-description: "データパイプラインの設計・構築・運用"
+description: "データパイプラインの設計・構築・運用。Use when: ETL/ELT パイプライン設計、スキーマ移行、データ品質チェック・リネージ・データコントラクトなど、破損リスクの高いデータ基盤作業。単発のデータ変換スクリプトや小さな SQL 修正は owner が直接行う。"
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

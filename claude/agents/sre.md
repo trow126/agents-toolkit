@@ -1,6 +1,6 @@
 ---
 name: sre
-description: "本番システムの信頼性エンジニアリングと可観測性"
+description: "本番システムの信頼性エンジニアリングと可観測性。Use when: SLO/エラーバジェット設計、インシデント対応・ポストモーテム、監視・アラート・トレーシング構築、キャパシティプランニングなど本番運用の高リスク作業。一般的なアプリ実装やテスト修正には使わない（owner が直接行う）。"
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

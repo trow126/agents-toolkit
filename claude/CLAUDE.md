@@ -23,9 +23,7 @@
 
 - 決定論的 script・静的解析で処理できる作業に LLM を使わない
 - 大量の read-only 探索だけは低コスト subagent（built-in Explore 等）へ隔離し、中間結果を main context へ大量流入させない
-- ドメインスペシャリスト（solidity-engineer / blockchain-security-auditor / ai-engineer / data-engineer / model-qa-specialist / sre）は、該当ドメインの高リスク・専門作業だけに使う
-- 難しい設計判断・根本原因不明の障害・標準モデルの反復失敗時のみ `deep-reasoner`（reasoning model）へエスカレーションし、実装は標準モデルが行う
-- 独立検証が必要な場合だけ reviewer（`code-reviewer` / `plan-reviewer`）を分離する
+- ドメインスペシャリスト・reviewer・`deep-reasoner` の使い分けは各 agent の description（Use when 条件）に従う。迷ったら単一 owner 既定を優先する
 - subagent からの再委任は原則禁止。タスクのステップ数を委任基準にしない
 - 完了判定は deterministic なテスト・lint・CI で行う
 - Agent Teams / `ultracode` は experimental のため共有設定では無効。3 本以上の独立 workstream で並列化の利点が調整コストを明確に上回る大型タスクに限り、当該 machine の shell 環境変数（`export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`）で opt-in してから使う
