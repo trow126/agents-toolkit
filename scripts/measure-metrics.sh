@@ -279,7 +279,7 @@ measure_tree() {
     files=$( (grep -lE "$sig" "$root"/shared/rules/*.md 2>/dev/null || true) | wc -l)
     [[ "$files" -gt 1 ]] && dups=$((dups + 1))
   done
-  echo "duplicated_principles_greppable: $dups (of 3 signatures; +2 manual-assessed pairs documented in report)"
+  echo "duplicated_principles_greppable: $dups (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)"
 }
 
 MODE="single"

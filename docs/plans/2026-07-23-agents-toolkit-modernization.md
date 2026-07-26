@@ -90,15 +90,15 @@ custom_agents: 9
 claude_skills: 16
 codex_skills: 20
 active_skill_entrypoints: 30
-active_skill_entrypoint_bytes: 67120
+active_skill_entrypoint_bytes: 67086
 active_skill_entrypoint_max_lines: 121
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
 shared_rules_always_on_bytes: 1407
-shared_rules_on_demand_bytes: 12039
+shared_rules_on_demand_bytes: 10544
 hook_scripts: 7
 hook_registrations: 8
-shared_rules: 11
+shared_rules: 10
 claude_rules: 3
 output_styles: 4
 inventory_audited_elements: 141
@@ -131,7 +131,7 @@ claude_session_start_injection_typical_bytes: 3673
 claude_session_start_injection_max_bytes: 4083
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
-duplicated_principles_greppable: 0 (of 3 signatures; +2 manual-assessed pairs documented in report)
+duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)
 ```
 <!-- END metrics:after -->
 
