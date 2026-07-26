@@ -11,10 +11,7 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "claude-code-setup@claude-plugins-official": false,
-    "session-report@claude-plugins-official": false,
     "superpowers@claude-plugins-official": false,
-    "kaggle-skill@shepsci": false,
     "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
