@@ -177,6 +177,24 @@ cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
 JSON
 expect_fail "project auto-mode policy key is reserved for managed scope" "$GATE" --cwd "$PROJECT_ROOT"
 
+rm -f "$PROJECT_ROOT/.claude/settings.json"
+ln -s "$REPO_ROOT/claude/settings.json" "$PROJECT_ROOT/.claude/settings.json"
+expect_fail "project settings symlink is rejected" "$GATE" --cwd "$PROJECT_ROOT"
+expect_fail "Git HOME remains a project root and rejects settings symlinks" \
+  env HOME="$PROJECT_ROOT" "$GATE" --cwd "$PROJECT_ROOT"
+
+# A non-Git HOME is a user-config scope, not a project root. The bootstrap
+# manifest intentionally links ~/.claude/settings.json to the toolkit source,
+# and legacy ~/.claude/settings.local.json may also exist there.
+HOME_ROOT="$SANDBOX/home-root"
+mkdir -p "$HOME_ROOT/.claude"
+ln -s "$REPO_ROOT/claude/settings.json" "$HOME_ROOT/.claude/settings.json"
+cat > "$HOME_ROOT/.claude/settings.local.json" <<'JSON'
+{"permissions":{"allow":["Bash(ls *)"]}}
+JSON
+expect_ok "non-Git HOME does not reinterpret global settings as project settings" \
+  env HOME="$HOME_ROOT" "$GATE" --cwd "$HOME_ROOT"
+
 TARGET="$SANDBOX/managed-settings.d/20-agents-toolkit-security.json"
 expect_ok "test-mode managed policy apply" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
 expect_ok "test-mode managed policy check" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"

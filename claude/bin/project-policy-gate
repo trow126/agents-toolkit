@@ -49,8 +49,18 @@ if [[ -n "$PROJECT_ARG" || -n "$LOCAL_ARG" ]]; then
 else
   START="${CWD_ARG:-${CLAUDE_PROJECT_DIR:-$PWD}}"
   ROOT="$(find_root "$START")" || exit 1
-  LABELS+=("project" "project-local")
-  PATHS+=("$ROOT/.claude/settings.json" "$ROOT/.claude/settings.local.json")
+  HOME_ROOT=""
+  if [[ -n "${HOME:-}" ]]; then
+    HOME_ROOT="$(canonical_dir "$HOME" 2>/dev/null || true)"
+  fi
+  # When Claude starts in a non-Git HOME, ~/.claude/settings.json is the
+  # user-level config, not project config. Bootstrap intentionally links that
+  # file to the toolkit source, so treating it as a project symlink blocks every
+  # Bash call from HOME. Keep inspecting real Git roots and non-HOME directories.
+  if [[ "$ROOT" != "$HOME_ROOT" || -e "$ROOT/.git" ]]; then
+    LABELS+=("project" "project-local")
+    PATHS+=("$ROOT/.claude/settings.json" "$ROOT/.claude/settings.local.json")
+  fi
 fi
 
 FINDINGS=()
