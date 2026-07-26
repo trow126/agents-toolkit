@@ -1,10 +1,7 @@
 ## Git ワークフロー
 
 - 安全ガードレール: main/master への force-push 禁止。本番データ・データベースの削除禁止。シークレットを含む `.env` ファイルの変更禁止
-- セッション開始時に `git status` と `git branch` を確認する
-- すべての作業は feature ブランチで行い、main/master で直接作業しない
-- 明示的な依頼なしにコミットしない。依頼されたコミットは意味単位で分割する
-- ステージング前に必ず `git diff` を確認する
+- 作業は feature ブランチで行い、セッション開始時に `git status` / `git branch` で現在地を確認する
+- 明示的な依頼なしにコミットしない。依頼されたコミットは意味単位で分割し、ステージング前に `git diff` で内容を確認する
 - リスクのある操作の前にロールバック手段（コミットの提案・バックアップ）を確保する
-- Conventional Commits 形式 (fix:, feat:, docs: など) と説明的な本文を使用する
-- "fix bug"、"update code"、"changes" のような曖昧なメッセージは避ける
+- Conventional Commits 形式 (fix:, feat:, docs: など) で、変更内容を特定できる説明的なメッセージを書く

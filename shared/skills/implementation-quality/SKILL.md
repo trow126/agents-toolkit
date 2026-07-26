@@ -9,7 +9,7 @@ Use the smallest relevant rule set:
 
 | Situation | Read before acting |
 |---|---|
-| Any code implementation, fix, refactor, or review | `~/.agents/rules/test-policy.md`, `~/.agents/rules/no-fallback.md` |
+| Any code implementation, fix, refactor, or review | `~/.agents/rules/test-policy.md` |
 | The task creates files, tests, scripts, or build artifacts | `~/.agents/rules/workspace-hygiene.md` |
 | Diagnosing a failure or bug | `~/.agents/rules/failure-investigation.md` |
 | Python is in scope | `~/.codex/references/python-quality.md` in Codex; `~/.agents/rules/python-guidelines.md` in Claude Code |

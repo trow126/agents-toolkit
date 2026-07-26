@@ -1,51 +1,23 @@
 ## Python ガイドライン
 
-### uv プロジェクト
+### 実行環境
 
-- pyproject.toml があるプロジェクトでは常に `uv run python` または `uv run script.py` を使用する
-- `~/.claude/bin/uvw` は uv の可変 state を一時領域へ分離したい場合に使用する。現行 owner policy は sandbox 無効のため、素の `uv` も使用できる
-- `python` / `python3` を直接実行するのは、システム Python 自体の確認など明示的な理由がある場合のみ（理由を述べる）
-- `uv` 未導入または非 uv プロジェクトでは、まず環境を確認し、推測で bare `python` にフォールバックしない
-- 一時確認の Python 実行で `__pycache__` を残したくない場合は `PYTHONDONTWRITEBYTECODE=1` を付ける
-- `__pycache__` cleanup のために `rm -rf` を実行しない
+- pyproject.toml があるプロジェクトでは `uv run` を既定とする。bare `python` / `python3` はシステム Python 自体の確認など明示的な理由がある場合のみ使い、`uv` 未導入・非 uv プロジェクトではまず環境を確認し、推測でフォールバックしない
+- uv の可変 state を一時領域へ分離したい場合は `~/.claude/bin/uvw` を使う。現行 owner policy は sandbox 無効のため、素の `uv` も使用できる
+- 一時確認の実行では `PYTHONDONTWRITEBYTECODE=1` で `__pycache__` を残さない。`__pycache__` cleanup のために `rm -rf` を実行しない
 
-### 実装前チェックリスト
+### 品質原則
 
-1. **`__all__`**: アルファベット順にソート（RUF022）
-2. **ロギング**: f-stringではなく `%s` フォーマットを使用（G004）
-3. **例外**: `logger.exception("msg")` に `{e}` を含めない（TRY401）
-4. **型ヒント**: `__init__` に `-> None` を付与（ANN204）
-5. **日時**: `datetime.now(timezone.utc)` を使用（DTZ005）
-6. **非同期**: while/sleepを避け、Eventを使用（ASYNC110）
-7. **CancelledError**: `except Exception:` の前に `except asyncio.CancelledError: raise` 必須（asyncループ内）
-8. **Queue型**: `asyncio.Queue[dict[str, Any]]` 禁止。frozen dataclass使用
-9. **PEP 758 (Python 3.14+)**: `except A, B, C:` は括弧なしで有効。Python 2構文ではない。ruff formatは括弧を削除する
-10. **ProcessPool**: Linux fork デッドロック防止。`multiprocessing.get_context("spawn")` を明示。ワーカー内 `n_jobs=1` 強制
-11. **Docstring (複数行)**: 1行を超えたら必ず Google style の `Args:` / `Returns:` / `Raises:` セクションを付ける。1行で足りるなら無理に広げない
-12. **未使用アンパック変数**: 使わない変数には `_` プレフィックスを付ける（RUF059）
-13. **数値検証**: Inf/-Inf は dropna/isna を通過する。ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外（複数プロジェクトで再発）
-14. **引数集約**: 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する（PLR0913 対応の本筋）
-15. **抑制コメント**: `type: ignore` / `noqa` は放置せず、typed helper・Protocol 化で段階的に除去する
-16. **Any/cast 排除**: duck typing は Protocol、型の絞り込みは TypeGuard、`cast()` は `isinstance()` + 型ガードへ置換
+- ruff / mypy を通る形で書くことを既定とし、細目（import 順・logging 書式・型注釈・timezone aware datetime 等）は linter の指摘に従って解消する。抑制コメント（`type: ignore` / `noqa`）・`Any`・`cast()` は放置せず、Protocol・TypeGuard・typed helper で段階的に除去する
+- エラーを silent fallback で隠さない: `except: pass`・catch-all でのデフォルト値返却・必須設定への `dict.get(key, fallback)` は使わず、例外は明示的に処理するか伝播させて fail loudly にする。許容はオプション/装飾的な機能の、明示的なログ出力を伴う graceful degradation のみ
+- 境界値は事前判定で守る: ゼロ除算・空コレクション・空 DataFrame を先に判定する。Inf/-Inf は dropna/isna を通過するため、ランキング・集計・比較の前に `math.isfinite` / `np.isfinite` で除外する（複数プロジェクトで再発）
+- 多数引数・untyped kwargs/Namespace 展開は frozen dataclass / typed args に集約する。docstring は 1 行を超えたら Google style の `Args:` / `Returns:` / `Raises:` を付ける
 
-### 主要な型安全ガード
+### 非同期・並行の footgun
 
-```python
-# ゼロ除算
-rate = wins / total if total > 0 else 0.0
-
-# インデックス境界
-first = items[0] if items else None
-
-# 空のDataFrame
-if df.empty or df["col"].isna().all():
-    return None
-
-# MIN_CELLS パターン（テーブルパース）
-MIN_CELLS = max_index + 1
-if len(cells) < MIN_CELLS:
-    return None
-```
+- async ループでは `except Exception:` の前に `except asyncio.CancelledError: raise` を置く。ポーリングの while/sleep より Event を使う
+- ProcessPool は Linux fork デッドロック防止のため `multiprocessing.get_context("spawn")` を明示し、ワーカー内は `n_jobs=1` に制限する
+- PEP 758 (Python 3.14+): `except A, B, C:` は括弧なしで有効な現行構文であり Python 2 構文ではない。ruff format は括弧を削除する
 
 ### クイックコマンド
 

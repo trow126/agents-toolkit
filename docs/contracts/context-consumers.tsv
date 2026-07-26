@@ -7,7 +7,6 @@ git-workflow	on-demand	skill:gh-start|skill:gh-pr|skill:gh-review	GitHub develop
 issue-completeness	on-demand	skill:issue-writing	Issue body create or update
 learnings	on-demand	skill:implementation-quality	relevant recurring environment or CLI failure
 markdown-rules	on-demand	claude/rules/markdown.md|skill:implementation-quality	Markdown edit
-no-fallback	on-demand	skill:implementation-quality	code implementation fix or review
 python-guidelines	on-demand	claude/rules/python.md|codex/references/python-quality.md	Python implementation fix or review
 self-improvement	on-demand	skill:knowledge-audit	explicit knowledge audit or promotion proposal
 test-policy	on-demand	skill:implementation-quality	code implementation fix or review
