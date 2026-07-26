@@ -3,6 +3,8 @@ name: agmsg
 description: Cross-agent messaging via SQLite. Send messages between Claude Code, Codex, Gemini CLI, GitHub Copilot CLI, and other agents. No daemon, no network, no dependencies beyond bash and sqlite3.
 ---
 
+<!-- Archived: GitHub Copilot CLI is outside the agents-toolkit support contract. -->
+
 Agent messaging command. **IMPORTANT: Always use the provided scripts. NEVER directly read or edit config files, DB, or team data. There is NO register.sh — use join.sh to join a team.**
 
 ## Identity

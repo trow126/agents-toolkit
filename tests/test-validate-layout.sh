@@ -216,6 +216,9 @@ run_case invalid-authority-value \
 run_case stale-reference \
   'printf "/gh:start\n" >> "$repo/claude/rules/sample.md"' \
   'stale reference in claude/rules/sample.md'
+run_case unsupported-runtime-context-adapter \
+  'mkdir -p "$repo/shared/skills/agmsg/templates"; printf "# unsupported\n" > "$repo/shared/skills/agmsg/templates/cmd.gemini.md"; git -C "$repo" add "$repo/shared/skills/agmsg/templates/cmd.gemini.md"' \
+  'unsupported runtime context adapter is active: shared/skills/agmsg/templates/cmd.gemini.md'
 run_case non-executable-script \
   'printf "#!/usr/bin/env bash\n" > "$repo/scripts/extra.sh"; chmod 0644 "$repo/scripts/extra.sh"; git -C "$repo" add scripts/extra.sh' \
   'non-executable direct-execution script: 100644 scripts/extra.sh'

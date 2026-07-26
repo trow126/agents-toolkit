@@ -76,7 +76,8 @@ def validate_user(user: dict[str, Any], errors: list[str]) -> None:
     )
     require(
         user.get("autoMemoryEnabled") is False,
-        "user settings must set autoMemoryEnabled=false (no unmeasured native session injection)",
+        "user settings must set autoMemoryEnabled=false "
+        "(owner policy requires explicit, deterministic persistent context)",
         errors,
     )
 

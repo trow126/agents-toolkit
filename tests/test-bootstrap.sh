@@ -77,6 +77,18 @@ assert_contains() {
   fi
 }
 
+assert_not_contains() {
+  local desc="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" != *"$needle"* ]]; then
+    echo "ok: $desc"
+  else
+    echo "FAIL: $desc (expected output not to contain: $needle)" >&2
+    echo "--- actual output ---" >&2
+    echo "$haystack" >&2
+    FAILURES=$((FAILURES + 1))
+  fi
+}
+
 if [[ ! -x "$BOOTSTRAP" ]]; then
   echo "FAIL: bootstrap script not found or not executable: $BOOTSTRAP" >&2
   exit 1
@@ -481,6 +493,59 @@ out="$(run_bootstrap "$REPO12" "$HOME12" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
 assert_exit_nonzero "未管理内容を含む旧 skill directory は拒否する" "$rc"
 assert_contains "混在時は手動退避を要求する" "$out" "手動で退避してから再実行してください"
 assert_eq "拒否後も未管理内容を保持する" "SENTINEL" "$(cat "$HOME12/.agents/skills/sample-skill/user-owned")"
+
+# =========================================================================
+# 13. archive 済み Claude skill の旧 broken symlink を厳密条件でcleanup
+# =========================================================================
+REPO13="$SANDBOX/repo13"
+HOME13="$SANDBOX/home13"
+build_fixture_repo "$REPO13"
+mkdir -p "$HOME13/.claude/skills"
+STALE_NAMES=(
+  "deep-research-mode"
+  "gh:coderabbit"
+  "gh:index"
+  "gh:issue"
+  "gh:pr"
+  "gh:review"
+  "gh:start"
+  "introspect"
+  "issue-parser"
+  "issue-retrospective"
+  "issue-work-logger"
+  "progress-tracker"
+  "token-efficiency"
+  "x-article-to-markdown"
+)
+for skill_name in "${STALE_NAMES[@]}"; do
+  ln -s "$REPO13/claude/skills/$skill_name" "$HOME13/.claude/skills/$skill_name"
+done
+ln -s "$REPO13/claude/skills/unknown-archive" "$HOME13/.claude/skills/unknown-archive"
+ln -s "$SANDBOX/other-repo/claude/skills/deep-research-mode" "$HOME13/.claude/skills/other-repo"
+printf 'SENTINEL\n' > "$HOME13/.claude/skills/user-file"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --check 2>&1)" || rc=$?
+assert_exit_nonzero "旧 broken symlink があると --check は失敗する" "$rc"
+assert_contains "--check は既知のstale linkを列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.claude/skills/deep-research-mode"
+assert_not_contains "--check は未知のbroken linkをtoolkit対象とみなさない" "$out" "stale toolkit symlink: $HOME13/.claude/skills/unknown-archive"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --dry-run 2>&1)" || rc=$?
+assert_exit_zero "stale link cleanupの --dry-run は成功する" "$rc"
+assert_contains "--dry-run はunlink予定を列挙する" "$out" "would unlink stale toolkit symlink: $HOME13/.claude/skills/gh:start"
+assert_true "--dry-run は既知linkを保持する" test -L "$HOME13/.claude/skills/gh:start"
+
+out=""; rc=0
+out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
+assert_exit_zero "stale link cleanupの --apply は成功する" "$rc"
+assert_contains "--apply はunlinkを記録する" "$out" "unlinked stale toolkit symlink: $HOME13/.claude/skills/x-article-to-markdown"
+for skill_name in "${STALE_NAMES[@]}"; do
+  assert_false "既知stale linkを除去する: $skill_name" test -L "$HOME13/.claude/skills/$skill_name"
+done
+assert_true "未知のbroken linkは保持する" test -L "$HOME13/.claude/skills/unknown-archive"
+assert_true "別repoを指すbroken linkは保持する" test -L "$HOME13/.claude/skills/other-repo"
+assert_eq "通常fileは保持する" "SENTINEL" "$(cat "$HOME13/.claude/skills/user-file")"
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

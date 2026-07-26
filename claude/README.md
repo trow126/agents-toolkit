@@ -72,7 +72,8 @@ Git 操作は permission prompt なしで実行される。リポジトリの Gi
 
 ## Context 注入
 
-- native auto memory は無効
+- native auto memory は、永続contextを明示的・決定的に管理するowner policyにより無効
+- `superpowers` pluginはtoolkit skillとの重複を避けるためinstalled/disabledとし、uninstallはしない
 - 常時共有ruleは`core-contract` 1本だけ
 - test、No Fallback、Git、障害調査、learningsは`implementation-quality`、`git-operations`、専用skillから必要時に参照
 - SessionStart / PostCompact の `systemMessage` は JSON-safe helper で各512 bytes以下
@@ -88,9 +89,10 @@ for t in tests/test-*.sh; do
   env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME "$t"
 done
 ./scripts/package-release.sh --check
+./scripts/audit-context-runtime.sh
 ```
 
-static test では owner 選択の managed bypass policy、project override、XDG、hook、metrics、inventory、release mode を検証する。2026-07-24 の approval/sandbox live acceptance は当時の fail-closed policy に対する履歴であり、その後の owner override により現行 runtime には適用されない。
+static test では owner 選択の managed bypass policy、project override、XDG、hook、metrics、inventory、release mode を検証する。runtime context auditはClaude/Codexのmemory・plugin状態とskill discoveryを実CLIで検証する。2026-07-24 の approval/sandbox live acceptance は当時の fail-closed policy に対する履歴であり、その後の owner override により現行 runtime には適用されない。
 
 ## Skills
 

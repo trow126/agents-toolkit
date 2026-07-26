@@ -2,6 +2,16 @@
 
 AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 
+## 正式対応runtime
+
+| runtime | support tier | 配布・検証対象 |
+|---|---|---|
+| Claude Code | first-class | user/managed settings、rules、agents、skills、hooks、live discovery |
+| Codex CLI | first-class | user instructions、rules、skills、hooks、feature/plugin状態、live prompt discovery |
+| その他 | unsupported | context adapterを配布・検証しない |
+
+`agmsg`の内部transportは他runtime向けの互換処理を保持するが、agents-toolkitのsupport contractはClaude CodeとCodex CLIだけを対象とする。Antigravity、GitHub Copilot CLI、Gemini CLI、OpenCodeの旧context templateは履歴参照用に`docs/archive/skills/agmsg/templates/`へ移した。
+
 ## レイアウト
 
 `claude/`・`codex/`・`shared/` は **追跡対象をsourceに限定する**ディレクトリで、`~/.claude`・`~/.codex`・`~/.agents` に丸ごと symlink されることはない。`~/.claude` 等は実ディレクトリであり、`install/manifest.tsv` に列挙された個別ファイル・サブディレクトリだけが symlink される(詳細は後述のインストーラ節を参照)。repo内での開発時に生成される `.venv`・tool cache・`__pycache__` はignore済みlocal artifactとして許容するが、vendor runtime・credentials・sessions・DBは許容しない。
@@ -66,11 +76,15 @@ Skillの副作用modeは`docs/contracts/skill-authority.tsv`がmachine-readable�
 5. rule/skill追加時はcontext consumerまたはauthority contractも更新する
 6. `./scripts/validate-layout.sh` を実行し、manifest・context budget・reference・managed policy・inventory coverage・実行 mode を確認する
 
+新しいruntimeを正式対応へ追加する場合は、sourceとruntime stateの分離だけでなく、manifest配布、context consumer宣言、deterministic test、実CLIでのlive discoveryを同じ変更で追加する。transport内の分岐やarchive templateだけでは正式対応とみなさない。
+
 ## 既知の例外
 
 repo内での開発・実行により `.venv`、`.mypy_cache`、`.pytest_cache`、`.ruff_cache`、`__pycache__` が生成されることがある。これらだけをignore済みlocal開発artifactとして許容する。`scripts/validate-layout.sh` はcutover後、`claude/`・`codex/`・`shared/`配下のそれ以外のuntracked/ignored entryを違反として扱う。旧nested config候補はmigration時に削除せず、XDG stateの`agents-toolkit/migration-archive/`へ退避する。
 
 `agmsg` は同じscript sourceをCodexの `~/.agents/skills/agmsg` とClaude Codeの `~/.claude/skills/agmsg/SKILL.md` から利用する。Codex用skill本体とClaude Code用skill定義はagent typeごとに分け、runtime stateはどちらも `${XDG_STATE_HOME:-$HOME/.local/state}/agmsg` を使用する。
+
+`./scripts/audit-context-runtime.sh`は、Claude Code/Codexのmemory・plugin policy、toolkit skill link、Claudeのzero-inference discovery、Codexのmodel-visible prompt discoveryをread-onlyで確認する。vendor CLIを必要とするためCIではなくbootstrap後のlive acceptanceとして実行する。
 
 ## CI
 

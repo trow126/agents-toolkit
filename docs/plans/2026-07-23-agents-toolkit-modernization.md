@@ -10,7 +10,7 @@
 
 v9 は再レビュー指摘 **B-01 / C-02 / H-03 / H-04 / M-04 / M-05** を修正し、2026-07-24 に fail-closed policy の全 live acceptance を完了した。その後、repository owner が「完全に以前どおり: bypassPermissions に戻す」と明示したため、現行 managed policy は `bypassPermissions` 既定・confirmation 省略・sandbox 無効へ変更された。M-04/C-02 の prompt/sandbox 保護は現行 runtime には適用されず、EX-003 の owner override として管理する。過去の acceptance 証跡は履歴として保持する。
 
-v10 はClaude 5世代のprogressive disclosureへ移行した。常時共有ruleを`core-contract` 1本に限定し、詳細品質・Git・障害調査ruleをtask-triggered skillへ移した。active skill entrypointにはmanifest由来の150行・8192 bytes budget、reference graph、consumer map、side-effect authority matrixを適用した。`gh-start`の永続checkpointと、GitHub workflowの自動commit/push/deleteを廃止した。native auto memoryはowner選択どおり無効を維持する。
+v10 はClaude 5世代のprogressive disclosureへ移行した。常時共有ruleを`core-contract` 1本に限定し、詳細品質・Git・障害調査ruleをtask-triggered skillへ移した。active skill entrypointにはmanifest由来の150行・8192 bytes budget、reference graph、consumer map、side-effect authority matrixを適用した。`gh-start`の永続checkpointと、GitHub workflowの自動commit/push/deleteを廃止した。native auto memoryはEX-004のowner選択によりClaude/Codexとも無効を維持する。
 
 ## Requirements source / baseline
 
@@ -77,15 +77,15 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 2164
+claude_md_bytes: 2195
 claude_md_lines: 35
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1407 (1 files)
-claude_always_on_total: 3571
+claude_always_on_total: 3602
 codex_agents_md_bytes: 2980
 codex_agents_md_lines: 38
-combined_always_on_total: 6551
+combined_always_on_total: 6582
 custom_agents: 9
 claude_skills: 16
 codex_skills: 20
@@ -101,7 +101,7 @@ hook_registrations: 8
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 141
+inventory_audited_elements: 143
 review_progress_retrospective_mechanisms: 8
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
@@ -127,8 +127,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 3673
-claude_session_start_injection_max_bytes: 4083
+claude_session_start_injection_typical_bytes: 3704
+claude_session_start_injection_max_bytes: 4114
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)
@@ -232,7 +232,7 @@ custom XDG の waiver/accept flag を削除した。`XDG_CONFIG_HOME`, `XDG_STAT
 - SessionStart/PostCompact output: JSON-safe、各512 bytes以下
 - new behavior skill: `claude/skills/break-consensus` の1件のみ
 - Python quality guidance: `codex/references/python-quality.md`（非 skill）
-- active accepted exception: 1 (`docs/reports/accepted-exceptions.md`, EX-003)
+- active accepted exceptions: 2 (`docs/reports/accepted-exceptions.md`, EX-003 / EX-004)
 
 `break-consensus` は manual invocation、Consensus Map、Assumption Destruction、Remote Mechanism Transfer、Forced Heterogeneity、独立 novelty audit、反証可能な minimum experiment を実装する。通常の bug fix / incident / migration / simple implementation へ自動適用しない。
 

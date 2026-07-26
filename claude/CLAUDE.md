@@ -10,7 +10,7 @@
 
 - SessionStart hookが`git status`と`git branch`を最大512 bytesのsystemMessageで注入する。
 - project固有の教訓は`claudedocs/learnings.md`を関連時だけ読む。汎用CLI教訓も`~/.agents/rules/learnings.md`を関連時だけ読む。
-- native auto memoryは計測不能な常時注入を避けるため無効のまま維持する。
+- native auto memoryは、永続contextを明示的・決定的に管理するowner policyにより無効のまま維持する。
 
 ## Ownerとrouting
 

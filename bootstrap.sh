@@ -45,6 +45,26 @@ declare -a ENTRY_SRC=()
 declare -a ENTRY_TARGET=()
 declare -A SEEN_TARGETS=()
 
+# 2026-07-23 の archive 前に配布され、source removal 後も user skill
+# directory に残った toolkit-owned symlink。cleanup は broken link・既知名・
+# current repo の旧 source target が完全一致する場合だけに限定する。
+STALE_CLAUDE_SKILLS=(
+  "deep-research-mode"
+  "gh:coderabbit"
+  "gh:index"
+  "gh:issue"
+  "gh:pr"
+  "gh:review"
+  "gh:start"
+  "introspect"
+  "issue-parser"
+  "issue-retrospective"
+  "issue-work-logger"
+  "progress-tracker"
+  "token-efficiency"
+  "x-article-to-markdown"
+)
+
 # manifest 1ファイルを読み込み、検証しつつ ENTRY_* 配列へ追加する(fail-fast)
 # $1=manifest file, $2=origin (public|overlay, エラーメッセージ用), $3=source解決の基準root
 load_manifest_file() {
@@ -211,6 +231,43 @@ is_legacy_shared_skill_dir() {
   fi
 }
 
+# archive 済み Claude skill の旧 generated symlink かを厳密に判定する。
+# 実体が復元済みの link、別 repo、相対 target、通常 file/directory は対象外。
+is_stale_claude_skill_link() {
+  local target_abs="$1" skill_name="$2"
+  [[ -L "$target_abs" && ! -e "$target_abs" ]] || return 1
+  [[ "$(readlink "$target_abs")" == "$REPO_DIR/claude/skills/$skill_name" ]]
+}
+
+handle_stale_claude_skill_links() {
+  local action="$1"
+  local skill_name target_abs count=0
+
+  for skill_name in "${STALE_CLAUDE_SKILLS[@]}"; do
+    target_abs="$HOME/.claude/skills/$skill_name"
+    is_stale_claude_skill_link "$target_abs" "$skill_name" || continue
+    count=$((count + 1))
+    case "$action" in
+      check)
+        echo "DRIFT: stale toolkit symlink: $target_abs -> $(readlink "$target_abs")"
+        ;;
+      dry-run)
+        echo "would unlink stale toolkit symlink: $target_abs -> $(readlink "$target_abs")"
+        ;;
+      apply)
+        unlink "$target_abs"
+        echo "unlinked stale toolkit symlink: $target_abs"
+        ;;
+      *)
+        echo "ERROR: unknown stale-link action: $action" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  STALE_CLAUDE_SKILL_COUNT="$count"
+}
+
 # 1エントリ分の symlink 状態を検証し、apply=true なら実際に symlink を作成する
 link_entry() {
   local target_abs="$1" src_abs="$2" apply="$3"
@@ -305,6 +362,11 @@ run_apply_or_dryrun() {
   local apply="$1"
   local i
   preflight_targets
+  if [[ "$apply" == "true" ]]; then
+    handle_stale_claude_skill_links "apply"
+  else
+    handle_stale_claude_skill_links "dry-run"
+  fi
   for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
     local target="${ENTRY_TARGET[$i]}"
     link_entry "$HOME/$target" "${ENTRY_SRC[$i]}" "$apply"
@@ -337,6 +399,9 @@ run_check() {
       problems=$((problems + 1))
     fi
   done
+
+  handle_stale_claude_skill_links "check"
+  problems=$((problems + STALE_CLAUDE_SKILL_COUNT))
 
   echo
   if [[ "$problems" -eq 0 ]]; then

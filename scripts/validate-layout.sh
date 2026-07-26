@@ -768,11 +768,25 @@ while IFS= read -r f; do
 done < <(git ls-files)
 
 # =========================================================================
-# 13. 直接実行される script の executable bit(適合性レビュー H-02)
+# 13. 正式対応runtimeのcontext adapter contract
+#     agmsg transportは汎用分岐を保持するが、active context templateは
+#     Claude CodeとCodex legacy migration sourceだけに限定する。
+# =========================================================================
+echo "== 13. supported runtime context adapters =="
+while IFS= read -r f; do
+  [[ -f "$f" ]] || continue
+  case "$(basename "$f")" in
+    cmd.claude-code.md | cmd.codex.md) ;;
+    *) fail "unsupported runtime context adapter is active: $f" ;;
+  esac
+done < <(git ls-files 'shared/skills/agmsg/templates/cmd.*.md')
+
+# =========================================================================
+# 14. 直接実行される script の executable bit(適合性レビュー H-02)
 #     CI は tests/test-*.sh を直接実行する。hook / bin / bootstrap も path 起動のため、
 #     git mode 100755 でない tracked file は配布物として壊れている(exit 126)
 # =========================================================================
-echo "== 13. executable bits on direct-execution surfaces =="
+echo "== 14. executable bits on direct-execution surfaces =="
 NONEXEC="$(git ls-files -s -- 'tests/test-*.sh' 'scripts/*.sh' 'claude/hooks/*.sh' 'shared/bin/*' 'claude/bin/*' bootstrap.sh 2>/dev/null | awk '$1 != "100755" {print $1 " " $4}' || true)"
 if [[ -n "$NONEXEC" ]]; then
   while IFS= read -r entry; do
