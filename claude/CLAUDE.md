@@ -6,6 +6,8 @@
 
 詳細な品質・Git・障害調査・言語別規約は、該当taskで `implementation-quality` または `git-operations` skillから必要なものだけを読む。
 
+記事・ブログ・外部向けREADME・outreach文面など公開向け文章を書く/直すときは、初稿の前に必ず `article-style` skillを読み、その規則と公開前チェックリストに従う（2026-07-28 owner明示指示）。
+
 ## セッション初期化
 
 - SessionStart hookが`git status`と`git branch`を最大512 bytesのsystemMessageで注入する。
