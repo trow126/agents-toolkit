@@ -18,6 +18,7 @@ SECURITY_KEYS = {
     "permissions",
     "sandbox",
     "hooks",
+    "statusLine",
     "allowManagedHooksOnly",
     "allowManagedPermissionRulesOnly",
     "disableAutoMode",
@@ -91,6 +92,16 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
     require(
         managed.get("allowManagedPermissionRulesOnly") is True,
         "managed settings require allowManagedPermissionRulesOnly=true",
+        errors,
+    )
+    require(
+        managed.get("statusLine")
+        == {
+            "type": "command",
+            "command": "~/.claude/statusline.sh",
+            "padding": 0,
+        },
+        "managed settings require the audited ~/.claude/statusline.sh command",
         errors,
     )
 
@@ -234,6 +245,7 @@ def validate_lower_scope(
     for key in (
         "permissions",
         "hooks",
+        "statusLine",
         "sandbox",
         "allowManagedHooksOnly",
         "allowManagedPermissionRulesOnly",

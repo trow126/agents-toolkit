@@ -4,6 +4,11 @@
   "allowManagedPermissionRulesOnly": true,
   "disableAutoMode": "disable",
   "skipDangerousModePermissionPrompt": true,
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 0
+  },
   "permissions": {
     "allow": [
       "Agent",

@@ -21,6 +21,20 @@ cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
 
 expect_ok "current managed/user split validates" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
 
+python3 - "$USER" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d['statusLine']={'type':'command','command':'~/.claude/statusline.sh','padding':0}; json.dump(d,open(p,'w'))
+PY
+expect_fail "status line command is rejected outside managed scope" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/settings.json" "$USER"
+
+python3 - "$MANAGED" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); d.pop('statusLine',None); json.dump(d,open(p,'w'))
+PY
+expect_fail "managed status line command is required" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+
 python3 - "$MANAGED" <<'PY'
 import json,sys
 p=sys.argv[1]; d=json.load(open(p)); d['permissions']['ask']=['Bash']; json.dump(d,open(p,'w'))
@@ -176,6 +190,11 @@ cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
 {"disableAutoMode":"enable"}
 JSON
 expect_fail "project auto-mode policy key is reserved for managed scope" "$GATE" --cwd "$PROJECT_ROOT"
+
+cat > "$PROJECT_ROOT/.claude/settings.json" <<'JSON'
+{"statusLine":{"type":"command","command":"./project-statusline.sh"}}
+JSON
+expect_fail "project status line command is reserved for managed scope" "$GATE" --cwd "$PROJECT_ROOT"
 
 rm -f "$PROJECT_ROOT/.claude/settings.json"
 ln -s "$REPO_ROOT/claude/settings.json" "$PROJECT_ROOT/.claude/settings.json"

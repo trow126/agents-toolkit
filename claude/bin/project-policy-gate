@@ -91,7 +91,7 @@ for i in "${!PATHS[@]}"; do
     [[ -n "$finding" ]] && FINDINGS+=("$finding")
   done < <(jq -r --arg label "$label" '
     [
-      (["permissions","hooks","sandbox","allowManagedHooksOnly",
+      (["permissions","hooks","statusLine","sandbox","allowManagedHooksOnly",
         "allowManagedPermissionRulesOnly","allowManagedMcpServersOnly",
         "disableAllHooks","disableAutoMode","requiredMinimumVersion"][] as $k
         | select(has($k)) | ($label + "." + $k)),
