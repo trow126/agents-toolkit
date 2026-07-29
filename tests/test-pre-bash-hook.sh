@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# test-pre-bash-hook.sh — pre-bash-validate-hook の fail-closed / path-aware / amend-gate テスト
-# (2026-07-23 H-014 / H-011, 2026-07-24 quote 正規化・共起判定へ改訂)
+# test-pre-bash-hook.sh — pre-bash-validate-hook の fail-closed / lifecycle / safety-gate テスト
+# (2026-07-23 H-014 / H-011, 2026-07-24 quote 正規化、2026-07-29 Codex lifecycle 一本化)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,17 +19,17 @@ ng() {
 }
 
 run_hook_cmd() {
-  # $1: command string, $2(optional): project cwd
-  local command="$1" cwd="${2:-}"
-  if [[ -n "$cwd" ]]; then
-    jq -n --arg c "$command" --arg cwd "$cwd" \
-      '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":$cwd,"tool_input":{"command":$c}}' \
-      | "$HOOK" >/dev/null 2>&1
-  else
-    jq -n --arg c "$command" \
-      '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":$c}}' \
-      | "$HOOK" >/dev/null 2>&1
-  fi
+  # $1: command string, $2(optional): project cwd, $3(optional): agent_type
+  local command="$1" cwd="${2:-}" agent_type="${3:-}"
+  jq -n --arg c "$command" --arg cwd "$cwd" --arg agent_type "$agent_type" '
+    {
+      "hook_event_name": "PreToolUse",
+      "tool_name": "Bash",
+      "tool_input": {"command": $c}
+    }
+    + (if $cwd == "" then {} else {"cwd": $cwd} end)
+    + (if $agent_type == "" then {} else {"agent_type": $agent_type} end)
+  ' | "$HOOK" >/dev/null 2>&1
 }
 
 expect_block() {
@@ -56,6 +56,18 @@ expect_allow_in() {
   if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
 }
 
+expect_block_agent() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" || rc=$?
+  if [[ "$rc" -eq 2 ]]; then ok "$desc"; else ng "$desc (expected exit 2, got $rc)"; fi
+}
+
+expect_allow_agent() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" || rc=$?
+  if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
+}
+
 # ---- 1. fail-closed: malformed input / schema 欠落 / jq 欠落 ----
 rc=0
 printf '{' | "$HOOK" >/dev/null 2>&1 || rc=$?
@@ -68,6 +80,10 @@ if [[ "$rc" -eq 2 ]]; then ok "tool_input.command 欠落は exit 2(block)"; else
 rc=0
 printf '{"tool_input":{"command":""}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "空 command は exit 2(block)"; else ng "空 command が exit $rc"; fi
+
+rc=0
+printf '{"agent_type":null,"tool_input":{"command":"echo hello"}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]]; then ok "agent_type の不正な型は exit 2(block)"; else ng "不正 agent_type が exit $rc"; fi
 
 # jq 欠落環境の再現: PATH を最小化して bash/coreutils だけ見せる
 MINBIN="$SANDBOX/minbin"
@@ -104,7 +120,43 @@ JSON
 expect_block_in "project permission rule blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
 rm -rf "$PROJECT_ROOT"
 
-# ---- 3. .env 遮断(path-aware) ----
+# ---- 3. Codex completion lifecycle 一本化 ----
+CODEX_AGENT='codex:codex-rescue'
+COMPANION='/home/test/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs'
+expect_block_agent "codex-rescue の task --background を block" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --background --write \"implement the fix\""
+expect_block_agent "flag 順序が異なる task --background を block" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --write --background \"implement the fix\""
+expect_block_agent "quote 分割 --back\"\"ground を block" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --back\"\"ground \"implement the fix\""
+expect_block_agent "multiline command の task --background を block" "$CODEX_AGENT" \
+  $'TASK_TEXT="implement the fix"\nnode "'"$COMPANION"'" task --background "$TASK_TEXT"'
+
+expect_allow_agent "codex-rescue の foreground task は許可" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
+expect_allow_agent "codex-rescue の status は許可" "$CODEX_AGENT" \
+  "node \"$COMPANION\" status task-123"
+expect_allow_agent "codex-rescue の result は許可" "$CODEX_AGENT" \
+  "node \"$COMPANION\" result task-123"
+expect_allow_agent "別 agent の companion background は本規則の対象外" "general-purpose" \
+  "node \"$COMPANION\" task --background \"implement the fix\""
+expect_allow "main session の companion background は本規則の対象外" \
+  "node \"$COMPANION\" task --background \"implement the fix\""
+
+rc=0
+reason_output=$(
+  jq -n --arg c "node \"$COMPANION\" task --background \"implement the fix\"" \
+    --arg agent_type "$CODEX_AGENT" \
+    '{"hook_event_name":"PreToolUse","tool_name":"Bash","agent_type":$agent_type,"tool_input":{"command":$c}}' \
+    | "$HOOK" 2>&1
+) || rc=$?
+if [[ "$rc" -eq 2 && "$reason_output" == *"task から --background を外し"* ]]; then
+  ok "block 理由が foreground retry を指示する"
+else
+  ng "block 理由に foreground retry 指示がない (exit $rc): $reason_output"
+fi
+
+# ---- 4. .env 遮断(path-aware) ----
 expect_block "cat .env を block" 'cat .env'
 expect_block "nested config/.env を block" 'cat config/.env'
 expect_block "perl による nested .env open を block" 'perl -e "open(F, q{config/.env}); print <F>"'
@@ -123,7 +175,7 @@ expect_allow "無関係な command は許可" 'echo hello'
 expect_allow "scope: base64 復号 path は hook 層の対象外(下位境界なし)" 'cat "$(printf Y29uZmlnLy5lbnY= | base64 -d)"'
 expect_allow "scope: 変数連結 path は hook 層の対象外(下位境界なし)" 'a=config/.e; b=nv; cat "$a$b"'
 
-# ---- 4. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
+# ---- 5. git commit --amend gate(H-011: quote 正規化 + git/--amend 共起判定) ----
 expect_block "--amend(標準順)を block" 'git commit --amend -m x'
 expect_block "--amend(option 先行: -S)を block" 'git commit -S --amend -m x'
 expect_block "--amend(git -c 前置)を block" 'git -c user.name=x commit --amend'
@@ -140,7 +192,7 @@ expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
 expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 
-# ---- 5. 既存の危険 pattern ----
+# ---- 6. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'
 expect_block "mkfs を block" 'mkfs.ext4 /dev/sda1'
 

@@ -29,11 +29,21 @@ INPUT=$(cat) || block "failed to read hook input (fail-closed)"
 
 # JSON object であり、tool_input.command が非空文字列であることを厳格検証する。
 # matcher=Bash で起動される本 hook にとって、command を取り出せない入力は schema 違反 = block。
+# agent_type は main session では省略可能だが、存在する場合は string でなければならない。
 if ! echo "$INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
     block "hook input is not valid JSON (fail-closed)"
 fi
 if ! COMMAND=$(echo "$INPUT" | jq -er '.tool_input.command | select(type == "string" and length > 0)' 2>/dev/null); then
     block "hook input has no non-empty tool_input.command (fail-closed)"
+fi
+if ! AGENT_TYPE=$(echo "$INPUT" | jq -er '
+    if has("agent_type") then
+        .agent_type | select(type == "string")
+    else
+        ""
+    end
+' 2>/dev/null); then
+    block "hook input agent_type must be a string when present (fail-closed)"
 fi
 
 # Project/local settings are lower precedence than managed settings, but some
@@ -52,6 +62,19 @@ fi
 # quote 正規化: `--am""end` / `'.e'nv` のような quote 分割 literal を復元する。
 # \042 = double quote, \047 = single quote
 NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
+
+# codex:codex-rescue は Claude Code の Agent lifecycle を唯一の completion owner とする。
+# 内側で `codex-companion task --background` を起動すると job が Agent から detach され、
+# Codex 完了後も parent Claude へ結果が返らない。agent_type を限定した共起判定で
+# 二重 background を fail-closed にし、外側 Agent の標準 completion notification を使わせる。
+# raw command に対する heuristic なので、対象 agent 内では過剰側に倒す。
+if [[ "$AGENT_TYPE" == "codex:codex-rescue" ]]; then
+    if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
+        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)' &&
+        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])--background([^A-Za-z0-9_-]|$)'; then
+        block "codex:codex-rescue 内の二重 background を拒否した。codex-companion task から --background を外し、外側 Agent の run_in_background のみで lifecycle を管理して同じ task を再実行すること"
+    fi
+fi
 
 # Block writes to block devices
 if printf '%s' "$NORM" | grep -qE '(>|of=)\s*/dev/sd'; then
