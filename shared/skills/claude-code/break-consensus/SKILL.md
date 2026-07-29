@@ -5,7 +5,7 @@ description: Manual-only innovation exploration. Use only when the user explicit
 
 # /break-consensus
 
-Read [`../../break-consensus/references/evidence.md`](../../break-consensus/references/evidence.md).
+Read [`references/evidence.md`](references/evidence.md).
 
 1. List and freeze the consensus baseline: standard practice, the first solutions an LLM is likely to produce, and the current implementation. These are exploration exclusions, not candidates.
 2. Generate candidates through at least three distinct mechanisms: assumption inversion, transfer from a structurally different field, and a changed generation principle or objective.

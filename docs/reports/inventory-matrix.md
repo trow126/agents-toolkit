@@ -78,6 +78,7 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | claude-skill:gh:coderabbit | `claude/skills/gh:coderabbit/SKILL.md` → `-` (archive `docs/archive/skills/gh:coderabbit/SKILL.md`) | review-progress-retrospective | external PR review integration | low | none / pr-review | manual-only | external dependency drift / low | archive presence | yes / no | archive |
 | claude-skill:gh:index | `claude/skills/gh:index/SKILL.md` → `shared/skills/gh-index/SKILL.md` | — | GitHub workflow index | medium | none / none | manual-only | stale command names / low | skill schema + stale scan | yes / no | rename/keep |
 | claude-skill:gh:issue | `claude/skills/gh:issue/SKILL.md` → `shared/skills/claude-code/gh-issue/SKILL.md` | — | issue workflow | high | none / none | manual-only | external action confusion / medium | contract tests + ask rules | yes / gh CLI helper | rename/keep |
+| claude-skill:issue-writing | `-` → `codex/skills/issue-writing/SKILL.md` | — | Issue body quality dependency for Claude | high | none / Codex shares the same source | on-demand | missing dependency / medium | dependency contract + runtime discovery | yes / template validation supplements | share/install |
 | claude-skill:gh:pr | `claude/skills/gh:pr/SKILL.md` → `shared/skills/claude-code/gh-pr/SKILL.md` | — | pull-request workflow | high | none / none | manual-only | external side effect / high | ask rules + skill schema | yes / gh CLI | rename/keep |
 | claude-skill:gh:review | `claude/skills/gh:review/SKILL.md` → `shared/skills/claude-code/gh-review/SKILL.md` | review-progress-retrospective | PR review workflow | high | none / pr-review overlap limited to entrypoint | manual-only | duplicate review / low | skill schema + review contract | yes / deterministic checks first | rename/keep |
 | claude-skill:gh:start | `claude/skills/gh:start/SKILL.md` → `shared/skills/claude-code/gh-start/SKILL.md` | routing | issue start/implementation owner workflow | high | none / project-orchestrator/fast-worker removed | manual-only | handoff churn / medium | test-gh-start-contract | yes / gh-issue-fetch | rename/simplify |
@@ -93,6 +94,17 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | claude-skill:python-refactor-analysis | `claude/skills/python-refactor-analysis/SKILL.md` → `shared/skills/python-refactor-analysis/SKILL.md` | — | deterministic Python refactor analysis | high | none / none | manual-only | analysis false positive / medium | pytest suite | yes / yes: analyzer | keep |
 | claude-skill:token-efficiency | `claude/skills/token-efficiency/SKILL.md` → `-` (archive `docs/archive/skills/token-efficiency/SKILL.md`) | — | token-saving advice | low | modern model/context management / CLAUDE.md brevity guidance | manual-only | overcompression / low | archive presence | yes / no | archive |
 | claude-skill:x-article-to-markdown | `claude/skills/x-article-to-markdown/SKILL.md` → `-` (archive `docs/archive/skills/x-article-to-markdown/SKILL.md`) | — | convert X article to Markdown | low | none / none | manual-only | network/content drift / low | archive presence | yes / partial | archive |
+
+## claude-skill-resource
+
+| id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
+|---|---|---|---|---|---|---|---|---|---|---|
+| resource:claude-break-consensus-references | `-` → `shared/skills/claude-code/break-consensus/references` | — | package-local evidence reference link | high | none / canonical shared reference | on-demand | stale link / medium | validator + runtime audit | n/a / yes | add |
+| resource:claude-config-audit-references | `-` → `shared/skills/claude-code/config-audit/references` | — | package-local audit workflow reference link | high | none / canonical shared reference | on-demand | stale link / medium | validator + runtime audit | n/a / yes | add |
+| resource:claude-gh-issue-references | `-` → `shared/skills/claude-code/gh-issue/references` | — | package-local Issue workflow reference link | high | none / canonical shared reference | on-demand | stale link / high | validator + runtime audit | n/a / yes | add |
+| resource:claude-gh-pr-references | `-` → `shared/skills/claude-code/gh-pr/references` | — | package-local PR workflow reference link | high | none / canonical shared reference | on-demand | stale link / high | validator + runtime audit | n/a / yes | add |
+| resource:claude-gh-review-references | `-` → `shared/skills/claude-code/gh-review/references` | — | package-local review workflow reference link | high | none / canonical shared reference | on-demand | stale link / high | validator + runtime audit | n/a / yes | add |
+| resource:claude-gh-start-references | `-` → `shared/skills/claude-code/gh-start/references` | — | package-local implementation workflow reference link | high | none / canonical shared reference | on-demand | stale link / high | validator + runtime audit | n/a / yes | add |
 
 ## shared-skill
 
@@ -225,6 +237,7 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
 | contract:context-consumers | `-` → `docs/contracts/context-consumers.tsv` | — | context load and consumer declaration | high | none / validator parsing | change-time | stale consumer / high | validator negative fixtures | n/a / yes | add |
+| contract:skill-dependencies | `-` → `docs/contracts/skill-dependencies.tsv` | — | cross-skill runtime dependency contract | high | none / manifest discovery | change-time | missing runtime dependency / high | validator negative fixtures | n/a / yes | add |
 | contract:skill-authority | `-` → `docs/contracts/skill-authority.tsv` | — | skill mode side-effect contract | high | none / tool approval supplements | change-time | authority drift / high | validator + workflow tests | n/a / yes | add |
 
 ## validation

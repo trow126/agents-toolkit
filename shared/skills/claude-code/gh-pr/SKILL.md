@@ -6,7 +6,7 @@ argument-hint: "[base-branch] [--push|--create|--review-comment]"
 
 # /gh-pr
 
-Read [`../../gh-pr/references/workflow.md`](../../gh-pr/references/workflow.md) and `~/.agents/rules/git-workflow.md`.
+Read [`references/workflow.md`](references/workflow.md) and `~/.agents/rules/git-workflow.md`.
 
 ## Modes
 

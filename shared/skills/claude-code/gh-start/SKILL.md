@@ -6,7 +6,7 @@ argument-hint: "<issue-number> [--commit|--sync]"
 
 # /gh-start
 
-Read [`../../gh-start/references/workflow.md`](../../gh-start/references/workflow.md) and `~/.agents/rules/git-workflow.md`.
+Read [`references/workflow.md`](references/workflow.md) and `~/.agents/rules/git-workflow.md`.
 
 ## Modes
 

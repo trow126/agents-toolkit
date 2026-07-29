@@ -718,6 +718,7 @@ fi
 echo "== 11. skill context and authority contracts =="
 SKILL_CONTRACT_ERRORS="$(python3 - "$REPO_ROOT" "$MANIFEST" <<'PYCONTRACT'
 import csv
+import os
 import re
 import sys
 from collections import defaultdict
@@ -727,6 +728,8 @@ root = Path(sys.argv[1])
 manifest = Path(sys.argv[2])
 errors: list[str] = []
 active: dict[str, set[Path]] = defaultdict(set)
+active_by_runtime: dict[str, set[str]] = defaultdict(set)
+active_packages: dict[Path, list[tuple[str, Path]]] = defaultdict(list)
 
 with manifest.open(encoding="utf-8") as handle:
     for line_number, raw in enumerate(handle, 1):
@@ -739,17 +742,25 @@ with manifest.open(encoding="utf-8") as handle:
         _mode, source, target = fields
         source_path = root / source
         if target in {".claude/skills", ".agents/skills"} and source_path.is_dir():
+            runtime = "claude" if target == ".claude/skills" else "codex"
             for skill_path in source_path.glob("*/SKILL.md"):
-                active[skill_path.parent.name].add(skill_path)
+                skill_name = skill_path.parent.name
+                active[skill_name].add(skill_path)
+                active_by_runtime[runtime].add(skill_name)
+                active_packages[skill_path.resolve()].append((runtime, skill_path.parent))
             continue
-        match = re.fullmatch(r"\.(?:claude|agents)/skills/([^/]+)(?:/SKILL\.md)?", target)
+        match = re.fullmatch(r"\.(claude|agents)/skills/([^/]+)(?:/SKILL\.md)?", target)
         if match is None:
             continue
         skill_path = source_path / "SKILL.md" if source_path.is_dir() else source_path
         if not skill_path.is_file():
             errors.append(f"manifest line {line_number}: active skill entrypoint missing: {skill_path.relative_to(root)}")
             continue
-        active[match.group(1)].add(skill_path)
+        runtime = "claude" if match.group(1) == "claude" else "codex"
+        skill_name = match.group(2)
+        active[skill_name].add(skill_path)
+        active_by_runtime[runtime].add(skill_name)
+        active_packages[skill_path.resolve()].append((runtime, skill_path.parent))
 
 all_entrypoints = sorted({path for paths in active.values() for path in paths})
 for path in all_entrypoints:
@@ -773,6 +784,17 @@ for path in sorted(markdown_files):
         target_text = raw_target.strip()
         if target_text.startswith(("http://", "https://", "~/", "/")):
             continue
+        for runtime, package_root in active_packages.get(path.resolve(), []):
+            if runtime != "claude":
+                continue
+            lexical_target = Path(os.path.normpath(path.parent / target_text))
+            try:
+                lexical_target.relative_to(package_root)
+            except ValueError:
+                errors.append(
+                    f"Claude skill reference escapes package: "
+                    f"{path.relative_to(root)} -> {target_text}"
+                )
         target = (path.parent / target_text).resolve()
         try:
             target.relative_to(root.resolve())
@@ -802,6 +824,52 @@ def visit(node: Path, chain: list[Path]) -> None:
 
 for node in graph:
     visit(node, [node])
+
+dependencies = root / "docs" / "contracts" / "skill-dependencies.tsv"
+dependency_fields = ["runtime", "skill", "dependency", "trigger"]
+if not dependencies.is_file():
+    errors.append("docs/contracts/skill-dependencies.tsv is missing")
+else:
+    with dependencies.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if reader.fieldnames != dependency_fields:
+            errors.append(f"skill dependency header mismatch: {reader.fieldnames!r}")
+        else:
+            seen_dependencies: set[tuple[str, str, str]] = set()
+            for line_number, row in enumerate(reader, 2):
+                runtime = row["runtime"].strip()
+                skill = row["skill"].strip()
+                dependency = row["dependency"].strip()
+                trigger = row["trigger"].strip()
+                key = (runtime, skill, dependency)
+                if not all((runtime, skill, dependency, trigger)):
+                    errors.append(f"skill dependency line {line_number}: fields cannot be empty")
+                    continue
+                if runtime not in {"claude", "codex"}:
+                    errors.append(
+                        f"skill dependency line {line_number}: invalid runtime {runtime!r}"
+                    )
+                    continue
+                if key in seen_dependencies:
+                    errors.append(
+                        f"skill dependency line {line_number}: duplicate "
+                        f"{runtime}/{skill}/{dependency}"
+                    )
+                seen_dependencies.add(key)
+                if skill == dependency:
+                    errors.append(
+                        f"skill dependency line {line_number}: self dependency {skill}"
+                    )
+                if skill not in active_by_runtime[runtime]:
+                    errors.append(
+                        f"skill dependency line {line_number}: inactive consumer "
+                        f"{runtime}/{skill}"
+                    )
+                if dependency not in active_by_runtime[runtime]:
+                    errors.append(
+                        f"skill dependency line {line_number}: missing dependency "
+                        f"{runtime}/{skill} -> {dependency}"
+                    )
 
 authority = root / "docs" / "contracts" / "skill-authority.tsv"
 expected = ["skill", "mode", "repo_write", "state_write", "commit", "push", "github_write", "delete", "notes"]

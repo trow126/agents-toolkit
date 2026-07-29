@@ -1,0 +1,3 @@
+runtime	skill	dependency	trigger
+claude	gh-issue	issue-writing	create or body update
+codex	gh-issue	issue-writing	create or body update

@@ -88,10 +88,10 @@ codex_agents_md_lines: 45
 combined_always_on_total: 7865
 custom_agents: 10
 codex_custom_agents: 4
-claude_skills: 17
+claude_skills: 18
 codex_skills: 21
 active_skill_entrypoints: 31
-active_skill_entrypoint_bytes: 72964
+active_skill_entrypoint_bytes: 72766
 active_skill_entrypoint_max_lines: 121
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
@@ -102,7 +102,7 @@ hook_registrations: 8
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 149
+inventory_audited_elements: 157
 review_progress_retrospective_mechanisms: 10
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
@@ -138,7 +138,7 @@ duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resol
 
 ## Phase 1 inventory / H-04
 
-Canonical source: `docs/reports/inventory-elements.tsv`（149 unique rows）
+Canonical source: `docs/reports/inventory-elements.tsv`（157 unique rows）
 Rendered review: `docs/reports/inventory-matrix.md`
 
 各行は以下の11軸を持つ。

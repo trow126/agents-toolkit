@@ -20,7 +20,7 @@ build_fixture() {
   local repo="$1"
   mkdir -p \
     "$repo/install" "$repo/scripts/lib" \
-    "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/skills/sample-skill" "$repo/claude/githooks" \
+    "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/skills/sample-skill/references" "$repo/claude/githooks" \
     "$repo/codex/agents" "$repo/shared/bin" "$repo/shared/rules" \
     "$repo/docs/contracts" "$repo/docs/waivers" "$repo/docs/requirements" "$repo/docs/reports" "$repo/tests"
 
@@ -58,7 +58,10 @@ description: Fixture skill.
 allowed-tools: Read Grep
 ---
 # Sample
+
+[Workflow](references/workflow.md)
 SKILL
+  printf '# workflow\n' > "$repo/claude/skills/sample-skill/references/workflow.md"
   cat > "$repo/codex/AGENTS.md" <<'CODEX'
 # fixture
 <!-- BEGIN shared:rule-b -->
@@ -89,6 +92,9 @@ rule	load_mode	consumer	trigger
 rule-a	always	claude/CLAUDE.md	all tasks
 rule-b	always	codex/AGENTS.md	all tasks
 CONSUMERS
+  cat > "$repo/docs/contracts/skill-dependencies.tsv" <<'DEPENDENCIES'
+runtime	skill	dependency	trigger
+DEPENDENCIES
   cat > "$repo/docs/contracts/skill-authority.tsv" <<'AUTHORITY'
 skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
 sample-skill	default	deny	deny	deny	deny	deny	deny	fixture read
@@ -222,6 +228,18 @@ run_case active-skill-line-budget \
 run_case missing-skill-reference \
   'printf "\n[missing](references/missing.md)\n" >> "$repo/claude/skills/sample-skill/SKILL.md"' \
   'missing Markdown reference: claude/skills/sample-skill/SKILL.md -> references/missing.md'
+run_case claude-skill-reference-escapes-package \
+  'printf "\n[external](../../README.md)\n" >> "$repo/claude/skills/sample-skill/SKILL.md"' \
+  'Claude skill reference escapes package: claude/skills/sample-skill/SKILL.md -> ../../README.md'
+run_case valid-skill-dependency \
+  'mkdir -p "$repo/claude/skills/dependency"; printf "%s\n" "---" "name: dependency" "description: Fixture dependency." "---" "# Dependency" > "$repo/claude/skills/dependency/SKILL.md"; printf "claude\tsample-skill\tdependency\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"; git -C "$repo" add claude/skills/dependency/SKILL.md docs/contracts/skill-dependencies.tsv' \
+  PASS
+run_case missing-skill-dependency \
+  'printf "claude\tsample-skill\tmissing\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"' \
+  'missing dependency claude/sample-skill -> missing'
+run_case invalid-skill-dependency-runtime \
+  'printf "unknown\tsample-skill\tmissing\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"' \
+  "invalid runtime 'unknown'"
 run_case missing-consumer-declaration \
   'sed -i "/^rule-b\t/d" "$repo/docs/contracts/context-consumers.tsv"' \
   'shared rule has no context consumer declaration: rule-b'

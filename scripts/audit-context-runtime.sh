@@ -24,7 +24,7 @@ require_command() {
   exit 1
 }
 
-for command_name in claude codex jq; do
+for command_name in claude codex jq python3; do
   require_command "$command_name"
 done
 if [[ ! -f "$MANIFEST" ]]; then
@@ -108,6 +108,81 @@ while IFS= read -r link_path; do
 done < <(find "$HOME/.claude/skills" -maxdepth 2 -type l ! -exec test -e {} \; -print 2>/dev/null || true)
 if [[ "$stale_links" -eq 0 ]]; then
   pass "no broken toolkit symlinks remain under ~/.claude/skills"
+fi
+
+claude_resource_errors="$(
+  PYTHONDONTWRITEBYTECODE=1 python3 - "$REPO_DIR" "$MANIFEST" "$HOME" <<'PY'
+import os
+import re
+import sys
+from pathlib import Path
+
+repo = Path(sys.argv[1])
+manifest = Path(sys.argv[2])
+home = Path(sys.argv[3])
+link_pattern = re.compile(r"\[[^\]]+\]\(([^)#]+\.md)(?:#[^)]+)?\)")
+errors: list[str] = []
+
+
+def check_skill(skill_name: str, source_skill: Path, installed_skill: Path) -> None:
+    if not source_skill.is_file():
+        errors.append(f"{skill_name}: source entrypoint missing: {source_skill}")
+        return
+    if not installed_skill.is_file():
+        errors.append(f"{skill_name}: installed entrypoint missing: {installed_skill}")
+        return
+    text = source_skill.read_text(encoding="utf-8")
+    for raw_target in link_pattern.findall(text):
+        target_text = raw_target.strip()
+        if target_text.startswith(("http://", "https://", "~/", "/")):
+            continue
+        logical_target = Path(os.path.normpath(installed_skill.parent / target_text))
+        if not logical_target.is_file():
+            errors.append(
+                f"{skill_name}: installed Markdown reference missing: "
+                f"{target_text} -> {logical_target}"
+            )
+
+
+with manifest.open(encoding="utf-8") as handle:
+    for raw in handle:
+        line = raw.rstrip("\n")
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 3:
+            continue
+        _mode, source, target = fields
+        source_path = repo / source
+        if target == ".claude/skills" and source_path.is_dir():
+            for source_skill in sorted(source_path.glob("*/SKILL.md")):
+                skill_name = source_skill.parent.name
+                check_skill(
+                    skill_name,
+                    source_skill,
+                    home / ".claude" / "skills" / skill_name / "SKILL.md",
+                )
+            continue
+        match = re.fullmatch(r"\.claude/skills/([^/]+)(?:/SKILL\.md)?", target)
+        if match is None:
+            continue
+        skill_name = match.group(1)
+        source_skill = source_path / "SKILL.md" if source_path.is_dir() else source_path
+        installed_path = home / target
+        installed_skill = (
+            installed_path if target.endswith("/SKILL.md") else installed_path / "SKILL.md"
+        )
+        check_skill(skill_name, source_skill, installed_skill)
+
+print("\n".join(errors))
+PY
+)"
+if [[ -n "$claude_resource_errors" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "Claude skill package: $line"
+  done <<< "$claude_resource_errors"
+else
+  pass "Claude installed skill entrypoints and Markdown references are readable"
 fi
 
 claude_debug="$(mktemp)"

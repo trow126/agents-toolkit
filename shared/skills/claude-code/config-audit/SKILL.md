@@ -6,7 +6,7 @@ argument-hint: "[--record]"
 
 # /config-audit
 
-Read [`../../config-audit/references/workflow.md`](../../config-audit/references/workflow.md).
+Read [`references/workflow.md`](references/workflow.md).
 
 ## Authority
 

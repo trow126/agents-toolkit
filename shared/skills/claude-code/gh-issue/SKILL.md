@@ -6,7 +6,7 @@ argument-hint: "create <body-file> | close <number> | retro <number> [--apply <p
 
 # /gh-issue
 
-Read [`../../gh-issue/references/workflow.md`](../../gh-issue/references/workflow.md). For create or body updates, also use the installed `issue-writing` skill.
+Read [`references/workflow.md`](references/workflow.md). For create or body updates, also use the installed `issue-writing` skill.
 
 - `create <body-file>` validates and creates one Issue.
 - `close <number>` verifies close criteria and closes one Issue.

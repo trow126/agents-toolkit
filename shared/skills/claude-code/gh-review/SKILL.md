@@ -6,7 +6,7 @@ argument-hint: "<pr-number> [--commit|--push|--comment]"
 
 # /gh-review
 
-Read [`../../gh-review/references/workflow.md`](../../gh-review/references/workflow.md) and `~/.agents/rules/git-workflow.md`.
+Read [`references/workflow.md`](references/workflow.md) and `~/.agents/rules/git-workflow.md`.
 
 ## Modes
 

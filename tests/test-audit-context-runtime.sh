@@ -43,13 +43,14 @@ STUB_BIN="$SANDBOX/bin"
 mkdir -p \
   "$FIXTURE_REPO/install" \
   "$FIXTURE_REPO/claude" \
-  "$FIXTURE_REPO/shared/skills/claude-sample" \
+  "$FIXTURE_REPO/shared/skills/claude-sample/references" \
   "$FIXTURE_REPO/shared/skills/codex-sample" \
   "$FIXTURE_HOME/.claude/skills" \
   "$FIXTURE_HOME/.agents/skills" \
   "$STUB_BIN"
 printf '{"autoMemoryEnabled":false}\n' > "$FIXTURE_REPO/claude/settings.json"
-printf '%s\n' '# Claude fixture' > "$FIXTURE_REPO/shared/skills/claude-sample/SKILL.md"
+printf '%s\n' '# Claude fixture' '' '[Workflow](references/workflow.md)' > "$FIXTURE_REPO/shared/skills/claude-sample/SKILL.md"
+printf '%s\n' '# Workflow fixture' > "$FIXTURE_REPO/shared/skills/claude-sample/references/workflow.md"
 printf '%s\n' '# Codex fixture' > "$FIXTURE_REPO/shared/skills/codex-sample/SKILL.md"
 printf 'link-dir\tshared/skills/claude-sample\t.claude/skills/claude-sample\n' > "$FIXTURE_REPO/install/manifest.tsv"
 printf 'link-dir\tshared/skills/codex-sample\t.agents/skills/codex-sample\n' >> "$FIXTURE_REPO/install/manifest.tsv"
@@ -115,6 +116,13 @@ out=""; rc=0
 out="$(STUB_CLAUDE_SUPERPOWERS=on run_audit 2>&1)" || rc=$?
 assert_exit_nonzero "Claude superpowers有効時は失敗する" "$rc"
 assert_contains "superpowers違反を明示する" "$out" "FAIL: Claude superpowers plugin is missing or enabled"
+
+unlink "$FIXTURE_REPO/shared/skills/claude-sample/references/workflow.md"
+out=""; rc=0
+out="$(run_audit 2>&1)" || rc=$?
+assert_exit_nonzero "Claude supporting file欠落時は失敗する" "$rc"
+assert_contains "欠落したinstalled参照を明示する" "$out" "installed Markdown reference missing:"
+printf '%s\n' '# Workflow fixture' > "$FIXTURE_REPO/shared/skills/claude-sample/references/workflow.md"
 
 ln -s "$FIXTURE_REPO/claude/skills/deep-research-mode" "$FIXTURE_HOME/.claude/skills/deep-research-mode"
 out=""; rc=0
