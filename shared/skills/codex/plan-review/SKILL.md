@@ -5,7 +5,7 @@ description: "Use when an implementation plan needs review before execution（�
 
 # 実行前計画レビュー
 
-実装計画を、独立コンテキストの `codex exec` 呼び出し 1 回で監査する（実現可能性・完全性・スコープ&リスクの 3 観点を 1 回で網羅）。Codex には Claude の `plan-reviewer` のような named subagent のレジストリがないため、レビュー観点は呼び出しごとにプロンプトへ明示する。
+実装計画を、read-only custom agent `plan_reviewer` 1体で監査する（実現可能性・完全性・スコープ&リスクの3観点を1回で網羅）。agentが利用できない場合はgeneric agentへsilent fallbackせず、`~/.codex/agents/plan_reviewer.toml`のinstall状態を報告する。
 
 ## Arguments
 
@@ -28,7 +28,7 @@ $ARGUMENTS
 
 ### Step 3: 独立コンテキストでレビューを実行
 
-`codex exec`(read-only 相当のタスクとして)を 1 回起動し、以下のレビュー観点をプロンプトに明示する。プロンプトには**計画の全文**（要約・省略禁止）と Step 2 のコンテキストを含める。別セッションモードでは「参照ファイル・依存の実在をコードベースで検証すること」を明示する。**計画の書き換えや実装はさせない。**
+native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起動し、以下のレビュー観点をプロンプトに明示する。per-spawn modelは指定せず、agent fileの`gpt-5.6-sol`/`high`を使う。プロンプトには**計画の全文**（要約・省略禁止）とStep 2のコンテキストを含める。別セッションモードでは「参照ファイル・依存の実在をコードベースで検証すること」を明示する。**計画の書き換えや実装はさせない。**
 
 ```
 ## 観点 1: 実現可能性（Feasibility）

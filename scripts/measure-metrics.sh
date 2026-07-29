@@ -177,6 +177,7 @@ measure_tree() {
   echo "combined_always_on_total: $((claude_total + agents_md))"
 
   echo "custom_agents: $(find "$root/claude/agents" -maxdepth 1 -name '*.md' 2>/dev/null | wc -l)"
+  echo "codex_custom_agents: $(find "$root/codex/agents" -maxdepth 1 -name '*.toml' 2>/dev/null | wc -l)"
   echo "claude_skills: $(installed_skill_count "$root" .claude)"
   echo "codex_skills: $(installed_skill_count "$root" .agents)"
   active_skill_metrics "$root"

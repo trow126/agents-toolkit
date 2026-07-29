@@ -21,7 +21,7 @@ build_fixture() {
   mkdir -p \
     "$repo/install" "$repo/scripts/lib" \
     "$repo/claude/rules" "$repo/claude/agents" "$repo/claude/skills/sample-skill" "$repo/claude/githooks" \
-    "$repo/codex" "$repo/shared/bin" "$repo/shared/rules" \
+    "$repo/codex/agents" "$repo/shared/bin" "$repo/shared/rules" \
     "$repo/docs/contracts" "$repo/docs/waivers" "$repo/docs/requirements" "$repo/docs/reports" "$repo/tests"
 
   cp "$VALIDATE" "$repo/scripts/validate-layout.sh"
@@ -38,6 +38,7 @@ link-file	claude/CLAUDE.md	.claude/CLAUDE.md
 link-dir	claude/rules	.claude/rules
 link-dir	claude/agents	.claude/agents
 link-dir	claude/skills	.claude/skills
+link-dir	codex/agents	.codex/agents
 link-file	codex/AGENTS.md	.codex/AGENTS.md
 link-dir	shared/rules	.agents/rules
 link-dir	shared/bin	.agents/bin
@@ -64,6 +65,14 @@ SKILL
 # synchronized
 <!-- END shared:rule-b -->
 CODEX
+  cat > "$repo/codex/agents/sample.toml" <<'AGENT'
+name = "sample"
+description = "Fixture agent."
+developer_instructions = "Inspect the fixture."
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+sandbox_mode = "read-only"
+AGENT
 
   cat > "$repo/shared/bin/sync-shared-rules.sh" <<'SYNC'
 #!/usr/bin/env bash
@@ -101,7 +110,7 @@ from pathlib import Path
 root=Path(sys.argv[1])
 fields=["id","category","before_path","after_path","archive_path","tags","purpose","needed","builtin_alternative","overlap","context_load","false_positive","failure_impact","verification","low_cost_model","deterministic_replacement","disposition","evidence"]
 paths=[]
-for base in ["scripts","tests","claude/bin","claude/hooks","claude/scripts","claude/githooks",".github/workflows","install"]:
+for base in ["scripts","tests","claude/bin","claude/hooks","claude/scripts","claude/githooks","codex/agents",".github/workflows","install"]:
     d=root/base
     if not d.exists(): continue
     for dirpath, _, files in os.walk(d):
@@ -147,6 +156,12 @@ run_case() {
 }
 
 run_case valid ':' PASS
+run_case inventory-declared-untracked-source \
+  'git -C "$repo" rm --cached -q codex/agents/sample.toml' \
+  PASS
+run_case untracked-agent-artifact \
+  'printf "%s\n" "name = \"rogue\"" > "$repo/codex/agents/rogue.toml"' \
+  'unapproved local artifact under source tree: codex/agents/rogue.toml'
 run_case forbidden-runtime \
   'printf "{}\n" > "$repo/shared/bin/history.jsonl"; git -C "$repo" add shared/bin/history.jsonl' \
   'forbidden runtime name tracked: shared/bin/history.jsonl'
@@ -234,6 +249,21 @@ run_case runtime-model-pin-in-settings \
 run_case agent-full-model-pin \
   'printf -- "---\nname: pinned\nmodel: claude-foo-1\n---\n" > "$repo/claude/agents/pinned.md"; git -C "$repo" add claude/agents/pinned.md' \
   'dangerous setting without waiver: claude/agents/pinned.md:3: full model pin '"'"'claude-foo-1'"'"''
+run_case codex-agent-invalid-toml \
+  'printf "%s\n" "name = \"broken" > "$repo/codex/agents/broken.toml"; git -C "$repo" add codex/agents/broken.toml' \
+  'Codex agent schema: codex/agents/broken.toml: invalid TOML'
+run_case codex-agent-missing-field \
+  'sed -i -e "/^description =/d" -e "/^developer_instructions =/d" "$repo/codex/agents/sample.toml"' \
+  'Codex agent schema: codex/agents/sample.toml: description must be a non-empty string'
+run_case codex-agent-duplicate-name \
+  'cp "$repo/codex/agents/sample.toml" "$repo/codex/agents/duplicate.toml"; git -C "$repo" add codex/agents/duplicate.toml' \
+  "duplicate name 'sample'"
+run_case codex-agent-invalid-effort \
+  'sed -i "s/medium/extreme/" "$repo/codex/agents/sample.toml"' \
+  'model_reasoning_effort must be one of'
+run_case codex-agent-route-drift \
+  'cp "$repo/codex/agents/sample.toml" "$repo/codex/agents/explorer.toml"; sed -i -e "s/sample/explorer/" -e "s/gpt-5.6-terra/gpt-5.6-sol/" "$repo/codex/agents/explorer.toml"; git -C "$repo" add codex/agents/explorer.toml' \
+  'managed route must be model=gpt-5.6-terra, effort=medium, sandbox=read-only'
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then

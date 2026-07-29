@@ -1,4 +1,5 @@
 skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
+article-style	default	deny	deny	deny	deny	deny	deny	public prose guidance only
 implementation-quality	default	allow	deny	deny	deny	deny	deny	scoped source and test changes only
 git-operations	default	deny	deny	deny	deny	deny	deny	status diff and inspection only
 git-operations	stage	deny	allow	deny	deny	deny	deny	stage reviewed paths only

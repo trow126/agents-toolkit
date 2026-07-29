@@ -11,6 +11,8 @@ link-file	claude/.claudeignore	.claude/.claudeignore
 link-dir	claude/rules	.claude/rules
 link-dir	claude/agents	.claude/agents
 link-dir	claude/hooks	.claude/hooks
+link-dir	shared/skills/article-style	.claude/skills/article-style
+link-dir	shared/skills/article-style	.agents/skills/article-style
 link-dir	shared/skills/branch-cleanup	.claude/skills/branch-cleanup
 link-dir	shared/skills/branch-cleanup	.agents/skills/branch-cleanup
 link-dir	shared/skills/implementation-quality	.claude/skills/implementation-quality
@@ -45,6 +47,7 @@ link-file	shared/skills/agmsg/templates/cmd.claude-code.md	.claude/skills/agmsg/
 link-dir	claude/output-styles	.claude/output-styles
 link-dir	claude/bin	.claude/bin
 link-dir	claude/scripts	.claude/scripts
+link-dir	codex/agents	.codex/agents
 link-file	codex/AGENTS.md	.codex/AGENTS.md
 link-file	codex/hooks.json	.codex/hooks.json
 link-file	codex/herdr-agent-state.sh	.codex/herdr-agent-state.sh

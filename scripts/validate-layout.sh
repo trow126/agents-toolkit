@@ -11,6 +11,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST="$REPO_ROOT/install/manifest.tsv"
 SYNC_SCRIPT="$REPO_ROOT/shared/bin/sync-shared-rules.sh"
 CLAUDE_MD="$REPO_ROOT/claude/CLAUDE.md"
+INVENTORY="$REPO_ROOT/docs/reports/inventory-elements.tsv"
 
 cd "$REPO_ROOT"
 
@@ -21,6 +22,15 @@ fail() {
 }
 warn() {
   echo "WARN: $*"
+}
+
+inventory_declares_path() {
+  local path="$1"
+  [[ -f "$INVENTORY" ]] || return 1
+  awk -F '\t' -v path="$path" '
+    NR > 1 && ($3 == path || $4 == path || $5 == path) { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' "$INVENTORY"
 }
 
 # =========================================================================
@@ -96,7 +106,17 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       if [[ ! -d "$REPO_ROOT/$src" ]]; then
         fail "install/manifest.tsv:$line_no: source ディレクトリが存在しません: $src"
       elif [[ -z "$(git ls-files -- "$src")" ]]; then
-        fail "install/manifest.tsv:$line_no: source ディレクトリに git 追跡ファイルがありません: $src"
+        declared_source=false
+        while IFS= read -r candidate; do
+          rel="${candidate#"$REPO_ROOT/"}"
+          if inventory_declares_path "$rel"; then
+            declared_source=true
+            break
+          fi
+        done < <(find "$REPO_ROOT/$src" -type f -print)
+        if [[ "$declared_source" != "true" ]]; then
+          fail "install/manifest.tsv:$line_no: source ディレクトリに git 追跡済みまたはinventory宣言済みファイルがありません: $src"
+        fi
       fi
       ;;
     *)
@@ -192,14 +212,90 @@ while IFS= read -r f; do
 done < <(git ls-files)
 
 # =========================================================================
-# 5. generic agentにprivate project固有sectionを置かない
+# 5. generic agentとCodex custom agentのschema
 # =========================================================================
-echo "== 5. private project sections in generic agents =="
+echo "== 5. agent schemas and private project sections =="
 while IFS= read -r f; do
   if grep -nF 'Primary Focus（プロジェクト固有）' "$f" >/dev/null; then
     fail "project-specific section in generic agent: $f"
   fi
 done < <(git ls-files 'claude/agents/*.md')
+
+CODEX_AGENT_SCHEMA_ERRORS="$(PYTHONDONTWRITEBYTECODE=1 python3 - "$REPO_ROOT" <<'PYAGENTS'
+import re
+import sys
+import tomllib
+from pathlib import Path
+
+root = Path(sys.argv[1])
+errors: list[str] = []
+seen_names: dict[str, Path] = {}
+required_strings = ("name", "description", "developer_instructions", "model")
+allowed_efforts = {"low", "medium", "high", "xhigh", "max", "ultra"}
+allowed_sandboxes = {"read-only", "workspace-write", "danger-full-access"}
+managed_routes = {
+    "explorer": ("gpt-5.6-terra", "medium", "read-only"),
+    "reviewer": ("gpt-5.6-sol", "high", "read-only"),
+    "plan_reviewer": ("gpt-5.6-sol", "high", "read-only"),
+    "deep_reasoner": ("gpt-5.6-sol", "xhigh", "read-only"),
+}
+
+for path in sorted((root / "codex" / "agents").glob("*.toml")):
+    rel = path.relative_to(root)
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        errors.append(f"{rel}: not valid UTF-8: {exc}")
+        continue
+    except tomllib.TOMLDecodeError as exc:
+        errors.append(f"{rel}: invalid TOML: {exc}")
+        continue
+
+    for field in required_strings:
+        value = data.get(field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"{rel}: {field} must be a non-empty string")
+
+    name = data.get("name")
+    if not isinstance(name, str) or not name.strip():
+        continue
+    if not re.fullmatch(r"[a-z][a-z0-9_]*", name):
+        errors.append(f"{rel}: name '{name}' must match [a-z][a-z0-9_]*")
+    if path.stem != name:
+        errors.append(f"{rel}: name '{name}' must match filename '{path.stem}'")
+    if name in seen_names:
+        errors.append(
+            f"{rel}: duplicate name '{name}' also used by {seen_names[name].relative_to(root)}"
+        )
+    else:
+        seen_names[name] = path
+
+    effort = data.get("model_reasoning_effort")
+    if effort not in allowed_efforts:
+        errors.append(
+            f"{rel}: model_reasoning_effort must be one of {sorted(allowed_efforts)}"
+        )
+    sandbox = data.get("sandbox_mode")
+    if sandbox not in allowed_sandboxes:
+        errors.append(f"{rel}: sandbox_mode must be one of {sorted(allowed_sandboxes)}")
+
+    expected = managed_routes.get(name)
+    if expected is not None:
+        actual = (data.get("model"), effort, sandbox)
+        if actual != expected:
+            errors.append(
+                f"{rel}: managed route must be model={expected[0]}, "
+                f"effort={expected[1]}, sandbox={expected[2]}"
+            )
+
+print("\n".join(errors))
+PYAGENTS
+)"
+if [[ -n "$CODEX_AGENT_SCHEMA_ERRORS" ]]; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "Codex agent schema: $line"
+  done <<< "$CODEX_AGENT_SCHEMA_ERRORS"
+fi
 
 # =========================================================================
 # 6. source tree配下の未許可local artifact
@@ -232,7 +328,11 @@ else
     SEEN_LOCAL_ARTIFACTS["$f"]=1
     case "/$f/" in
       */.venv/* | */.mypy_cache/* | */.pytest_cache/* | */.ruff_cache/* | */__pycache__/*) ;;
-      *) fail "unapproved local artifact under source tree: $f" ;;
+      *)
+        if ! inventory_declares_path "$f" || ! is_covered "$f"; then
+          fail "unapproved local artifact under source tree: $f"
+        fi
+        ;;
     esac
   done < <(
     {

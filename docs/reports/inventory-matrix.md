@@ -30,6 +30,10 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | agent:security-reviewer | `claude/agents/security-reviewer.md` → `claude/agents/code-reviewer.md` | review-progress-retrospective | generic security review | medium | code-reviewer security checklist / code-reviewer | none | duplicate findings / medium | merged-agent contract | yes / SAST supplements | merge |
 | agent:solidity-engineer | `claude/agents/solidity-engineer.md` → `claude/agents/solidity-engineer.md` | — | secure Solidity implementation | high | none / none | none | low / high | frontmatter/schema + domain tests | partial / forge/slither supplement | keep |
 | agent:sre | `claude/agents/sre.md` → `claude/agents/sre.md` | — | reliability/observability implementation | high | none / none | none | low / high | frontmatter/schema + task tests | partial / monitoring tests supplement | keep |
+| agent:codex-explorer | `-` → `codex/agents/explorer.toml` | builtin-override routing | read-only codebase exploration on Terra | high | built-in explorer / intentional exact-name override | none | incomplete search findings / low | TOML schema + runtime session metadata | yes / rg/static search partial | add |
+| agent:codex-reviewer | `-` → `codex/agents/reviewer.toml` | review-progress-retrospective | independent code/security review on Sol | high | codex review overlaps partially / narrow reusable review role | none | duplicate findings / medium | TOML schema + runtime session metadata | no / lint/SAST supplements | add |
+| agent:codex-plan-reviewer | `-` → `codex/agents/plan_reviewer.toml` | review-progress-retrospective | independent plan review on Sol | high | none / plan-review skill executor | none | duplicate review / low | TOML schema + runtime session metadata | no / deterministic checks first | add |
+| agent:codex-deep-reasoner | `-` → `codex/agents/deep_reasoner.toml` | routing | high-risk architecture and root-cause analysis on Sol xhigh | conditional | built-in general reasoning overlaps partially / escalation-only role | none | overuse raises cost / medium | TOML schema + runtime session metadata | no / no | add |
 
 ## always-on-instruction
 
@@ -94,6 +98,7 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
+| shared-skill:article-style | `-` → `shared/skills/article-style/SKILL.md` | — | public-facing prose style guidance | high | none / none | on demand | style false positive / low | skill schema + install check | yes / manual checklist | add/lazy |
 | shared-skill:git-operations | `-` → `shared/skills/git-operations/SKILL.md` | — | mode-separated generic Git operation router | high | none / dedicated gh and cleanup skills | on demand | wrong authority inference / high | authority contract + runtime discovery | yes / git checks | add/lazy |
 | shared-skill:implementation-quality | `-` → `shared/skills/implementation-quality/SKILL.md` | — | context-sensitive quality rule router | high | none / path rules and deterministic checks | on demand | missed quality gate / high | consumer contract + runtime discovery | yes / lint and tests | add/lazy |
 

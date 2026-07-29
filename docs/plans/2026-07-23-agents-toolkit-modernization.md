@@ -61,9 +61,9 @@ baseline `a2ef695`に対するlive-tree計測:
 
 | metric | baseline | v10 | change |
 |---|---:|---:|---:|
-| Claude typical session-start injection | 14,748 | 3,673 | **−75.1%** |
-| Codex AGENTS.md bytes | 12,113 | 2,980 | **−75.4%** |
-| combined always-on bytes | 26,759 | 6,551 | **−75.5%** |
+| Claude typical session-start injection | 14,748 | 4,403 | **−70.1%** |
+| Codex AGENTS.md bytes | 12,113 | 3,564 | **−70.6%** |
+| combined always-on bytes | 26,759 | 7,865 | **−70.6%** |
 | always-on shared rule files | 9 | 1 | **−88.9%** |
 | active entrypoint over 150 lines / 8192 bytes | 16 / 12 | 0 / 0 | eliminated |
 | native auto memory | disabled | disabled | maintained |
@@ -77,20 +77,21 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 2195
-claude_md_lines: 35
+claude_md_bytes: 2894
+claude_md_lines: 39
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1407 (1 files)
-claude_always_on_total: 3602
-codex_agents_md_bytes: 2980
-codex_agents_md_lines: 38
-combined_always_on_total: 6582
-custom_agents: 9
-claude_skills: 16
-codex_skills: 20
-active_skill_entrypoints: 30
-active_skill_entrypoint_bytes: 67086
+claude_always_on_total: 4301
+codex_agents_md_bytes: 3564
+codex_agents_md_lines: 45
+combined_always_on_total: 7865
+custom_agents: 10
+codex_custom_agents: 4
+claude_skills: 17
+codex_skills: 21
+active_skill_entrypoints: 31
+active_skill_entrypoint_bytes: 72964
 active_skill_entrypoint_max_lines: 121
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
@@ -101,11 +102,11 @@ hook_registrations: 8
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 143
-review_progress_retrospective_mechanisms: 8
+inventory_audited_elements: 149
+review_progress_retrospective_mechanisms: 10
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
-tier_aliases: 9
+tier_aliases: 10
 permissions_allow_count: 4
 permissions_ask_count: 0
 permissions_deny_count: 87
@@ -127,8 +128,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 3704
-claude_session_start_injection_max_bytes: 4114
+claude_session_start_injection_typical_bytes: 4403
+claude_session_start_injection_max_bytes: 4813
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)
@@ -137,7 +138,7 @@ duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resol
 
 ## Phase 1 inventory / H-04
 
-Canonical source: `docs/reports/inventory-elements.tsv`（141 unique rows）
+Canonical source: `docs/reports/inventory-elements.tsv`（149 unique rows）
 Rendered review: `docs/reports/inventory-matrix.md`
 
 各行は以下の11軸を持つ。

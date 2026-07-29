@@ -6,10 +6,12 @@
     quoted key（`"model":`）・flow mapping（`{...}`）等の非対応構文を検出した場合は
     **明示エラーで非ゼロ終了**する（fail-closed。黙って 0 件と報告しない — H-001）。
   - 値側は plain / single-quoted / double-quoted / 前後空白 / inline comment を正規化する。
-  - decode 不能・parse 不能も明示エラーで非ゼロ終了する。
+  - Codex custom agent TOML は tomllib でparseし、decode不能・parse不能を
+    明示エラーで非ゼロ終了する。
 
 usage: scan-model-pins.py <repo-root>
-output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ（kind = pin | runtime-pin | alias | other）
+output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ
+        （kind = pin | runtime-pin | alias | codex-model | other）
   pin         = 完全モデル名（claude- で始まる値）
   runtime-pin = claude/settings.json の model キーに限る完全モデル名。/model コマンドが
                 正式な挙動として完全モデル名を書き込むため、governance 上の pin とは区別する
@@ -19,6 +21,7 @@ exit 0（スキャン自体の失敗のみ非ゼロ）
 import json
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 ALIASES = {"sonnet", "opus", "haiku", "fable", "inherit", "default", "best"}
@@ -36,6 +39,8 @@ def normalize(raw: str) -> str:
 def classify(value: str) -> str:
     if value.startswith("claude-"):
         return "pin"
+    if value.startswith("gpt-"):
+        return "codex-model"
     if value in ALIASES:
         return "alias"
     return "other"
@@ -97,43 +102,29 @@ def main() -> int:
                 kind = "runtime-pin"
             results.append(f"{name}:{lineno}:{kind}:{v}")
 
-    # 3. codex/*.toml（tomllib。parse 不能時は正規表現 fallback で quoted/literal string 両対応）
-    for f in sorted(root.glob("codex/*.toml")):
+    # 3. codex/agents/*.toml（tomllib。parse errorはfail-closed）
+    for f in sorted(root.glob("codex/agents/*.toml")):
         try:
             text = f.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
             print(f"ERROR: {f.relative_to(root)}: not valid UTF-8: {exc}", file=sys.stderr)
             return 1
-        values = []
         try:
-            import tomllib
-
             data = tomllib.loads(text)
-
-            def walk(node):
-                if isinstance(node, dict):
-                    for k, v in node.items():
-                        if k == "model" and isinstance(v, str):
-                            values.append(v)
-                        else:
-                            walk(v)
-                elif isinstance(node, list):
-                    for item in node:
-                        walk(item)
-
-            walk(data)
-        except Exception:
-            for line in text.split("\n"):
-                km = re.match(r"""^\s*model\s*=\s*(.+)$""", line)
-                if km:
-                    values.append(normalize(km.group(1)))
-        for v in values:
-            v = normalize(v)
-            lineno = 0
-            for i, line in enumerate(text.split("\n"), start=1):
-                if re.match(r"^\s*model\s*=", line) and v in line:
-                    lineno = i
-                    break
+        except tomllib.TOMLDecodeError as exc:
+            print(f"ERROR: {f.relative_to(root)}: invalid TOML: {exc}", file=sys.stderr)
+            return 1
+        model = data.get("model")
+        if isinstance(model, str):
+            v = normalize(model)
+            lineno = next(
+                (
+                    i
+                    for i, line in enumerate(text.split("\n"), start=1)
+                    if re.match(r"^\s*model\s*=", line)
+                ),
+                0,
+            )
             results.append(f"{f.relative_to(root)}:{lineno}:{classify(v)}:{v}")
 
     print("\n".join(results))

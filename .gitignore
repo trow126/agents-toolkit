@@ -12,6 +12,11 @@ codex/*
 !codex/hooks.json
 !codex/herdr-agent-state.sh
 
+# custom agents/ もdefault-deny + 監査済みTOMLだけallowlist
+!codex/agents/
+codex/agents/*
+!codex/agents/*.toml
+
 # skills/ も default-deny + 監査済みスキルのみ allowlist(新スキルは監査後に追記する)
 # 注: codex/skills/.system/ 等の未監査ディレクトリは自動的に除外される
 !codex/skills/
