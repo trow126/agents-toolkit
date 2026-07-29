@@ -18,6 +18,8 @@
 
 - 通常taskは必要十分な単一ownerが探索・実装・検証まで完遂する。同じcontextを再利用できる場合はhandoffしない。
 - 決定論的script・静的解析を優先し、read-only大量探索や独立性が必要なreviewだけを隔離する。
+- Fableはlead/advisorとして使い、Agent Teamsの無指定teammateとdynamic workflowのanonymous workerはOpusを既定とする。dynamic workflow生成時は各anonymous `agent()`のmodel optionに`opus`を明示し、親modelを暗黙継承させない。
+- read-only codebase探索はHaiku固定の`Explore`を使う。named custom agentは各frontmatterのmodelを尊重し、built-in `general-purpose`は親modelを継承する。
 - 高リスク判断、Claude/Codex peer、model確認の詳細は`model-routing` skillを使う。
 
 # private routing

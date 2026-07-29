@@ -8,6 +8,18 @@ user-invocable: true
 
 CLAUDE.md「owner 選択とルーティング（コスト方針）」を補完する詳細手順。既定は「必要十分な最小コストの単一 owner が完遂」であり、以下は例外時にだけ使う。
 
+## Claude model割当
+
+- Fableはmainのlead/advisorとして長期的な方針決定と統合を担当する
+- exact-name overrideの`Explore`はHaikuを使い、read-only codebase探索だけを担当する
+- Agent Teamsでspawn時にmodelを指定しないteammateは、`~/.claude.json`の`teammateDefaultModel`によりOpusを使う
+- dynamic workflowのanonymous workerは、生成scriptの各`agent()`でmodel optionに`opus`を明示する。dynamic workflow専用のglobal default keyはないため、親Fableの暗黙継承に依存しない
+- `agentType`でnamed custom agentを使う場合はper-invocation modelを重ねず、agent frontmatterのSonnet/Opus指定を尊重する
+- built-in `general-purpose`はmain modelを継承する
+- `CLAUDE_CODE_SUBAGENT_MODEL`はExploreとnamed agentを含む全model指定を上書きするため設定しない
+
+Agent Teamsはexperimentalのまま既定無効とし、ユーザーが明示的に有効化したsessionでのみ使う。
+
 ## エスカレーション経路
 
 - 標準モデルの owner で着手し、失敗が反復する・根本原因が不明・競合する複数仮説がある場合のみ `deep-reasoner` に判断を諮る（判断のみ。実装は owner に戻す）
@@ -40,4 +52,6 @@ CLAUDE.md「owner 選択とルーティング（コスト方針）」を補完�
 
 - エージェント起動表示の model 欄
 - transcript（`~/.claude/projects/` の JSONL にある assistant メッセージの `model` フィールド）
+- dynamic workflowは`~/.claude/projects/<project>/<session>/workflows/wf_*.json`の`workflowProgress[].model`を確認する。`defaultModel`はlead modelを示し、workerの実modelの証明にはならない
+- Agent Teamsの既定は`~/.claude.json`の`teammateDefaultModel`を確認し、実行時にはteammate transcriptのassistant `model`で検証する
 - routing 異常時は `CLAUDE_CODE_SUBAGENT_MODEL` 環境変数を最初に確認する（設定されていると全 frontmatter pin を上書きする仕様）
