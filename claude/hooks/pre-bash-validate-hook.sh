@@ -30,6 +30,7 @@ INPUT=$(cat) || block "failed to read hook input (fail-closed)"
 # JSON object であり、tool_input.command が非空文字列であることを厳格検証する。
 # matcher=Bash で起動される本 hook にとって、command を取り出せない入力は schema 違反 = block。
 # agent_type は main session では省略可能だが、存在する場合は string でなければならない。
+# Bash tool の run_in_background も省略可能だが、存在する場合は boolean に限定する。
 if ! echo "$INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
     block "hook input is not valid JSON (fail-closed)"
 fi
@@ -44,6 +45,17 @@ if ! AGENT_TYPE=$(echo "$INPUT" | jq -er '
     end
 ' 2>/dev/null); then
     block "hook input agent_type must be a string when present (fail-closed)"
+fi
+if ! RUN_IN_BACKGROUND=$(echo "$INPUT" | jq -er '
+    if (.tool_input | has("run_in_background")) then
+        .tool_input.run_in_background
+        | select(type == "boolean")
+        | if . then "true" else "false" end
+    else
+        "false"
+    end
+' 2>/dev/null); then
+    block "hook input tool_input.run_in_background must be a boolean when present (fail-closed)"
 fi
 
 # Project/local settings are lower precedence than managed settings, but some
@@ -63,16 +75,19 @@ fi
 # \042 = double quote, \047 = single quote
 NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 
-# codex:codex-rescue は Claude Code の Agent lifecycle を唯一の completion owner とする。
-# 内側で `codex-companion task --background` を起動すると job が Agent から detach され、
-# Codex 完了後も parent Claude へ結果が返らない。agent_type を限定した共起判定で
-# 二重 background を fail-closed にし、外側 Agent の標準 completion notification を使わせる。
+# codex:codex-rescue は Claude Code の外側 Agent lifecycle を唯一の completion owner とする。
+# 内側で companion の `--background` または Bash tool の `run_in_background=true` を使うと
+# job が rescue agent から detach され、rescue agent 終了時に process と completion owner が
+# 分離する。agent_type と companion task の共起に限定して inner background を fail-closed にし、
+# 外側 Agent の標準 completion notification を使わせる。
 # raw command に対する heuristic なので、対象 agent 内では過剰側に倒す。
 if [[ "$AGENT_TYPE" == "codex:codex-rescue" ]]; then
     if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
-        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)' &&
-        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])--background([^A-Za-z0-9_-]|$)'; then
-        block "codex:codex-rescue 内の二重 background を拒否した。codex-companion task から --background を外し、外側 Agent の run_in_background のみで lifecycle を管理して同じ task を再実行すること"
+        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
+        if [[ "$RUN_IN_BACKGROUND" == "true" ]] ||
+            printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])--background([^A-Za-z0-9_-]|$)'; then
+            block "codex:codex-rescue 内の inner background を拒否した。codex-companion task から --background を外し、Bash の run_in_background を false または未指定にして foreground で実行すること。非同期実行が必要なら、呼び出し元が外側 Agent を run_in_background=true で起動すること"
+        fi
     fi
 fi
 

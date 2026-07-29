@@ -19,9 +19,15 @@ ng() {
 }
 
 run_hook_cmd() {
-  # $1: command string, $2(optional): project cwd, $3(optional): agent_type
+  # $1: command string, $2(optional): project cwd, $3(optional): agent_type,
+  # $4(optional): Bash tool run_in_background JSON boolean
   local command="$1" cwd="${2:-}" agent_type="${3:-}"
-  jq -n --arg c "$command" --arg cwd "$cwd" --arg agent_type "$agent_type" '
+  local run_in_background="${4:-null}"
+  jq -n \
+    --arg c "$command" \
+    --arg cwd "$cwd" \
+    --arg agent_type "$agent_type" \
+    --argjson run_in_background "$run_in_background" '
     {
       "hook_event_name": "PreToolUse",
       "tool_name": "Bash",
@@ -29,6 +35,12 @@ run_hook_cmd() {
     }
     + (if $cwd == "" then {} else {"cwd": $cwd} end)
     + (if $agent_type == "" then {} else {"agent_type": $agent_type} end)
+    + (
+      if $run_in_background == null
+      then {}
+      else {"tool_input": {"command": $c, "run_in_background": $run_in_background}}
+      end
+    )
   ' | "$HOOK" >/dev/null 2>&1
 }
 
@@ -68,6 +80,24 @@ expect_allow_agent() {
   if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
 }
 
+expect_block_agent_tool_background() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" true || rc=$?
+  if [[ "$rc" -eq 2 ]]; then ok "$desc"; else ng "$desc (expected exit 2, got $rc)"; fi
+}
+
+expect_allow_agent_tool_background() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" true || rc=$?
+  if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
+}
+
+expect_allow_agent_tool_foreground() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" false || rc=$?
+  if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
+}
+
 # ---- 1. fail-closed: malformed input / schema 欠落 / jq 欠落 ----
 rc=0
 printf '{' | "$HOOK" >/dev/null 2>&1 || rc=$?
@@ -84,6 +114,15 @@ if [[ "$rc" -eq 2 ]]; then ok "空 command は exit 2(block)"; else ng "空 comm
 rc=0
 printf '{"agent_type":null,"tool_input":{"command":"echo hello"}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "agent_type の不正な型は exit 2(block)"; else ng "不正 agent_type が exit $rc"; fi
+
+rc=0
+printf '{"tool_input":{"command":"echo hello","run_in_background":"true"}}' \
+  | "$HOOK" >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]]; then
+  ok "run_in_background の不正な型は exit 2(block)"
+else
+  ng "不正 run_in_background が exit $rc"
+fi
 
 # jq 欠落環境の再現: PATH を最小化して bash/coreutils だけ見せる
 MINBIN="$SANDBOX/minbin"
@@ -131,8 +170,14 @@ expect_block_agent "quote 分割 --back\"\"ground を block" "$CODEX_AGENT" \
   "node \"$COMPANION\" task --back\"\"ground \"implement the fix\""
 expect_block_agent "multiline command の task --background を block" "$CODEX_AGENT" \
   $'TASK_TEXT="implement the fix"\nnode "'"$COMPANION"'" task --background "$TASK_TEXT"'
+expect_block_agent_tool_background \
+  "codex-rescue の Bash run_in_background=true を block" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
 
 expect_allow_agent "codex-rescue の foreground task は許可" "$CODEX_AGENT" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
+expect_allow_agent_tool_foreground \
+  "codex-rescue の Bash run_in_background=false を許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow_agent "codex-rescue の status は許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" status task-123"
@@ -140,6 +185,9 @@ expect_allow_agent "codex-rescue の result は許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" result task-123"
 expect_allow_agent "別 agent の companion background は本規則の対象外" "general-purpose" \
   "node \"$COMPANION\" task --background \"implement the fix\""
+expect_allow_agent_tool_background \
+  "別 agent の Bash run_in_background=true は本規則の対象外" "general-purpose" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow "main session の companion background は本規則の対象外" \
   "node \"$COMPANION\" task --background \"implement the fix\""
 
