@@ -77,15 +77,15 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 2894
-claude_md_lines: 39
+claude_md_bytes: 3119
+claude_md_lines: 40
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1407 (1 files)
-claude_always_on_total: 4301
+claude_always_on_total: 4526
 codex_agents_md_bytes: 3564
 codex_agents_md_lines: 45
-combined_always_on_total: 7865
+combined_always_on_total: 8090
 custom_agents: 10
 codex_custom_agents: 4
 claude_skills: 18
@@ -98,7 +98,7 @@ active_skill_entrypoint_over_8192_bytes: 0
 shared_rules_always_on_bytes: 1407
 shared_rules_on_demand_bytes: 10544
 hook_scripts: 7
-hook_registrations: 8
+hook_registrations: 9
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
@@ -128,8 +128,8 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-claude_session_start_injection_typical_bytes: 4403
-claude_session_start_injection_max_bytes: 4813
+claude_session_start_injection_typical_bytes: 4628
+claude_session_start_injection_max_bytes: 5038
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)

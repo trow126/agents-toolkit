@@ -37,3 +37,4 @@
 - `~/.claude/settings.json`をsession内で直接編集せず、project/local settingsへpermission・hook・sandbox policyを追加しない。
 - project/localのsecurity policy driftは`scripts/check-runtime.sh`と`project-policy-gate`が拒否する。
 - Git操作はpromptなしで実行され得るため、commit・push・外部writeの個別承認を厳守する。
+- Codexへのtask委任は`codex:codex-rescue` Agentで包まない。Claudeのmain sessionから`codex-companion.mjs task`を直接`Bash(run_in_background=true)`で起動し、完了通知のownerをmain sessionに保つ。

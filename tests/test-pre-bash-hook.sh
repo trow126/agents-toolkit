@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test-pre-bash-hook.sh — pre-bash-validate-hook の fail-closed / lifecycle / safety-gate テスト
-# (2026-07-23 H-014 / H-011, 2026-07-24 quote 正規化、2026-07-29 Codex lifecycle 一本化)
+# (2026-07-23 H-014 / H-011, 2026-07-24 quote 正規化、2026-07-31 Codex lifecycle 一本化)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,6 +42,20 @@ run_hook_cmd() {
       end
     )
   ' | "$HOOK" >/dev/null 2>&1
+}
+
+run_agent_hook() {
+  local subagent_type="$1"
+  jq -n --arg subagent_type "$subagent_type" '{
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Agent",
+    "tool_input": {
+      "description": "delegate task",
+      "subagent_type": $subagent_type,
+      "run_in_background": true,
+      "prompt": "implement the fix"
+    }
+  }' | "$HOOK" >/dev/null 2>&1
 }
 
 expect_block() {
@@ -98,6 +112,12 @@ expect_allow_agent_tool_foreground() {
   if [[ "$rc" -eq 0 ]]; then ok "$desc"; else ng "$desc (expected exit 0, got $rc)"; fi
 }
 
+expect_block_agent_tool_foreground() {
+  local desc="$1" agent_type="$2" cmd="$3" rc=0
+  run_hook_cmd "$cmd" "" "$agent_type" false || rc=$?
+  if [[ "$rc" -eq 2 ]]; then ok "$desc"; else ng "$desc (expected exit 2, got $rc)"; fi
+}
+
 # ---- 1. fail-closed: malformed input / schema 欠落 / jq 欠落 ----
 rc=0
 printf '{' | "$HOOK" >/dev/null 2>&1 || rc=$?
@@ -108,15 +128,15 @@ printf '{"tool_name":"Bash","tool_input":{}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "tool_input.command 欠落は exit 2(block)"; else ng "command 欠落が exit $rc"; fi
 
 rc=0
-printf '{"tool_input":{"command":""}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
+printf '{"tool_name":"Bash","tool_input":{"command":""}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "空 command は exit 2(block)"; else ng "空 command が exit $rc"; fi
 
 rc=0
-printf '{"agent_type":null,"tool_input":{"command":"echo hello"}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
+printf '{"tool_name":"Bash","agent_type":null,"tool_input":{"command":"echo hello"}}' | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "agent_type の不正な型は exit 2(block)"; else ng "不正 agent_type が exit $rc"; fi
 
 rc=0
-printf '{"tool_input":{"command":"echo hello","run_in_background":"true"}}' \
+printf '{"tool_name":"Bash","tool_input":{"command":"echo hello","run_in_background":"true"}}' \
   | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then
   ok "run_in_background の不正な型は exit 2(block)"
@@ -131,7 +151,8 @@ for b in bash cat grep echo; do
   ln -s "$(command -v $b)" "$MINBIN/$b"
 done
 rc=0
-printf '{"tool_input":{"command":"cat .env"}}' | env PATH="$MINBIN" "$HOOK" >/dev/null 2>&1 || rc=$?
+printf '{"tool_name":"Bash","tool_input":{"command":"cat .env"}}' \
+  | env PATH="$MINBIN" "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "jq 欠落は exit 2(block。fail-open しない)"; else ng "jq 欠落が exit $rc"; fi
 
 # ---- 2. project/local settings gate(C-02) ----
@@ -159,7 +180,40 @@ JSON
 expect_block_in "project permission rule blocks PreToolUse" "$PROJECT_ROOT" 'echo hello'
 rm -rf "$PROJECT_ROOT"
 
-# ---- 3. Codex completion lifecycle 一本化 ----
+# ---- 3. Codex completion lifecycle は main session が所有 ----
+rc=0
+run_agent_hook "codex:codex-rescue" || rc=$?
+if [[ "$rc" -eq 2 ]]; then
+  ok "codex-rescue Agent は background指定でも block"
+else
+  ng "codex-rescue Agent が exit $rc"
+fi
+
+rc=0
+run_agent_hook "general-purpose" || rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  ok "通常のgeneral-purpose Agentは許可"
+else
+  ng "general-purpose Agent が exit $rc"
+fi
+
+rc=0
+agent_reason_output=$(
+  jq -n '{
+    "hook_event_name": "PreToolUse",
+    "tool_name": "Agent",
+    "tool_input": {
+      "subagent_type": "codex:codex-rescue",
+      "prompt": "implement the fix"
+    }
+  }' | "$HOOK" 2>&1
+) || rc=$?
+if [[ "$rc" -eq 2 && "$agent_reason_output" == *"main session"* ]]; then
+  ok "Agent block理由が main session ownership を指示する"
+else
+  ng "Agent block理由に main session ownership 指示がない (exit $rc): $agent_reason_output"
+fi
+
 CODEX_AGENT='codex:codex-rescue'
 COMPANION='/home/test/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs'
 expect_block_agent "codex-rescue の task --background を block" "$CODEX_AGENT" \
@@ -173,11 +227,10 @@ expect_block_agent "multiline command の task --background を block" "$CODEX_A
 expect_block_agent_tool_background \
   "codex-rescue の Bash run_in_background=true を block" "$CODEX_AGENT" \
   "node \"$COMPANION\" task --write \"implement the fix\""
-
-expect_allow_agent "codex-rescue の foreground task は許可" "$CODEX_AGENT" \
+expect_block_agent "codex-rescue の foreground task も block" "$CODEX_AGENT" \
   "node \"$COMPANION\" task --write \"implement the fix\""
-expect_allow_agent_tool_foreground \
-  "codex-rescue の Bash run_in_background=false を許可" "$CODEX_AGENT" \
+expect_block_agent_tool_foreground \
+  "codex-rescue の明示foreground task も block" "$CODEX_AGENT" \
   "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow_agent "codex-rescue の status は許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" status task-123"
@@ -188,20 +241,21 @@ expect_allow_agent "別 agent の companion background は本規則の対象外"
 expect_allow_agent_tool_background \
   "別 agent の Bash run_in_background=true は本規則の対象外" "general-purpose" \
   "node \"$COMPANION\" task --write \"implement the fix\""
-expect_allow "main session の companion background は本規則の対象外" \
-  "node \"$COMPANION\" task --background \"implement the fix\""
+expect_allow_agent_tool_background \
+  "main session相当の companion Bash background は許可" "" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
 
 rc=0
 reason_output=$(
-  jq -n --arg c "node \"$COMPANION\" task --background \"implement the fix\"" \
+  jq -n --arg c "node \"$COMPANION\" task --write \"implement the fix\"" \
     --arg agent_type "$CODEX_AGENT" \
     '{"hook_event_name":"PreToolUse","tool_name":"Bash","agent_type":$agent_type,"tool_input":{"command":$c}}' \
     | "$HOOK" 2>&1
 ) || rc=$?
-if [[ "$rc" -eq 2 && "$reason_output" == *"task から --background を外し"* ]]; then
-  ok "block 理由が foreground retry を指示する"
+if [[ "$rc" -eq 2 && "$reason_output" == *"main sessionから"* ]]; then
+  ok "block 理由が main session ownership を指示する"
 else
-  ng "block 理由に foreground retry 指示がない (exit $rc): $reason_output"
+  ng "block 理由に main session ownership 指示がない (exit $rc): $reason_output"
 fi
 
 # ---- 4. .env 遮断(path-aware) ----

@@ -1,5 +1,5 @@
 #!/bin/bash
-# PreToolUse hook: validate Bash commands before execution (fail-closed — 2026-07-24 H-011/H-014)
+# PreToolUse hook: validate Agent lifecycle and Bash commands (fail-closed).
 #
 # 位置づけ(重要):
 #   本 hook は raw command string に対する quote 正規化つき heuristic であり、
@@ -27,13 +27,35 @@ command -v jq >/dev/null 2>&1 || block "pre-bash-validate-hook requires jq but i
 
 INPUT=$(cat) || block "failed to read hook input (fail-closed)"
 
-# JSON object であり、tool_input.command が非空文字列であることを厳格検証する。
-# matcher=Bash で起動される本 hook にとって、command を取り出せない入力は schema 違反 = block。
-# agent_type は main session では省略可能だが、存在する場合は string でなければならない。
-# Bash tool の run_in_background も省略可能だが、存在する場合は boolean に限定する。
+# JSON objectであり、登録matcherに対応するtool_nameであることを厳格検証する。
 if ! echo "$INPUT" | jq -e 'type == "object"' >/dev/null 2>&1; then
     block "hook input is not valid JSON (fail-closed)"
 fi
+if ! TOOL_NAME=$(echo "$INPUT" | jq -er \
+    '.tool_name | select(type == "string" and length > 0)' 2>/dev/null); then
+    block "hook input has no non-empty tool_name (fail-closed)"
+fi
+
+# nested Agent内のCodex processは、600秒後のBash自動background化で
+# completion ownerが終了済みAgentに残る。main sessionから直接起動させる。
+if [[ "$TOOL_NAME" == "Agent" ]]; then
+    if ! SUBAGENT_TYPE=$(echo "$INPUT" | jq -er \
+        '.tool_input.subagent_type | select(type == "string" and length > 0)' \
+        2>/dev/null); then
+        block "hook input has no non-empty tool_input.subagent_type (fail-closed)"
+    fi
+    if [[ "$SUBAGENT_TYPE" == "codex:codex-rescue" ]]; then
+        block "codex:codex-rescue Agent 経由の委任を拒否した。10分超過時にCodex processが終了済みAgentへdetachされ、main sessionへ完了通知が届かないため。main sessionから codex-companion.mjs task を直接 Bash(run_in_background=true) で起動し、Claude main sessionをcompletion ownerにすること"
+    fi
+    exit 0
+fi
+if [[ "$TOOL_NAME" != "Bash" ]]; then
+    block "hook input has an unexpected tool_name (fail-closed)"
+fi
+
+# matcher=Bashではtool_input.commandを取り出せない入力をschema違反としてblockする。
+# agent_type は main session では省略可能だが、存在する場合は string でなければならない。
+# Bash tool の run_in_background も省略可能だが、存在する場合は boolean に限定する。
 if ! COMMAND=$(echo "$INPUT" | jq -er '.tool_input.command | select(type == "string" and length > 0)' 2>/dev/null); then
     block "hook input has no non-empty tool_input.command (fail-closed)"
 fi
@@ -75,19 +97,15 @@ fi
 # \042 = double quote, \047 = single quote
 NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 
-# codex:codex-rescue は Claude Code の外側 Agent lifecycle を唯一の completion owner とする。
-# 内側で companion の `--background` または Bash tool の `run_in_background=true` を使うと
-# job が rescue agent から detach され、rescue agent 終了時に process と completion owner が
-# 分離する。agent_type と companion task の共起に限定して inner background を fail-closed にし、
-# 外側 Agent の標準 completion notification を使わせる。
+# codex:codex-rescue 内で companion task を起動すると、foreground でも600秒経過時に
+# Bash runtimeがprocessをbackgroundへ移し、rescue Agent終了後の完了通知がmain sessionへ
+# 届かない。agent_type と companion task の共起に限定して全実行をfail-closedにし、
+# main sessionがBash(run_in_background=true)で直接completion ownerになるよう強制する。
 # raw command に対する heuristic なので、対象 agent 内では過剰側に倒す。
 if [[ "$AGENT_TYPE" == "codex:codex-rescue" ]]; then
     if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
         printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
-        if [[ "$RUN_IN_BACKGROUND" == "true" ]] ||
-            printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])--background([^A-Za-z0-9_-]|$)'; then
-            block "codex:codex-rescue 内の inner background を拒否した。codex-companion task から --background を外し、Bash の run_in_background を false または未指定にして foreground で実行すること。非同期実行が必要なら、呼び出し元が外側 Agent を run_in_background=true で起動すること"
-        fi
+        block "codex:codex-rescue 内の companion task 起動を拒否した。foregroundでも600秒後にdetachして完了通知を失うため、Claude main sessionから codex-companion.mjs task を直接 Bash(run_in_background=true) で起動すること"
     fi
 fi
 
