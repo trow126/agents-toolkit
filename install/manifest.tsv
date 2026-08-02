@@ -23,6 +23,8 @@ link-dir	shared/skills/claude-code/break-consensus	.claude/skills/break-consensu
 link-dir	shared/skills/codex/break-consensus	.agents/skills/break-consensus
 link-dir	shared/skills/claude-code/config-audit	.claude/skills/config-audit
 link-dir	shared/skills/codex/config-audit	.agents/skills/config-audit
+link-dir	claude/skills/gh-codex-drive	.claude/skills/gh-codex-drive
+link-dir	claude/skills/gh-finish	.claude/skills/gh-finish
 link-dir	shared/skills/gh-index	.claude/skills/gh-index
 link-dir	shared/skills/gh-index	.agents/skills/gh-index
 link-dir	codex/skills/issue-writing	.claude/skills/issue-writing
