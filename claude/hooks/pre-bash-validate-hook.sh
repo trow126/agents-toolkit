@@ -137,9 +137,17 @@ fi
 # runtime 構築 path は本 hook の対象外であり、sandbox 無効時は別の下位境界もない。
 # path-aware: 先頭・区切り文字・"/" の直後の .env を対象にする(nested `config/.env` を含む — H-014)
 if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9._-])\.env([.-][A-Za-z0-9_.-]+)?([^A-Za-z0-9._-]|$)'; then
-    # Dangerous readers: anything that emits file contents or sources them
-    if printf '%s' "$NORM" | grep -qE '\b(cat|tac|rev|nl|pr|fold|fmt|head|tail|less|more|view|vi|vim|nano|emacs|ed|open|awk|gawk|sed|cut|sort|uniq|tr|column|paste|join|comm|od|xxd|hexdump|strings|base64|base32|grep|egrep|fgrep|zgrep|rg|ag|ack|python|python3|uv|uvw|node|bun|deno|ruby|perl|php|bash|sh|zsh|source|\.|tee|dd|cp|mv|install|rsync|scp|gzip|gunzip|zcat|bzcat|xzcat|tar|jar|unzip|diff|cmp|vimdiff|colordiff|wc|readlink|file)\b'; then
+    # Dangerous readers: anything that emits file contents or sources them.
+    # NOTE: dot builtin(source)をここに `\.` で入れると `\b\.\b` が
+    # settings.json 等の word.word の任意 dot に一致し偽陽性を量産するため、
+    # 下の command-position 限定チェックで扱う。
+    if printf '%s' "$NORM" | grep -qE '\b(cat|tac|rev|nl|pr|fold|fmt|head|tail|less|more|view|vi|vim|nano|emacs|ed|open|awk|gawk|sed|cut|sort|uniq|tr|column|paste|join|comm|od|xxd|hexdump|strings|base64|base32|grep|egrep|fgrep|zgrep|rg|ag|ack|python|python3|uv|uvw|node|bun|deno|ruby|perl|php|bash|sh|zsh|source|tee|dd|cp|mv|install|rsync|scp|gzip|gunzip|zcat|bzcat|xzcat|tar|jar|unzip|diff|cmp|vimdiff|colordiff|wc|readlink|file)\b'; then
         block "command appears to read .env content. For existence check, use Glob, ls, stat, or test."
+    fi
+    # dot builtin(`. .env` / `true; . config/.env`): 行頭または区切り直後の
+    # standalone `.` token のみを source とみなす。
+    if printf '%s' "$NORM" | grep -qE '(^|[;&|(`])[[:space:]]*\.[[:space:]]'; then
+        block "command appears to source .env via the dot builtin"
     fi
     # Redirection reading from .env: `cmd < .env`, `while read < config/.env`
     if printf '%s' "$NORM" | grep -qE '<\s*[^ ;|&]*\.env([.-][A-Za-z0-9_.-]+)?(\s|$)'; then

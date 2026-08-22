@@ -267,9 +267,16 @@ expect_block "redirection wc -c < config/.env を block" 'wc -c < config/.env'
 expect_block "command substitution の .env を block" 'echo $(cat config/.env)'
 expect_block "quote 分割 .env(cat config/.e\"\"nv)を block" 'cat config/.e""nv'
 expect_block "quote 分割 .env(single quote)を block" "cat config/.'e'nv"
+expect_block "source .env を block" 'source .env'
+expect_block "dot builtin(. .env)を block" '. .env'
+expect_block "dot builtin(区切り後の nested .env)を block" 'true; . config/.env'
 expect_allow ".env の existence check(ls)は許可" 'ls .env'
 expect_allow ".env の existence check(stat)は許可" 'stat .env'
 expect_allow "無関係な command は許可" 'echo hello'
+# 偽陽性回帰(2026-08-22): readers list の `\.` が word.word の任意 dot に一致し、
+# 実 reader なしのコマンドを block していた。
+expect_allow "偽陽性回帰: jq の .env accessor + dotted filename は許可" 'jq -r ".env | keys" settings.json'
+expect_allow "偽陽性回帰: ls .env.local(existence check)は許可" 'ls .env.local'
 
 # hook 層の対象外(literal が現れない runtime 構築)を明示する scope テスト。
 # 現行 owner policy は sandbox 無効のため別の下位境界もなく、hook は
