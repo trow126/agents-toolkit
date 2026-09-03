@@ -75,7 +75,7 @@ custom XDG base directory は非対応。`XDG_CONFIG_HOME` 等が `$HOME` 配下
 - `permissions.ask` は空。Bash、file tool、network、外部副作用を含め Claude Code の permission prompt は表示しない
 - `sandbox.enabled: false`, `failIfUnavailable: false`, `allowUnsandboxedCommands: true`
 - `bypassPermissions` では `permissions.allow` / `ask` / `deny` は enforcement layer にならず、sandbox の filesystem / network 設定も無効
-- managed hooks と project-policy gate は引き続き実行する。literal `.env` 読み取り、block device write、`git commit --amend` 等を事故防止として拒否するが、完全な security boundary ではない
+- managed hooks と project-policy gate は引き続き実行する。literal `.env` 読み取り、block device write、`git commit --amend`、`codex-companion.mjs` subcommand への `--help`(prompt として Codex 実行が走る)等を事故防止として拒否するが、完全な security boundary ではない
 - permission/sandbox の旧 fail-closed 構成と live acceptance は履歴として文書に残すが、現行 runtime を保護する根拠にはしない
 
 ## uv と Git

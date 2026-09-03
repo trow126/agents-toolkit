@@ -301,6 +301,25 @@ expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
 expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 
+# ---- 7. codex-companion subcommand に --help/-h を渡す事故(2026-09-03: --help が prompt になり Codex 実行が走った) ----
+expect_block "task --help を block" "node \"$COMPANION\" task --help"
+expect_block "task -h を block" "node \"$COMPANION\" task -h"
+expect_block "flag の後ろの --help も block" "node \"$COMPANION\" task --write --model gpt-5.3-codex --help"
+expect_block "review --help を block" "node \"$COMPANION\" review --help"
+expect_block "adversarial-review --help を block" "node \"$COMPANION\" adversarial-review --help"
+expect_block "task help(bare) を block" "node \"$COMPANION\" task help"
+expect_block "quote 分割 --he\"\"lp を block" "node \"$COMPANION\" task --he\"\"lp"
+expect_block "top-level --help と task --help の複合 command を block" \
+  "node \"$COMPANION\" --help 2>&1 | head -80; echo \"=====TASK HELP=====\"; node \"$COMPANION\" task --help 2>&1 | head -60"
+expect_block "~ path の task --help も block" 'node ~/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs task --help 2>&1 | head -60'
+expect_allow "subcommand なしの --help は許可" "node \"$COMPANION\" --help"
+expect_allow "subcommand なしの help は許可" "node \"$COMPANION\" help"
+expect_allow "task --write --prompt-file は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/prompt.md"
+expect_allow "task --write \"prompt\" は許可" "node \"$COMPANION\" task --write \"implement the fix\""
+expect_allow "status / result は許可" "node \"$COMPANION\" status; node \"$COMPANION\" result task-123"
+expect_allow "別 segment の -h は本規則の対象外" "node \"$COMPANION\" status; grep -h foo bar"
+expect_allow "-h を含む file 名は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/x-h.md"
+
 # ---- 6. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'
 expect_block "mkfs を block" 'mkfs.ext4 /dev/sda1'

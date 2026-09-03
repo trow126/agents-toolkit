@@ -109,6 +109,19 @@ if [[ "$AGENT_TYPE" == "codex:codex-rescue" ]]; then
     fi
 fi
 
+# codex-companion.mjs の subcommand は --help / -h を解釈しない。task / review / adversarial-review では
+# 未知 flag と余分な語が positional として prompt(focus text)になり、Codex 実行が実際に 1 回走る
+# (2026-09-03 に gh-codex-drive 起動前の `task --help` で 3 session が再現)。usage は subcommand なしの
+# `codex-companion.mjs --help` / `help` で得られるため、subcommand 付きの --help / -h と、
+# task|review|adversarial-review 直後の bare `help` を全 session・全 agent で block する。
+# raw command の heuristic なので、prompt 本文に --help を含めたい場合は --prompt-file で渡す。
+if printf '%s' "$NORM" | grep -qE 'codex-companion\.mjs[[:space:]]+[A-Za-z][A-Za-z-]*([[:space:]][^;|&]*)?[[:space:]]-(-help|h)([[:space:]]|$)'; then
+    block "codex-companion.mjs の subcommand は --help/-h を解釈せず、prompt として Codex 実行が走る。usage は subcommand なしの codex-companion.mjs --help を使い、prompt は --prompt-file で渡すこと"
+fi
+if printf '%s' "$NORM" | grep -qE 'codex-companion\.mjs[[:space:]]+(task|review|adversarial-review)[[:space:]]+help([[:space:]]|$)'; then
+    block "codex-companion.mjs の task/review/adversarial-review に bare help を渡すと prompt として Codex 実行が走る。usage は subcommand なしの codex-companion.mjs --help を使うこと"
+fi
+
 # Block writes to block devices
 if printf '%s' "$NORM" | grep -qE '(>|of=)\s*/dev/sd'; then
     block "write to block device detected in command"
