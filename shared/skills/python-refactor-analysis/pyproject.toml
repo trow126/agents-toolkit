@@ -13,14 +13,14 @@ dependencies = [
   "rope>=1.13.0",
 ]
 
-[project.optional-dependencies]
+[project.scripts]
+refactor-analyze = "refactor_analyze.cli:main"
+
+[dependency-groups]
 dev = [
   "mypy>=1.11",
   "pytest>=8.0",
 ]
-
-[project.scripts]
-refactor-analyze = "refactor_analyze.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/refactor_analyze"]
