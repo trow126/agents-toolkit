@@ -111,10 +111,6 @@
 |---|---|---|---|
 | `shared/bin/sync-shared-rules.sh` | source | stays in repo | git追跡されたscript |
 | `shared/rules/` | source | stays in repo | 16ファイル全てgit追跡された共有rules正本 |
-| `shared/skills/agmsg/`（`db/`・`run/`・`teams/`を除く: `SKILL.md`・`VERSION`・`.agmsg`・`agents/`・`scripts/`・`templates/`） | source | stays in repo | git追跡されたskill一式 |
-| `shared/skills/agmsg/db/` | runtime | move to XDG state (`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg`) | `.gitignore`に「agmsg スキルのランタイム状態」と明記されたDB |
-| `shared/skills/agmsg/run/` | runtime | move to XDG state (`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg`) | `.gitignore`に明記されたruntime lock/socket |
-| `shared/skills/agmsg/teams/` | runtime | move to XDG state (`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg`) | `.gitignore`に明記されたteam runtime状態 |
 
 ## 分類サマリ
 
@@ -130,7 +126,7 @@
 以下のいずれかに該当する場合、live migration（Phase 4のcutover）を実行しない。
 
 - **未分類entryの存在**: `claude/`・`codex/`・`shared/` 直下（または混在が判明した第2階層）に、この分類表へ記載されていないentryが1つでも存在する。
-- **書き込み可能なsource directoryへのruntime writer残存**: `source`分類のdirectory配下に、実行時に書き込まれるfile（新規untracked file・変更されたtracked file以外の生成物）が確認される。特に`claude/skills/`・`codex/skills/`・`shared/skills/agmsg/`配下は、round-trip testで新規runtime fileが生成されないことを確認するまで対象外とする。
+- **書き込み可能なsource directoryへのruntime writer残存**: `source`分類のdirectory配下に、実行時に書き込まれるfile（新規untracked file・変更されたtracked file以外の生成物）が確認される。特に`claude/skills/`・`codex/skills/`配下は、round-trip testで新規runtime fileが生成されないことを確認するまで対象外とする。
 - **移動先容量不足**: `${XDG_STATE_HOME:-$HOME/.local/state}` および実directory移行先のfilesystemに、移行対象runtimeの総容量（`claude/`約947M、`codex/`約490M）を超える空き容量がない。
 - **symlink構成が想定と異なる**: `~/.claude`・`~/.codex`・`~/.agents` が、それぞれ`<repo>/claude`・`<repo>/codex`・`<repo>/shared`を指すsymlink以外（実directory・別pathへのsymlink・存在しない等）になっている。
-- **activeなsessionの存在**: Claude Code・Codex CLI・agmsgのいずれかが起動中（プロセス・lock file・活動中socketの存在）である。
+- **activeなsessionの存在**: Claude Code・Codex CLIのいずれかが起動中（プロセス・lock file・活動中socketの存在）である。

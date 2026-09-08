@@ -42,11 +42,6 @@ codex/history.jsonl
 codex/session_index.jsonl
 codex/installation_id
 
-# --- shared: agmsg スキルのランタイム状態(Task 2 監査決定) ---
-shared/skills/agmsg/db/
-shared/skills/agmsg/run/
-shared/skills/agmsg/teams/
-
 # --- 一時ファイル・ビルド成果物全般 ---
 *.bak
 *.tmp

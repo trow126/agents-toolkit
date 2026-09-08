@@ -33,9 +33,6 @@ build_old_layout() {
   echo "FAKE" > "$repo/codex/auth.json"
   : > "$repo/codex/state.sqlite"
 
-  mkdir -p "$repo/shared/skills/agmsg/db"
-  : > "$repo/shared/skills/agmsg/db/messages.db"
-
   # private overlay (machine固有設定、実directoryへ移動する対象)
   echo "FAKE local override" > "$repo/claude/CLAUDE.local.md"
   echo "FAKE config" > "$repo/codex/config.toml"

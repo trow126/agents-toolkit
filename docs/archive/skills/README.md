@@ -13,7 +13,8 @@
 | `token-efficiency` | `off`。旧 SuperClaude 系の記号圧縮。現行モデル・auto compact で不要 |
 | `x-article-to-markdown` | `off`。X API 仕様変動に依存、利用実績なしの判断済み |
 | `deep-research-mode` | 自動起動のみの行動修飾で、内容は一般助言（現行モデルの既定動作と重複） |
-| `agmsg` runtime adapters（Antigravity、GitHub Copilot CLI、Gemini CLI、OpenCode） | agents-toolkitの正式対応をClaude Code/Codexに限定。汎用transport codeは保持するが、4 runtimeのcontext templateは配布・検証対象外 |
+
+`agmsg`（cross-agent messaging skill）は 2026-09-08 に skill 本体ごと削除した（最終利用 2026-06-23、以降 Claude Code / Codex のどちらからも呼ばれていない）。本 archive に退避していた 4 runtime 向け context template も同時に削除し、archive には残していない。
 
 ## 復元方法
 
@@ -22,5 +23,3 @@
 3. `./scripts/validate-layout.sh` と `./bootstrap.sh --check` を確認する
 
 注意: `gh:*` 名は Agent Skills 仕様（name は `a-z0-9-` のみ）に違反するため、復元時は `gh-*` へリネームする。TodoWrite 依存 skill は現行 API（TaskCreate/TaskUpdate）への書き換えが必要。
-
-`agmsg` adapterを復元する場合は、templateを戻すだけでなく、正式対応runtimeとしてmanifest、consumer contract、deterministic test、実CLI discoveryを追加する。

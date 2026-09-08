@@ -127,7 +127,6 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
-| helper:agmsg | `shared/skills/agmsg/SKILL.md` → `shared/skills/agmsg/SKILL.md` | runtime-state external-local | Claude Code/Codex local message transport; generic engine compatibility preserved | conditional | none / none | on demand/event | external/runtime failure / medium | script tests or syntax | n/a / yes | keep |
 | helper:codex-herdr-state | `codex/herdr-agent-state.sh` → `codex/herdr-agent-state.sh` | external-herdr runtime-state | publish Codex agent state to Herdr | conditional | none / none | on demand/event | external/runtime failure / medium | script tests or syntax | n/a / yes | keep |
 | helper:emit-system-message | `-` → `claude/hooks/lib/emit_system_message.py` | runtime-state | emit JSON-safe bounded hook systemMessage output | high | none / none | SessionStart/PostCompact | truncation at byte bound / medium | test-hook-context + hook metrics | n/a / yes | add/keep |
 | helper:post-edit-lint | `-` → `claude/hooks/lib/post_edit_lint.py` | runtime-utility | deterministically lint Markdown, Python syntax, and Claude permission syntax | high | none / rules overlap | PostToolUse Edit/Write | low / low | test-post-edit-lint | n/a / yes | add |
@@ -263,7 +262,6 @@ The columns map directly to the requirement’s eleven axes: purpose; needed; bu
 | id | before → after | tags | purpose | needed | built-in / overlap | context | false positive / failure | verification | low-cost / deterministic | disposition |
 |---|---|---|---|---|---|---|---|---|---|---|
 | validation:fixture-old-layout-lib | `tests/lib/fixture-old-layout.sh` → `tests/lib/fixture-old-layout.sh` | — | construct deterministic legacy layout fixtures | high | none / none | CI/test-only | fixture drift / medium | direct CI execution | n/a / yes | keep |
-| validation:test-agmsg-state-home | `tests/test-agmsg-state-home.sh` → `tests/test-agmsg-state-home.sh` | — | verify agmsg runtime state stays outside the repository | high | none / none | CI/test-only | fixture drift / medium | direct CI execution | n/a / yes | keep |
 | validation:test-audit-context-runtime | `-` → `tests/test-audit-context-runtime.sh` | context-runtime | verify runtime audit parsing, discovery, plugin, and broken-link failures | high | none / none | CI/test-only | fixture drift / medium | direct CI execution | n/a / yes | add |
 | validation:test-bootstrap | `tests/test-bootstrap.sh` → `tests/test-bootstrap.sh` | — | verify manifest installation, managed-policy prerequisite, and drift handling | high | none / none | CI/test-only | fixture drift / medium | direct CI execution | n/a / yes | keep |
 | validation:test-check-runtime | `-` → `tests/test-check-runtime.sh` | — | verify runtime version, XDG, and project-policy fail-closed gates | high | none / none | CI/test-only | fixture drift / medium | direct CI execution | n/a / yes | add |

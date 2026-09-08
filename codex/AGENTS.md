@@ -41,5 +41,4 @@
 ## Runtime
 
 - 実資金・本番運用では`workspace-write`等の絞ったsandboxを推奨する。
-- `$agmsg send`の本文は必ずsingle quoteで囲む。詳細は`agmsg` skillを読む。
 - Claudeへの独立意見は`claude-second-opinion` skillを使う。直接CLIを使う場合は`CLAUDE_STREAM_IDLE_TIMEOUT_MS=900000`を付け、secretを含むdirectoryへ`--add-dir`しない。

@@ -154,7 +154,6 @@ test_dry_run_no_op() {
   assert_eq "dry-run はfilesystemを変更しない" "$before" "$after"
   assert_contains "dry-run出力に claude/.credentials.json の移動計画が含まれる" "$out" "claude/.credentials.json"
   assert_contains "dry-run出力に claude/projects の移動計画が含まれる" "$out" "claude/projects"
-  assert_contains "dry-run出力に shared/skills/agmsg/db のXDG移動計画が含まれる" "$out" "shared/skills/agmsg/db"
   assert_contains "dry-run出力に __pycache__ 情報が含まれる" "$out" "__pycache__"
   assert_contains "dry-run出力に symlink削除計画が含まれる" "$out" "rm $sandbox/home/.claude"
 
@@ -181,10 +180,6 @@ test_apply_success() {
   assert_true "(a) \$HOME/.claude/projects/p1/x.jsonl が存在する" test -f "$home/.claude/projects/p1/x.jsonl"
   assert_true "(a) \$HOME/.codex/state.sqlite が存在する" test -f "$home/.codex/state.sqlite"
   assert_false "(a) repo側 claude/.credentials.json は消えている" test -e "$repo/claude/.credentials.json"
-
-  # (b) agmsg dbがXDG側へ
-  assert_true "(b) \$XDG_STATE/agmsg/db/messages.db が存在する" test -f "$state/agmsg/db/messages.db"
-  assert_false "(b) repo側 shared/skills/agmsg/db は消えている" test -e "$repo/shared/skills/agmsg/db"
 
   # skill state exception(exception3): link-dir配下でもXDGへ移動する
   assert_true "(exception3) config-audit/audit-history.jsonl がXDG agents-toolkit側へ移動" \
@@ -296,8 +291,6 @@ test_failure_rollback() {
   assert_true "claude/.credentials.json がrepo側に復元される" test -f "$repo/claude/.credentials.json"
   assert_eq "復元されたcredentialsの内容保持" "FAKE" "$(cat "$repo/claude/.credentials.json" 2>/dev/null)"
   assert_true "claude/projects/p1/x.jsonl がrepo側に復元される" test -f "$repo/claude/projects/p1/x.jsonl"
-  assert_true "shared/skills/agmsg/db/messages.db がrepo側に復元される" \
-    test -f "$repo/shared/skills/agmsg/db/messages.db"
   assert_true "旧nested configもrepo側に復元される" test -f "$repo/claude/.agents/legacy.md"
   assert_true "claude/CLAUDE.md はtracked sourceとしてrepoに残ったまま" test -f "$repo/claude/CLAUDE.md"
 
@@ -340,8 +333,8 @@ test_destination_collision_preflight() {
   setup_sandbox "$sandbox"
   repo="$sandbox/agents-toolkit"
   home="$sandbox/home"
-  mkdir -p "$home/.local/state/agmsg/db"
-  echo "SENTINEL" > "$home/.local/state/agmsg/db/existing"
+  mkdir -p "$home/.local/state/agents-toolkit/config-audit"
+  echo "SENTINEL" > "$home/.local/state/agents-toolkit/config-audit/audit-history.jsonl"
   before="$(snapshot "$repo"; snapshot "$home"; snapshot "$home/.local/state")"
 
   run_migrate "$sandbox" --apply >"$sandbox/collision.log" 2>&1 || rc=$?
@@ -350,7 +343,7 @@ test_destination_collision_preflight() {
   assert_eq "destination collisionは非ゼロ終了" "1" "$rc"
   assert_contains "collision対象が表示される" "$(cat "$sandbox/collision.log")" "移行先が既に存在"
   assert_eq "collision preflightはfilesystemを変更しない" "$before" "$after"
-  assert_eq "既存stateの内容を保持" "SENTINEL" "$(cat "$home/.local/state/agmsg/db/existing")"
+  assert_eq "既存stateの内容を保持" "SENTINEL" "$(cat "$home/.local/state/agents-toolkit/config-audit/audit-history.jsonl")"
   assert_true "旧whole-directory symlinkを保持" test -L "$home/.claude"
 
   rm -rf "$sandbox"

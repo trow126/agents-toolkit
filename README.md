@@ -10,8 +10,6 @@ AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 | Codex CLI | first-class | user instructions、rules、skills、hooks、feature/plugin状態、live prompt discovery |
 | その他 | unsupported | context adapterを配布・検証しない |
 
-`agmsg`の内部transportは他runtime向けの互換処理を保持するが、agents-toolkitのsupport contractはClaude CodeとCodex CLIだけを対象とする。Antigravity、GitHub Copilot CLI、Gemini CLI、OpenCodeの旧context templateは履歴参照用に`docs/archive/skills/agmsg/templates/`へ移した。
-
 ## レイアウト
 
 `claude/`・`codex/`・`shared/` は **追跡対象をsourceに限定する**ディレクトリで、`~/.claude`・`~/.codex`・`~/.agents` に丸ごと symlink されることはない。`~/.claude` 等は実ディレクトリであり、`install/manifest.tsv` に列挙された個別ファイル・サブディレクトリだけが symlink される(詳細は後述のインストーラ節を参照)。repo内での開発時に生成される `.venv`・tool cache・`__pycache__` はignore済みlocal artifactとして許容するが、vendor runtime・credentials・sessions・DBは許容しない。
@@ -22,7 +20,7 @@ AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 | `codex/` | Codex CLI 設定 source | 同上(`~/.codex/` 配下) |
 | `shared/` | エージェント横断の共有ルール・skill・reference正本 | 同上(`~/.agents/` 配下) |
 
-credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。`agmsg` の DB/run/team 状態は`${XDG_STATE_HOME:-$HOME/.local/state}/agmsg/`、明示的に`config-audit --record`した履歴等は`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`へ書き込まれる。`gh-start`は永続checkpointを作らない。
+credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。明示的に`config-audit --record`した履歴等は`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`へ書き込まれる。`gh-start`は永続checkpointを作らない。
 
 ## セットアップ(新マシン)
 
@@ -39,7 +37,7 @@ Claude Code の permission・sandbox・hook は user settings ではなく OS-ma
 
 `~/.claude`・`~/.codex`・`~/.agents` が repo を丸ごと指す symlink になっている旧構成のマシンでは、以下の手順で新構成へ移行する。
 
-1. Claude Code・Codex CLI・`agmsg` のセッションをすべて終了する
+1. Claude Code・Codex CLI のセッションをすべて終了する
 2. `sudo ./scripts/install-managed-policy.sh --apply` で managed security policy を導入する
 3. `./scripts/migrate-layout.sh --dry-run` で移動計画を確認する(変更なし)
 4. `./scripts/migrate-layout.sh --apply` を実行する。runtime データを実ディレクトリ/XDG stateへ移し、`bootstrap.sh --apply`と`--check`までを同一transactionとして実行する。ここまでの途中失敗時は自動rollbackする
@@ -82,8 +80,6 @@ Skillの副作用modeは`docs/contracts/skill-authority.tsv`がmachine-readable�
 ## 既知の例外
 
 repo内での開発・実行により `.venv`、`.mypy_cache`、`.pytest_cache`、`.ruff_cache`、`__pycache__` が生成されることがある。これらだけをignore済みlocal開発artifactとして許容する。`scripts/validate-layout.sh` はcutover後、`claude/`・`codex/`・`shared/`配下のそれ以外のuntracked/ignored entryを違反として扱う。旧nested config候補はmigration時に削除せず、XDG stateの`agents-toolkit/migration-archive/`へ退避する。
-
-`agmsg` は同じscript sourceをCodexの `~/.agents/skills/agmsg` とClaude Codeの `~/.claude/skills/agmsg/SKILL.md` から利用する。Codex用skill本体とClaude Code用skill定義はagent typeごとに分け、runtime stateはどちらも `${XDG_STATE_HOME:-$HOME/.local/state}/agmsg` を使用する。
 
 `./scripts/audit-context-runtime.sh`は、Claude Code/Codexのmemory・plugin policy、toolkit skill link、Claudeのzero-inference discovery、Codexのmodel-visible prompt discoveryをread-onlyで確認する。vendor CLIを必要とするためCIではなくbootstrap後のlive acceptanceとして実行する。
 

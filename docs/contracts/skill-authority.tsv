@@ -47,7 +47,3 @@ model-routing	default	deny	deny	deny	deny	deny	deny	advisory owner routing escal
 plan-review	default	allow	deny	deny	deny	deny	deny	launch one read-only reviewer and save its result under claudedocs/reviews
 pr-review	default	deny	deny	deny	deny	allow	deny	post one PR review comment; fixes commits and pushes are forbidden
 python-refactor-analysis	default	allow	deny	deny	deny	deny	deny	write analysis reports under the target repository .analysis directory
-agmsg	read	deny	deny	deny	deny	deny	deny	inbox history team and identity reads
-agmsg	send	deny	allow	deny	deny	deny	deny	send one local SQLite message
-agmsg	join|actas|drop|mode|reset	deny	allow	deny	deny	deny	deny	explicit identity or delivery mutation
-agmsg	spawn|despawn	deny	allow	deny	deny	deny	allow	explicitly named agent process

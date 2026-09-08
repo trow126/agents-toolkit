@@ -47,7 +47,6 @@ link-dir	shared/skills/claude-code/pr-review	.claude/skills/pr-review
 link-dir	shared/skills/codex/pr-review	.agents/skills/pr-review
 link-dir	shared/skills/python-refactor-analysis	.claude/skills/python-refactor-analysis
 link-dir	shared/skills/python-refactor-analysis	.agents/skills/python-refactor-analysis
-link-file	shared/skills/agmsg/templates/cmd.claude-code.md	.claude/skills/agmsg/SKILL.md
 link-dir	claude/output-styles	.claude/output-styles
 link-dir	claude/bin	.claude/bin
 link-dir	claude/scripts	.claude/scripts
@@ -57,7 +56,6 @@ link-file	codex/hooks.json	.codex/hooks.json
 link-file	codex/herdr-agent-state.sh	.codex/herdr-agent-state.sh
 link-dir	shared/rules	.agents/rules
 link-dir	shared/bin	.agents/bin
-link-dir	shared/skills/agmsg	.agents/skills/agmsg
 link-dir	codex/skills/claude-second-opinion	.agents/skills/claude-second-opinion
 link-dir	codex/skills/doctor	.agents/skills/doctor
 link-dir	codex/skills/issue-writing	.agents/skills/issue-writing

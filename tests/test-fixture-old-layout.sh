@@ -84,8 +84,6 @@ assert_false "codex/auth.json は untracked" \
   git -C "$REPO" ls-files --error-unmatch codex/auth.json
 assert_false "codex/state.sqlite は untracked" \
   git -C "$REPO" ls-files --error-unmatch codex/state.sqlite
-assert_false "shared/skills/agmsg/db/messages.db は untracked" \
-  git -C "$REPO" ls-files --error-unmatch shared/skills/agmsg/db/messages.db
 
 # untracked疑似runtimeの内容がダミーであることの確認(secret値を書かないfixtureの検証)
 assert_eq "claude/.credentials.json の内容はダミー" "FAKE" "$(cat "$REPO/claude/.credentials.json")"

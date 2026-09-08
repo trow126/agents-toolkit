@@ -98,11 +98,11 @@ fi
 # entries: link-file x2, link-dir x2 (うち1つは .agents/skills/... の入れ子target)
 build_fixture_repo() {
   local repo="$1"
-  mkdir -p "$repo/install" "$repo/claude/rules" "$repo/claude/bin" "$repo/codex" "$repo/shared/skills/agmsg"
+  mkdir -p "$repo/install" "$repo/claude/rules" "$repo/claude/bin" "$repo/codex" "$repo/shared/skills/fixture-shared"
   echo "# CLAUDE.md (fixture)" > "$repo/claude/CLAUDE.md"
   echo "# sample rule (fixture)" > "$repo/claude/rules/sample.md"
   echo "# AGENTS.md (fixture)" > "$repo/codex/AGENTS.md"
-  echo "# agmsg SKILL.md (fixture)" > "$repo/shared/skills/agmsg/SKILL.md"
+  echo "# fixture-shared SKILL.md (fixture)" > "$repo/shared/skills/fixture-shared/SKILL.md"
   # bootstrap は managed policy checker/installer と doctor を強制する。
   cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
   cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
@@ -117,7 +117,7 @@ build_fixture_repo() {
   printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\n' > "$repo/install/manifest.tsv"
   printf 'link-dir\tclaude/rules\t.claude/rules\n' >> "$repo/install/manifest.tsv"
   printf 'link-file\tcodex/AGENTS.md\t.codex/AGENTS.md\n' >> "$repo/install/manifest.tsv"
-  printf 'link-dir\tshared/skills/agmsg\t.agents/skills/agmsg\n' >> "$repo/install/manifest.tsv"
+  printf 'link-dir\tshared/skills/fixture-shared\t.agents/skills/fixture-shared\n' >> "$repo/install/manifest.tsv"
 }
 
 # NO_OVERLAY: 存在しないoverlay rootを指す(overlayなしケースの既定に使う)
@@ -180,8 +180,8 @@ assert_eq "\$HOME/.claude/CLAUDE.md の解決先" "$REPO1/claude/CLAUDE.md" "$(r
 assert_true "\$HOME/.claude/rules が symlink" test -L "$HOME1/.claude/rules"
 assert_eq "\$HOME/.claude/rules の解決先" "$REPO1/claude/rules" "$(readlink -f "$HOME1/.claude/rules")"
 assert_true "\$HOME/.codex/AGENTS.md が symlink" test -L "$HOME1/.codex/AGENTS.md"
-assert_true "\$HOME/.agents/skills/agmsg が symlink" test -L "$HOME1/.agents/skills/agmsg"
-assert_eq "\$HOME/.agents/skills/agmsg の解決先" "$REPO1/shared/skills/agmsg" "$(readlink -f "$HOME1/.agents/skills/agmsg")"
+assert_true "\$HOME/.agents/skills/fixture-shared が symlink" test -L "$HOME1/.agents/skills/fixture-shared"
+assert_eq "\$HOME/.agents/skills/fixture-shared の解決先" "$REPO1/shared/skills/fixture-shared" "$(readlink -f "$HOME1/.agents/skills/fixture-shared")"
 
 # =========================================================================
 # 2. 2回目の --apply が冪等(ok扱い・exit 0)
@@ -407,14 +407,14 @@ assert_false "target topology失敗時は1件も作成しない" test -e "$HOME8
 REPO8I="$SANDBOX/repo8i"
 HOME8I="$SANDBOX/home8i"
 build_fixture_repo "$REPO8I"
-mkdir -p "$HOME8I/.agents/skills/agmsg"
-echo "SENTINEL" > "$HOME8I/.agents/skills/agmsg/existing"
+mkdir -p "$HOME8I/.agents/skills/fixture-shared"
+echo "SENTINEL" > "$HOME8I/.agents/skills/fixture-shared/existing"
 out=""
 rc=0
 out="$(run_bootstrap "$REPO8I" "$HOME8I" "$NO_OVERLAY" --apply 2>&1)" || rc=$?
 assert_exit_nonzero "後半target衝突は失敗する" "$rc"
 assert_false "後半target衝突でも先頭targetを作成しない" test -e "$HOME8I/.claude/CLAUDE.md"
-assert_eq "既存target内容は保持される" "SENTINEL" "$(cat "$HOME8I/.agents/skills/agmsg/existing")"
+assert_eq "既存target内容は保持される" "SENTINEL" "$(cat "$HOME8I/.agents/skills/fixture-shared/existing")"
 
 # =========================================================================
 # 9. 「親が repo を指す symlink」ガードが発火してエラーになる

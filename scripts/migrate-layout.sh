@@ -148,7 +148,7 @@ is_under_linkdir_source() {
 # ============================================================
 # 移動計画の構築
 #   git ls-files/status で tracked/untracked/mixed を判定し、untracked/ignoredを
-#   例外ルール(skill-state XDG化・agmsg XDG化・local開発artifact残置・
+#   例外ルール(skill-state XDG化・local開発artifact残置・
 #   旧nested configのarchive退避)に照らして分類する。どれにも該当しない untracked/ignored は
 #   「runtime/private overlay を実directoryへ移動」する一般則の対象とする。
 #   git から不可視な directory(nested git repo等)は unclassified として中断する。
@@ -205,15 +205,6 @@ classify_action() {
       return ;;
   esac
 
-  # 例外2: agmsg runtime state
-  if [[ "$rel" == shared/skills/agmsg/* ]]; then
-    case "$base" in
-      db|run|teams)
-        PLAN_SRC+=("$rel"); PLAN_DST+=("$XDG_STATE/agmsg/$base"); PLAN_KIND+=("state")
-        return ;;
-    esac
-  fi
-
   # source treeで許容するのは、gitignore済みのlocal開発artifactだけ。
   # vendor runtimeや用途不明のentryはこのallowlistへ混ぜない。
   case "$base" in
@@ -243,10 +234,10 @@ classify_action() {
   PLAN_SRC+=("$rel"); PLAN_DST+=("$AT_HOME/$real/$under"); PLAN_KIND+=("move")
 }
 
-# untracked判定されたdirectoryが、実は内部にexception対象(skill state・agmsg・
+# untracked判定されたdirectoryが、実は内部にexception対象(skill state・
 # link-dir source)を含みうる場合はtrue。classify_kindはgit的に「配下すべてuntracked」を
-# 一つのkindにまとめてしまうため、これが無いと例えば shared/skills(全untracked)配下の
-# shared/skills/agmsg/db がexception判定されないまま丸ごとmoveされてしまう。
+# 一つのkindにまとめてしまうため、これが無いと例えば claude/skills(全untracked)配下の
+# claude/skills/config-audit/audit-history.jsonl がexception判定されないまま丸ごとmoveされてしまう。
 should_force_recurse() {
   local rel="$1" s
   for s in \
@@ -258,9 +249,6 @@ should_force_recurse() {
       return 0
     fi
   done
-  if [[ "shared/skills/agmsg" == "$rel" || "shared/skills/agmsg" == "$rel"/* ]]; then
-    return 0
-  fi
   for s in "${LINKDIR_SOURCES[@]}"; do
     if [[ "$s" == "$rel"/* ]]; then
       return 0
@@ -416,7 +404,6 @@ check_active_sessions() {
   local found=() pid
   while read -r pid; do [[ -n "$pid" ]] && found+=("claude(pid=$pid)"); done < <(pgrep -x claude 2>/dev/null || true)
   while read -r pid; do [[ -n "$pid" ]] && found+=("codex(pid=$pid)"); done < <(pgrep -x codex 2>/dev/null || true)
-  while read -r pid; do [[ -n "$pid" ]] && found+=("agmsg-watch(pid=$pid)"); done < <(pgrep -f 'agmsg/scripts/watch\.sh' 2>/dev/null || true)
   if [[ "${#found[@]}" -gt 0 ]]; then
     echo "ERROR: preflight(active session): 実行中のセッションを検出しました。すべて終了してから再実行してください(自己責任で続行する場合は AGENTS_TOOLKIT_MIGRATE_FORCE=1):" >&2
     printf '  - %s\n' "${found[@]}" >&2
