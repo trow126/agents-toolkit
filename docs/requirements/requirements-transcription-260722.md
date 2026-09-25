@@ -53,3 +53,13 @@
 - 「最小コストの実験へ変換する」→ falsifiable minimum experiment
 
 適合判定は上記の PDF 明文に対して行う。Stage 番号・出力見出し・内部 handoff 形式は reversible な実装詳細であり、要件所有者の承認を受けたという証跡がない限り「正式な追加仕様」とは表現しない。
+
+### cross-provider モード（owner 決定 D7、2026-09-25）
+
+p.12 §4.1 の「外部調査によって既視感を排除する」を補うため、opt-in の `/break-consensus --cross` を加えた。原本へ新しい要件を加えるものではなく、候補を独立した context で出す実装の選択肢である。
+
+- 既定の動作は変えない。`--cross` は Claude Code 版だけにあり、user が明示したときだけ使う。
+- Claude main が brief を書いて sha256 を記録し、同じ brief だけを2つの worker に渡す。Codex worker は `codex exec -s read-only` を空の一時ディレクトリで profile `toolkit-divergent` を付けて動かし、Claude worker は dynamic workflow の `agent()` で Bash、Edit、Write、NotebookEdit を除いて動かす。
+- 両方の出力の後で、Claude main が先行事例の確認、stress test、最小の実験を行い、一致点、相違点、採否の理由、両方の生の出力を統合結果に残す。
+- 採点、収束、実装は行わない。repository の変更と外部への書き込みは禁止する。
+- 手順は `shared/skills/break-consensus/references/cross.md`、launcher は `claude/bin/break-consensus-cross` にある。

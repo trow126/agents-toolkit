@@ -85,7 +85,7 @@ fi
 # ---- 実 repo(current checkout)への適用が主要指標で after 状態を示す ----
 out="$("$MEASURE" --repo "$REPO_ROOT")"
 assert_metric "実 repo: full pin 0" "$out" "full_model_pins" "0"
-assert_metric "実 repo: routing 表は10行" "$out" "routing_rows" "10"
+assert_metric "実 repo: routing 表は12行" "$out" "routing_rows" "12"
 assert_metric "実 repo: routing targets 外の model 名は0件" "$out" "model_name_mentions_outside_targets" "0"
 assert_metric "実 repo: 無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "実 repo: learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"
@@ -97,7 +97,7 @@ assert_metric "実 repo: active skill entrypoint は8192 bytes以内" "$out" "ac
 assert_metric "実 repo: shared rule always-onはcoreのみ" "$out" "shared_rules_always_on_bytes" "1441"
 assert_metric "実 repo: hook script は9件" "$out" "hook_scripts" "9"
 assert_metric "実 repo: managed hook registration は11件" "$out" "hook_registrations" "11"
-assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "178"
+assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "181"
 assert_metric "実 repo: review/progress/retrospective active unique path" "$out" "review_progress_retrospective_mechanisms" "6"
 assert_metric "実 repo: built-in agent overlap 0" "$out" "custom_builtin_agent_overlaps" "0"
 assert_metric "実 repo: managed policy present" "$out" "managed_policy_present" "yes"

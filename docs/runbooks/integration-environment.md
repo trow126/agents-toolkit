@@ -46,7 +46,21 @@
 - K3（managed の deny `Agent(codex:codex-rescue)`）、K4、K6（`claude -p "/context"` を num_turns=0 で実行）、K7（委任の成否の記録）、K8（任意）、K11（inline hook が発火して block する）、K17（companion に profile 相当の設定を渡せるか。D8 の再評価）
 - `scripts/audit-context-runtime.sh` と `scripts/discover-runtime.sh --online`
 
-## 4. 破棄する
+## 4. Phase 6 で行う検証（D7）
+
+- `~/.codex/toolkit-divergent.config.toml` の link が bootstrap で作られていることを確かめる。
+- `/break-consensus --cross` を1回実行する（D12 の1回 2 USD の範囲。Codex worker の token 数も記録する）。
+- 付録 C.5 を確かめる。
+  - brief の hash が両方の worker の出力で一致する（`break-consensus-cross collect`）。
+  - 片方の出力がもう片方の入力に含まれない。Codex の入力は `run.json` の `codex.prompt_sha256` で、Claude worker の入力は workflow の journal（`<transcriptDir>/journal.jsonl`）の prompt で、どちらも `worker-prompt.md` と一致することを確かめる。
+  - 実行の前後で `git status` が変わらない（`collect` と `finish`）。
+  - Codex は read-only で動き、cwd は空の一時ディレクトリである（rollout の `turn_context`）。
+  - Claude worker は Bash、Edit、Write、NotebookEdit を使えない（K18 の実行時の確認）。Workflow の `agent()` に同じ `disallowedTools` を付けて、Bash で `true` を実行するよう指示し、tool が無いことを transcript で確かめる。使えてしまう場合は、`cross.md` の fallback（Explore）に切り替える。
+  - `result.md` に一致点、相違点、両方の生の出力がある。
+  - 実装へ自動で移らない。
+- `scripts/audit-context-runtime.sh` で、divergent profile の検査が PASS する。
+
+## 5. 破棄する
 
 ```powershell
 wsl --unregister agents-toolkit-it

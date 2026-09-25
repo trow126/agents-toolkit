@@ -983,7 +983,7 @@ else:
                     )
 
 authority = root / "docs" / "contracts" / "skill-authority.tsv"
-expected = ["skill", "mode", "repo_write", "state_write", "commit", "push", "github_write", "delete", "notes"]
+expected = ["skill", "mode", "repo_write", "state_write", "commit", "push", "github_write", "delete", "egress", "notes"]
 if not authority.is_file():
     errors.append("docs/contracts/skill-authority.tsv is missing")
 else:
@@ -1007,7 +1007,7 @@ else:
                 if skill not in active:
                     errors.append(f"skill authority line {line_number}: inactive skill {skill}")
                 authority_modes[skill].append(mode)
-                for field in expected[2:8]:
+                for field in expected[2:9]:
                     if row[field] not in {"allow", "deny"}:
                         errors.append(f"skill authority line {line_number}: {field} must be allow or deny")
 

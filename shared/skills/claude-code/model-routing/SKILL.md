@@ -24,6 +24,7 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 - Claude側にescalation用のagentは置かない（mainが最上位）
 - 高リスク変更（アーキテクチャ・データ破壊・公開 API）は、deterministic CI と `/code-review` で差分を検査する
 - 計画reviewはCodex版`plan-review`（ユーザーがCodexで実行する）か`/code-review`を使う
+- 別providerの独立した発想が必要なときは、ユーザーが明示した場合だけ`/break-consensus --cross`を使う。委任ではなくread-onlyで、実装には移らない
 
 ## Codex 委任（ユーザーの明示指示がある場合だけ）
 

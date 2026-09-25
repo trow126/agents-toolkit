@@ -52,6 +52,7 @@ link-file	codex/AGENTS.md	.codex/AGENTS.md
 link-file	codex/hooks.json	.codex/hooks.json
 link-file	codex/herdr-agent-state.sh	.codex/herdr-agent-state.sh
 link-file	codex/profiles/toolkit-implementer.config.toml	.codex/toolkit-implementer.config.toml
+link-file	codex/profiles/toolkit-divergent.config.toml	.codex/toolkit-divergent.config.toml
 link-dir	shared/rules	.agents/rules
 link-dir	shared/bin	.agents/bin
 link-dir	codex/skills/claude-second-opinion	.agents/skills/claude-second-opinion

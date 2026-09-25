@@ -281,23 +281,30 @@ elif [[ "$FAILURES" -eq "$codex_before" ]]; then
   pass "Codex prompt discovery contains all manifest skills and no superpowers skills"
 fi
 
-# D8 (exec launcher): the delegation profile must put its developer instructions first and
-# drop the skills it disables, the bundled skills, and the multi-agent instructions
-# (appendix C.2). Checked only when the manifest distributes the profile.
-if grep -qP '\t\.codex/toolkit-implementer\.config\.toml$' "$MANIFEST"; then
-  profile_file="$HOME/.codex/toolkit-implementer.config.toml"
+# Codex profiles (appendix C.2), checked only when the manifest distributes them. Both must put
+# their developer instructions first and drop the multi-agent instructions. toolkit-implementer
+# (D8) must also drop the skills it disables and the bundled skills; toolkit-divergent (D7) sets
+# [skills] include_instructions=false and must drop the skill list entirely.
+for profile_name in toolkit-implementer toolkit-divergent; do
+  grep -qP "\t\.codex/${profile_name}\.config\.toml\$" "$MANIFEST" || continue
+  profile_label="${profile_name#toolkit-}"
+  profile_file="$HOME/.codex/${profile_name}.config.toml"
   if [[ ! -f "$profile_file" ]]; then
-    fail "Codex implementer profile is not installed: $profile_file"
-  elif ! profile_prompt="$(codex -p toolkit-implementer debug prompt-input "context-runtime-audit")"; then
-    fail "codex -p toolkit-implementer debug prompt-input failed"
-  else
-    profile_prompt_file="$(mktemp)"
-    printf '%s' "$profile_prompt" > "$profile_prompt_file"
-    profile_problems="$(python3 - "$profile_file" "$profile_prompt_file" <<'PYPROFILE'
+    fail "Codex ${profile_label} profile is not installed: $profile_file"
+    continue
+  fi
+  if ! profile_prompt="$(codex -p "$profile_name" debug prompt-input "context-runtime-audit")"; then
+    fail "codex -p ${profile_name} debug prompt-input failed"
+    continue
+  fi
+  profile_prompt_file="$(mktemp)"
+  printf '%s' "$profile_prompt" > "$profile_prompt_file"
+  profile_problems="$(python3 - "$profile_file" "$profile_prompt_file" <<'PYPROFILE'
 import json, re, sys, tomllib
 profile = tomllib.loads(open(sys.argv[1], encoding="utf-8").read())
 first_line = next(l.strip() for l in profile["developer_instructions"].splitlines() if l.strip())
-disabled = {c["name"] for c in (profile.get("skills") or {}).get("config") or [] if c.get("enabled") is False}
+skills = profile.get("skills") or {}
+disabled = {c["name"] for c in skills.get("config") or [] if c.get("enabled") is False}
 parts = []
 for item in json.load(open(sys.argv[2], encoding="utf-8")):
     for content in item.get("content") or []:
@@ -310,6 +317,9 @@ for _, text in parts:
 problems = []
 if not parts or parts[0][0] != "developer" or not parts[0][1].lstrip().startswith(first_line):
     problems.append("profile developer_instructions are not the first developer message")
+if skills.get("include_instructions") is False:
+    if any("<skills_instructions>" in t for _, t in parts):
+        problems.append("skill list is still injected: " + ", ".join(sorted(listed)))
 for name in sorted(listed & disabled):
     problems.append(f"profile-disabled skill is still listed: {name}")
 if any(re.search(r"\(file: r\d+/[^)]*\)", t) and "/.system/" in t for _, t in parts):
@@ -319,14 +329,15 @@ if any("<multi_agent" in t for _, t in parts):
 print("\n".join(problems))
 PYPROFILE
 )"
-    rm -f "$profile_prompt_file"
-    if [[ -n "$profile_problems" ]]; then
-      while IFS= read -r problem; do fail "Codex implementer profile: $problem"; done <<< "$profile_problems"
-    else
-      pass "Codex implementer profile prompt drops disabled skills and multi-agent instructions"
-    fi
+  rm -f "$profile_prompt_file"
+  if [[ -n "$profile_problems" ]]; then
+    while IFS= read -r problem; do fail "Codex ${profile_label} profile: $problem"; done <<< "$profile_problems"
+  elif [[ "$profile_name" == toolkit-divergent ]]; then
+    pass "Codex divergent profile prompt drops the skill list and multi-agent instructions"
+  else
+    pass "Codex implementer profile prompt drops disabled skills and multi-agent instructions"
   fi
-fi
+done
 
 echo
 if [[ "$FAILURES" -eq 0 ]]; then

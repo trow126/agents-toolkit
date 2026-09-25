@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "break-consensus --cross worker output",
+  "description": "Final answer of one divergent worker (Codex: codex exec --output-schema; Claude: Workflow agent() schema). break-consensus-cross collect also checks the hash format, candidate count, and mechanism coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["brief_sha256", "consensus_baseline", "candidates", "notes"],
+  "properties": {
+    "brief_sha256": {"type": "string"},
+    "consensus_baseline": {"type": "array", "items": {"type": "string"}},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "generation_mechanism", "broken_assumption", "mechanism", "predicted_benefit", "failure_condition"],
+        "properties": {
+          "title": {"type": "string"},
+          "generation_mechanism": {"type": "string", "enum": ["assumption_inversion", "structural_transfer", "changed_principle"]},
+          "broken_assumption": {"type": "string"},
+          "mechanism": {"type": "string"},
+          "predicted_benefit": {"type": "string"},
+          "failure_condition": {"type": "string"}
+        }
+      }
+    },
+    "notes": {"type": "string"}
+  }
+}

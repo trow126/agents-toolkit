@@ -113,18 +113,22 @@ NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 #   完了通知が main session に届かない（2026-09 の codex-rescue で再現）。
 # - main session でも companion の task --background と、launcher を通さない書き込み可能な
 #   codex exec は拒否する。委任は ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で
-#   起動する（--dry-run を除く）。codex exec -s read-only（break-consensus --cross）は main だけ許可する。
+#   起動する（--dry-run を除く）。codex exec -s read-only は main だけ許可する。
+# - break-consensus --cross の Codex worker（~/.claude/bin/break-consensus-cross codex）も Codex の起動として
+#   扱う。main では Claude worker と並行させ完了通知を受け取るため、Bash(run_in_background=true) を必須にする。
 IS_DELEGATE=false
 IS_COMPANION_TASK=false
 IS_EXEC=false
+IS_CROSS_CODEX=false
 printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-delegate([[:space:]]|$)' && IS_DELEGATE=true
+printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])break-consensus-cross[[:space:]]+codex([[:space:]]|$)' && IS_CROSS_CODEX=true
 if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
     printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
     IS_COMPANION_TASK=true
 fi
 printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex([[:space:]]+[^;|&[:space:]]+)*[[:space:]]+exec([[:space:]]|$)' && IS_EXEC=true
 if [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]]; then
-    if [[ "$IS_DELEGATE" == true || "$IS_COMPANION_TASK" == true || "$IS_EXEC" == true ]]; then
+    if [[ "$IS_DELEGATE" == true || "$IS_COMPANION_TASK" == true || "$IS_EXEC" == true || "$IS_CROSS_CODEX" == true ]]; then
         block "subagent（${AGENT_TYPE:-agent_id=$AGENT_ID}）からの Codex 起動を拒否した。subagent 内の process は完了通知を main session に返せないため、Claude main sessionから ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で起動すること"
     fi
 else
@@ -140,6 +144,10 @@ else
     if [[ "$IS_DELEGATE" == true && "$RUN_IN_BACKGROUND" != true ]] &&
         ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--dry-run([[:space:]]|$)'; then
         block "codex-delegate は Bash(run_in_background=true) で起動すること（完了通知を main session が受け取るため）。確認だけなら --dry-run を付ける"
+    fi
+    if [[ "$IS_CROSS_CODEX" == true && "$RUN_IN_BACKGROUND" != true ]] &&
+        ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--dry-run([[:space:]]|$)'; then
+        block "break-consensus-cross codex は Bash(run_in_background=true) で起動すること（Claude worker と並行させ、完了通知を main session が受け取るため）。確認だけなら --dry-run を付ける"
     fi
 fi
 

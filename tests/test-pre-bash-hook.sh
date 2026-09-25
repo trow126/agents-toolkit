@@ -342,6 +342,13 @@ expect_block "global option の後ろの exec も検出する" "codex -p toolkit
 expect_block "read-only に --full-auto を足した exec は block" "codex exec -s read-only --full-auto 'x'"
 expect_allow "main session の codex exec -s read-only は許可（break-consensus --cross）" "codex exec -C /tmp/empty --skip-git-repo-check -p toolkit-divergent -s read-only --json - < brief.md"
 expect_allow "codex の他の subcommand は対象外" "codex --version; codex debug models"
+CROSS='~/.claude/bin/break-consensus-cross'
+RUN='~/.local/state/agents-toolkit/break-consensus/20260925T000000Z-0123abcd'
+expect_block_agent "subagent からの break-consensus-cross codex は block" "general-purpose" "$CROSS codex $RUN"
+expect_allow_agent_tool_background "main session の break-consensus-cross codex（background）は許可" "" "$CROSS codex $RUN"
+expect_block_agent_tool_foreground "main session の break-consensus-cross codex（foreground）は block" "" "$CROSS codex $RUN"
+expect_allow "break-consensus-cross codex --dry-run は foreground でも許可" "$CROSS codex $RUN --dry-run"
+expect_allow "break-consensus-cross prepare / collect / finish は Codex を起動しないので許可" "$CROSS prepare /tmp/brief.md; $CROSS collect $RUN; $CROSS finish $RUN"
 
 # ---- 6. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'

@@ -5,6 +5,13 @@ description: Generates non-consensus candidates: freezes the consensus baseline,
 
 # $break-consensus
 
+**Stop** before any implementation, external write, or destructive experiment; this skill only explores and proposes. **Done** when you have returned the surviving candidates, each with its smallest reversible experiment.
+
+## Modes
+
+- default: generate and test candidates in this session.
+- `--cross`: available only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `/break-consensus --cross` in Claude Code, and stop.
+
 Read [`../../break-consensus/references/evidence.md`](../../break-consensus/references/evidence.md).
 
 1. List and freeze the consensus baseline: standard practice, the first solutions an LLM is likely to produce, and the current implementation. These are exploration exclusions, not candidates.

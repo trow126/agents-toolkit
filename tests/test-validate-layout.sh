@@ -105,8 +105,8 @@ CONSUMERS
 runtime	skill	dependency	trigger
 DEPENDENCIES
   cat > "$repo/docs/contracts/skill-authority.tsv" <<'AUTHORITY'
-skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
-sample-skill	default	deny	deny	deny	deny	deny	deny	fixture read
+skill	mode	repo_write	state_write	commit	push	github_write	delete	egress	notes
+sample-skill	default	deny	deny	deny	deny	deny	deny	deny	fixture read
 AUTHORITY
 
   printf '# no active waivers\n' > "$repo/docs/waivers/settings-waivers.tsv"
@@ -269,7 +269,7 @@ run_case claude-skill-reference-escapes-package \
   'printf "\n[external](../../README.md)\n" >> "$repo/claude/skills/sample-skill/SKILL.md"' \
   'Claude skill reference escapes package: claude/skills/sample-skill/SKILL.md -> ../../README.md'
 run_case valid-skill-dependency \
-  'mkdir -p "$repo/claude/skills/dependency"; printf "%s\n" "---" "name: dependency" "description: Fixture dependency." "---" "# Dependency" > "$repo/claude/skills/dependency/SKILL.md"; printf "claude\tsample-skill\tdependency\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"; printf "dependency\tdefault\tdeny\tdeny\tdeny\tdeny\tdeny\tdeny\tfixture dependency read\n" >> "$repo/docs/contracts/skill-authority.tsv"; git -C "$repo" add claude/skills/dependency/SKILL.md docs/contracts/skill-dependencies.tsv docs/contracts/skill-authority.tsv' \
+  'mkdir -p "$repo/claude/skills/dependency"; printf "%s\n" "---" "name: dependency" "description: Fixture dependency." "---" "# Dependency" > "$repo/claude/skills/dependency/SKILL.md"; printf "claude\tsample-skill\tdependency\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"; printf "dependency\tdefault\tdeny\tdeny\tdeny\tdeny\tdeny\tdeny\tdeny\tfixture dependency read\n" >> "$repo/docs/contracts/skill-authority.tsv"; git -C "$repo" add claude/skills/dependency/SKILL.md docs/contracts/skill-dependencies.tsv docs/contracts/skill-authority.tsv' \
   PASS
 run_case missing-skill-dependency \
   'printf "claude\tsample-skill\tmissing\tfixture\n" >> "$repo/docs/contracts/skill-dependencies.tsv"' \

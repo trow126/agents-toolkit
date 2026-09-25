@@ -1,48 +1,49 @@
-skill	mode	repo_write	state_write	commit	push	github_write	delete	notes
-article-style	default	deny	deny	deny	deny	deny	deny	public prose guidance only
-branch-cleanup	default	deny	allow	deny	deny	deny	allow	checkout pull and fetch state; delete only verified merged branches or clean worktrees
-break-consensus	default	deny	deny	deny	deny	deny	deny	explores and proposes; no implementation external writes or destructive experiments
-claude-second-opinion	default	deny	allow	deny	deny	deny	deny	writes prompt and candidate result to a protected temporary directory then removes it
-doctor	default	deny	deny	deny	deny	deny	deny	comprehensive read-only checkup before any confirmed repair
-doctor	repair	allow	allow	deny	deny	deny	deny	apply only approved surgical repairs to applicable rules configuration or installation state
-implementation-quality	default	allow	deny	deny	deny	deny	deny	scoped source and test changes only
-git-operations	default	deny	deny	deny	deny	deny	deny	status diff and inspection only
-git-operations	stage	deny	allow	deny	deny	deny	deny	stage reviewed paths only
-git-operations	branch	deny	allow	deny	deny	deny	deny	create or switch the exact feature branch
-git-operations	commit	deny	deny	allow	deny	deny	deny	commit reviewed staged changes
-git-operations	merge	allow	allow	allow	deny	deny	deny	exact local merge with rollback path
-git-operations	push	deny	deny	deny	allow	deny	deny	push the exact branch and remote
-config-audit	default	deny	deny	deny	deny	deny	deny	read-only report
-config-audit	--record	deny	allow	deny	deny	deny	deny	append one XDG history record
-knowledge-audit	default	deny	deny	deny	deny	deny	deny	in-chat report
-knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	selected project knowledge files only
-gh-codex-drive	default	allow	allow	deny	deny	deny	deny	Codex implements through codex-delegate; creates or switches the feature branch and writes contract result evidence and active state under the git-dir; completion side effects are forbidden
-gh-codex-drive	--status	deny	deny	deny	deny	deny	deny	report task state and local evidence only; no delegation or edits
-gh-finish	default	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
-gh-finish	--apply	allow	allow	allow	deny	allow	deny	commit scoped changes locally merge and close one Issue with a comment
-gh-index	default	deny	deny	deny	deny	deny	deny	in-chat index
-gh-index	--output	allow	deny	deny	deny	deny	deny	exact repo-local path
-gh-index	--output --force	allow	deny	deny	deny	deny	deny	overwrite the exact existing repo-local file named by --output
-gh-roadmap-drive	default	allow	allow	allow	deny	allow	deny	per sub-Issue commit and local merge close plus one tracking checklist update
-gh-roadmap-drive	--status	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no delegation edits or writes
-gh-start	default	allow	deny	deny	deny	deny	deny	local implementation and tests
-gh-start	--commit	deny	deny	allow	deny	deny	deny	commit previously verified scoped changes
-gh-start	--sync	deny	deny	deny	deny	allow	deny	one Issue status update
-gh-pr	default	deny	deny	deny	deny	deny	deny	validate and prepare
-gh-pr	--push	deny	deny	deny	allow	deny	deny	push current feature branch
-gh-pr	--create	deny	deny	deny	deny	allow	deny	create one PR
-gh-pr	--review-comment	deny	deny	deny	deny	allow	deny	post one review comment
-gh-review	default	allow	deny	deny	deny	deny	deny	local fixes and tests
-gh-review	--commit	deny	deny	allow	deny	deny	deny	commit previously verified fixes
-gh-review	--push	deny	deny	deny	allow	deny	deny	push current branch
-gh-review	--comment	deny	deny	deny	deny	allow	deny	post or resolve one review response per approval
-gh-issue	create	deny	deny	deny	deny	allow	deny	create one Issue
-gh-issue	close	deny	deny	deny	deny	allow	deny	close one Issue
-gh-issue	retro	deny	deny	deny	deny	deny	deny	in-chat retrospective
-gh-issue	retro --apply	allow	deny	deny	deny	deny	deny	write exact project file
-issue-writing	default	deny	deny	deny	deny	deny	deny	drafting does not authorize creating or updating an Issue
-kaggle	default	deny	allow	deny	deny	deny	deny	read-only listing reports and downloads may write requested local download state
-kaggle	account-write	deny	allow	deny	deny	deny	deny	explicit Kaggle account writes; credential-file creation is local state and external writes are outside these columns
-model-routing	default	deny	deny	deny	deny	deny	deny	advisory owner routing escalation and model verification rules only
-plan-review	default	allow	deny	deny	deny	deny	deny	Codex only; launch one read-only plan_reviewer and save its result under claudedocs/reviews
-python-refactor-analysis	default	allow	deny	deny	deny	deny	deny	write analysis reports under the target repository .analysis directory
+skill	mode	repo_write	state_write	commit	push	github_write	delete	egress	notes
+article-style	default	deny	deny	deny	deny	deny	deny	deny	public prose guidance only
+branch-cleanup	default	deny	allow	deny	deny	deny	allow	deny	checkout pull and fetch state; delete only verified merged branches or clean worktrees
+break-consensus	default	deny	deny	deny	deny	deny	deny	deny	explores and proposes; no implementation external writes or destructive experiments
+break-consensus	--cross	deny	allow	deny	deny	deny	deny	allow	Claude Code only; sends the brief to a Codex worker (codex exec -s read-only in an empty directory) and a read-only Claude worker; writes only its run directory under ~/.local/state; no repository writes or implementation
+claude-second-opinion	default	deny	allow	deny	deny	deny	deny	allow	writes prompt and candidate result to a protected temporary directory then removes it
+doctor	default	deny	deny	deny	deny	deny	deny	deny	comprehensive read-only checkup before any confirmed repair
+doctor	repair	allow	allow	deny	deny	deny	deny	deny	apply only approved surgical repairs to applicable rules configuration or installation state
+implementation-quality	default	allow	deny	deny	deny	deny	deny	deny	scoped source and test changes only
+git-operations	default	deny	deny	deny	deny	deny	deny	deny	status diff and inspection only
+git-operations	stage	deny	allow	deny	deny	deny	deny	deny	stage reviewed paths only
+git-operations	branch	deny	allow	deny	deny	deny	deny	deny	create or switch the exact feature branch
+git-operations	commit	deny	deny	allow	deny	deny	deny	deny	commit reviewed staged changes
+git-operations	merge	allow	allow	allow	deny	deny	deny	deny	exact local merge with rollback path
+git-operations	push	deny	deny	deny	allow	deny	deny	deny	push the exact branch and remote
+config-audit	default	deny	deny	deny	deny	deny	deny	deny	read-only report
+config-audit	--record	deny	allow	deny	deny	deny	deny	deny	append one XDG history record
+knowledge-audit	default	deny	deny	deny	deny	deny	deny	deny	in-chat report
+knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	deny	selected project knowledge files only
+gh-codex-drive	default	allow	allow	deny	deny	deny	deny	allow	Codex implements through codex-delegate; creates or switches the feature branch and writes contract result evidence and active state under the git-dir; completion side effects are forbidden
+gh-codex-drive	--status	deny	deny	deny	deny	deny	deny	deny	report task state and local evidence only; no delegation or edits
+gh-finish	default	deny	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
+gh-finish	--apply	allow	allow	allow	deny	allow	deny	deny	commit scoped changes locally merge and close one Issue with a comment
+gh-index	default	deny	deny	deny	deny	deny	deny	deny	in-chat index
+gh-index	--output	allow	deny	deny	deny	deny	deny	deny	exact repo-local path
+gh-index	--output --force	allow	deny	deny	deny	deny	deny	deny	overwrite the exact existing repo-local file named by --output
+gh-roadmap-drive	default	allow	allow	allow	deny	allow	deny	allow	per sub-Issue commit and local merge close plus one tracking checklist update
+gh-roadmap-drive	--status	deny	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no delegation edits or writes
+gh-start	default	allow	deny	deny	deny	deny	deny	deny	local implementation and tests
+gh-start	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified scoped changes
+gh-start	--sync	deny	deny	deny	deny	allow	deny	deny	one Issue status update
+gh-pr	default	deny	deny	deny	deny	deny	deny	deny	validate and prepare
+gh-pr	--push	deny	deny	deny	allow	deny	deny	deny	push current feature branch
+gh-pr	--create	deny	deny	deny	deny	allow	deny	deny	create one PR
+gh-pr	--review-comment	deny	deny	deny	deny	allow	deny	deny	post one review comment
+gh-review	default	allow	deny	deny	deny	deny	deny	deny	local fixes and tests
+gh-review	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified fixes
+gh-review	--push	deny	deny	deny	allow	deny	deny	deny	push current branch
+gh-review	--comment	deny	deny	deny	deny	allow	deny	deny	post or resolve one review response per approval
+gh-issue	create	deny	deny	deny	deny	allow	deny	deny	create one Issue
+gh-issue	close	deny	deny	deny	deny	allow	deny	deny	close one Issue
+gh-issue	retro	deny	deny	deny	deny	deny	deny	deny	in-chat retrospective
+gh-issue	retro --apply	allow	deny	deny	deny	deny	deny	deny	write exact project file
+issue-writing	default	deny	deny	deny	deny	deny	deny	deny	drafting does not authorize creating or updating an Issue
+kaggle	default	deny	allow	deny	deny	deny	deny	deny	read-only listing reports and downloads may write requested local download state
+kaggle	account-write	deny	allow	deny	deny	deny	deny	deny	explicit Kaggle account writes; credential-file creation is local state and external writes are outside these columns
+model-routing	default	deny	deny	deny	deny	deny	deny	deny	advisory owner routing escalation and model verification rules only
+plan-review	default	allow	deny	deny	deny	deny	deny	deny	Codex only; launch one read-only plan_reviewer and save its result under claudedocs/reviews
+python-refactor-analysis	default	allow	deny	deny	deny	deny	deny	deny	write analysis reports under the target repository .analysis directory

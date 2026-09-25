@@ -121,7 +121,7 @@ GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/gh-index`, 
 
 品質・Git router: `/implementation-quality`, `/git-operations`。
 
-分析・utility: `/break-consensus`（manual only）, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。`config-audit`と`knowledge-audit`はdefault read-onlyで、書き込みには明示modeが必要。
+分析・utility: `/break-consensus`（manual only。`--cross`はCodexとread-onlyのClaude workerの候補を併せる）, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。`config-audit`と`knowledge-audit`はdefault read-onlyで、書き込みには明示modeが必要。
 
 ## Secret scanning
 

@@ -76,7 +76,7 @@
 | D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 不使用を確認し、gh-codex-drive と gh-roadmap-drive に明記した（Phase 1 branch）。上流版への復帰は owner |
 | OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | Phase 2 branch で反映。`claude/CLAUDE.md` の lead の行と worker の行を分け、それぞれを routing 表の target にした（決定の内容は変えていない） |
 | OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch で実装する（integration で検証が通るまで live には取り込まない）。codex-rescue の部分は現行のまま |
-| D7 | Phase 6 | 未反映 |
+| D7 | Phase 6 | Phase 6 branch で静的な部分を実装（live 未反映。phase-4 の上に作ったので、phase-4 の後に取り込む）。route は divergent-claude が opus、divergent-codex が gpt-6-astra/medium、`skill-authority.tsv` の egress 列は別の model provider への送信を表す（いずれも 2026-09-25、この作業 session で owner が選択）。K18 は静的には使える（2.1.282 に `agent()` の `opts.disallowedTools` が実装されている。model 向けの API 説明には載っていない）。C.5 の実行と K18 の実行時の確認は integration 待ち |
 | D8 | Phase 4 | Phase 4 branch で実装する（live は、integration で検証が通るまで companion のまま） |
 | D12 | Phase 4 と Phase 5 の integration での試験 | 未適用（integration 環境の準備待ち） |
 | OD-7 | D9 で置き換える: Phase 7 | 現行の値のまま |

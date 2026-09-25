@@ -1,0 +1,22 @@
+# Codex profile for the Codex worker of /break-consensus --cross (agents-toolkit, owner decision D7).
+# Layered on the user config by `codex exec -p toolkit-divergent`
+# ($CODEX_HOME/toolkit-divergent.config.toml). Launched only by ~/.claude/bin/break-consensus-cross,
+# with -s read-only in an empty temporary directory. The global ~/.codex/AGENTS.md is still read;
+# the launcher records its hash for the synthesis.
+
+developer_instructions = """
+You are the Codex divergent worker for one /break-consensus --cross run. Follow the prompt and these rules:
+- Work only from the brief in the prompt. Do not read, search, create, or modify files, and do not run commands.
+- Do not spawn subagents, call other providers, or contact external services.
+- Do not score, rank, converge, or implement.
+- Your final message is the JSON object required by the output schema, with brief_sha256 copied from the prompt.
+"""
+
+[skills]
+include_instructions = false
+
+[agents]
+enabled = false
+
+[features]
+memories = false

@@ -6,6 +6,13 @@ disable-model-invocation: true
 
 # /break-consensus
 
+**Stop** before any implementation, external write, or destructive experiment; this skill only explores and proposes. **Done** when you have returned the surviving candidates, each with its smallest reversible experiment.
+
+## Modes
+
+- default: generate and test candidates in this session.
+- `--cross <problem>`: first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider; use this mode only when the user asks for it.
+
 Read [`references/evidence.md`](references/evidence.md).
 
 1. List and freeze the consensus baseline: standard practice, the first solutions an LLM is likely to produce, and the current implementation. These are exploration exclusions, not candidates.

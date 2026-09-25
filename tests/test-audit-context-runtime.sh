@@ -62,6 +62,9 @@ mkdir -p "$FIXTURE_REPO/codex/profiles" "$FIXTURE_HOME/.codex"
 cp "$REPO_ROOT/codex/profiles/toolkit-implementer.config.toml" "$FIXTURE_REPO/codex/profiles/"
 ln -s "$FIXTURE_REPO/codex/profiles/toolkit-implementer.config.toml" "$FIXTURE_HOME/.codex/toolkit-implementer.config.toml"
 printf 'link-file\tcodex/profiles/toolkit-implementer.config.toml\t.codex/toolkit-implementer.config.toml\n' >> "$FIXTURE_REPO/install/manifest.tsv"
+cp "$REPO_ROOT/codex/profiles/toolkit-divergent.config.toml" "$FIXTURE_REPO/codex/profiles/"
+ln -s "$FIXTURE_REPO/codex/profiles/toolkit-divergent.config.toml" "$FIXTURE_HOME/.codex/toolkit-divergent.config.toml"
+printf 'link-file\tcodex/profiles/toolkit-divergent.config.toml\t.codex/toolkit-divergent.config.toml\n' >> "$FIXTURE_REPO/install/manifest.tsv"
 ln -s "$FIXTURE_REPO/shared/skills/claude-sample" "$FIXTURE_HOME/.claude/skills/claude-sample"
 ln -s "$FIXTURE_REPO/shared/skills/codex-sample" "$FIXTURE_HOME/.agents/skills/codex-sample"
 
@@ -96,6 +99,12 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "list" ]]; then
   printf '{"installed":[{"pluginId":"superpowers@openai-curated","installed":true,"enabled":false}]}\n'
 elif [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
   printf 'memories stable false\n'
+elif [[ "${1:-}" == "-p" && "${2:-}" == "toolkit-divergent" && "${3:-}" == "debug" && "${4:-}" == "prompt-input" ]]; then
+  # divergent profile: developer instructions and no skill list unless STUB_DIVERGENT_BAD=skills
+  first='You are the Codex divergent worker for one /break-consensus --cross run. Follow the prompt and these rules:'
+  extra=''
+  [[ "${STUB_DIVERGENT_BAD:-}" == skills ]] && extra=',{"type":"input_text","text":"<skills_instructions>\n- codex-sample: fixture (file: r0/codex-sample/SKILL.md)\n</skills_instructions>"}'
+  printf '[{"type":"message","role":"developer","content":[{"type":"input_text","text":"%s"}%s]}]\n' "$first" "$extra"
 elif [[ "${1:-}" == "-p" && "${3:-}" == "debug" && "${4:-}" == "prompt-input" ]]; then
   # profile prompt: developer instructions first unless STUB_PROFILE_BAD names a failure
   first='You are the implementer for one delegated task. Follow the task prompt and these rules:'
@@ -144,6 +153,13 @@ done
 out=""; rc=0
 out="$(STUB_PROFILE_BAD=skill run_audit 2>&1)" || rc=$?
 assert_contains "無効にした skill の残存を名前で示す" "$out" "FAIL: Codex implementer profile: profile-disabled skill is still listed: gh-pr"
+out=""; rc=0
+out="$(run_audit 2>&1)" || rc=$?
+assert_contains "divergent profile の prompt を確認する（C.2、D7）" "$out" "PASS: Codex divergent profile prompt drops the skill list and multi-agent instructions"
+out=""; rc=0
+out="$(STUB_DIVERGENT_BAD=skills run_audit 2>&1)" || rc=$?
+assert_exit_nonzero "divergent profile に skill の一覧が残れば失敗する" "$rc"
+assert_contains "残った skill の一覧を示す" "$out" "FAIL: Codex divergent profile: skill list is still injected: codex-sample"
 
 out=""; rc=0
 out="$(STUB_CODEX_LISTED="" run_audit 2>&1)" || rc=$?
