@@ -416,7 +416,9 @@ def main(argv: list[str]) -> int:
         text = ""
         for url in OFFICIAL_PAGES:
             try:
-                with urllib.request.urlopen(url, timeout=20) as response:
+                # the docs host rejects urllib's default User-Agent (HTTP 403)
+                request = urllib.request.Request(url, headers={"User-Agent": "agents-toolkit-discovery/1"})
+                with urllib.request.urlopen(request, timeout=20) as response:
                     text += response.read().decode("utf-8", "ignore")
             except OSError as exc:
                 report.add("WARN", f"could not fetch {url}: {exc}")
