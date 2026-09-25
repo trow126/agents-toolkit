@@ -96,7 +96,12 @@ cat > "$STUB_BIN/codex" <<'CODEX'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "plugin" && "${2:-}" == "list" ]]; then
-  printf '{"installed":[{"pluginId":"superpowers@openai-curated","installed":true,"enabled":false}]}\n'
+  # STUB_CODEX_SUPERPOWERS: disabled (default) | absent (Codex 0.157.0) | on
+  case "${STUB_CODEX_SUPERPOWERS:-disabled}" in
+    absent) printf '{"installed":[{"pluginId":"github@openai-curated-remote","installed":true,"enabled":true}]}\n' ;;
+    on) printf '{"installed":[{"pluginId":"superpowers@openai-curated","installed":true,"enabled":true}]}\n' ;;
+    *) printf '{"installed":[{"pluginId":"superpowers@openai-curated","installed":true,"enabled":false}]}\n' ;;
+  esac
 elif [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
   printf 'memories stable false\n'
 elif [[ "${1:-}" == "-p" && "${2:-}" == "toolkit-divergent" && "${3:-}" == "debug" && "${4:-}" == "prompt-input" ]]; then
@@ -175,6 +180,15 @@ out=""; rc=0
 out="$(STUB_CLAUDE_SUPERPOWERS=on run_audit 2>&1)" || rc=$?
 assert_exit_nonzero "Claude superpowers有効時は失敗する" "$rc"
 assert_contains "superpowers違反を明示する" "$out" "FAIL: Claude superpowers plugin is missing or enabled"
+
+out=""; rc=0
+out="$(STUB_CODEX_SUPERPOWERS=absent run_audit 2>&1)" || rc=$?
+assert_exit_zero "Codex に superpowers が無い（0.157.0）なら成功する" "$rc"
+assert_contains "Codex superpowers の不在を合格にする" "$out" "PASS: Codex superpowers plugin is absent or disabled"
+out=""; rc=0
+out="$(STUB_CODEX_SUPERPOWERS=on run_audit 2>&1)" || rc=$?
+assert_exit_nonzero "Codex superpowers有効時は失敗する" "$rc"
+assert_contains "Codex superpowers違反を明示する" "$out" "FAIL: Codex superpowers plugin is enabled"
 
 unlink "$FIXTURE_REPO/shared/skills/claude-sample/references/workflow.md"
 out=""; rc=0

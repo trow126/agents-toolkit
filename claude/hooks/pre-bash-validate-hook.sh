@@ -46,7 +46,7 @@ if [[ "$TOOL_NAME" == "Agent" ]]; then
         block "hook input has no non-empty tool_input.subagent_type (fail-closed)"
     fi
     if [[ "$SUBAGENT_TYPE" == "codex:codex-rescue" ]]; then
-        block "codex:codex-rescue Agent 経由の委任を拒否した。10分超過時にCodex processが終了済みAgentへdetachされ、main sessionへ完了通知が届かないため。main sessionから codex-companion.mjs task を直接 Bash(run_in_background=true) で起動し、Claude main sessionをcompletion ownerにすること"
+        block "codex:codex-rescue Agent 経由の委任を拒否した。10分超過時にCodex processが終了済みAgentへdetachされ、main sessionへ完了通知が届かないため。契約を書き、main sessionから ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で起動して、Claude main sessionをcompletion ownerにすること"
     fi
     exit 0
 fi

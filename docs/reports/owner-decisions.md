@@ -65,6 +65,7 @@
 | P7-Q1 | session-init と post-compact の hook | 両方を削除する（登録、script、`emit_system_message.py`、test）。systemMessage は user にだけ表示され、モデルは system prompt の gitStatus で同じ情報を得ている（2026-09-25） |
 | P7-Q2 | manifest の link を外した後の `claude/settings.json` | repo から削除する。live の `~/.claude/settings.json` を正本とし、validator は repo での追跡と manifest の link を拒否する（2026-09-25） |
 | P7-Q3 | D2 の env pin の対象 | fable、opus、sonnet、haiku の4つすべて。sonnet は CLI 2.1.282 の内蔵 model 一覧の `claude-sonnet-5`（2026-09-25） |
+| P4-IT | Phase 4 の integration 環境 | host `mini` 本体を使う（使い捨ての distro の代わり）。設定を退避し、候補の managed を machine 全体に入れ、live と同じ settings、Codex の既定値、plugin に揃える。結果は `docs/reports/2026-09-25-integration-phase4.md`（2026-09-25） |
 | P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
 ## 反映状況
@@ -81,6 +82,6 @@
 | OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | Phase 2 branch で反映。`claude/CLAUDE.md` の lead の行と worker の行を分け、それぞれを routing 表の target にした（決定の内容は変えていない） |
 | OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch。managed の deny `Agent(codex:codex-rescue)` と `claude/CLAUDE.md` の禁止文の削除は Phase 7 branch で準備（K3 は integration で確認） |
 | D7 | Phase 6 | Phase 6 branch で静的な部分を実装（live 未反映。phase-4 の上に作ったので、phase-4 の後に取り込む）。route は divergent-claude が opus、divergent-codex が gpt-6-astra/medium、`skill-authority.tsv` の egress 列は別の model provider への送信を表す（いずれも 2026-09-25、この作業 session で owner が選択）。K18 は静的には使える（2.1.282 に `agent()` の `opts.disallowedTools` が実装されている。model 向けの API 説明には載っていない）。C.5 の実行と K18 の実行時の確認は integration 待ち |
-| D8 | Phase 4 | Phase 4 branch で実装する（live は、integration で検証が通るまで companion のまま） |
-| D12 | Phase 4 と Phase 5 の integration での試験 | 未適用（integration 環境の準備待ち） |
+| D8 | Phase 4 | Phase 4 branch で実装し、integration で検証した（委任1件、`stopped`、K11）。K17 により companion は profile 相当を渡せないので、exec の launcher を維持する（2026-09-25）。live はまだ companion のまま |
+| D12 | Phase 4 と Phase 5 の integration での試験 | Phase 4: Claude 約 1.7 USD（上限 15 USD）、Codex 5回。Phase 5 は未実施 |
 | OD-7 | D9 で置き換える: Phase 7 | repo の `effortLevel: xhigh` は `claude/settings.json` とともに削除（P7-Q2）。live の値は D9（Phase 5）の決定後に owner が設定する |

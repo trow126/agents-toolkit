@@ -352,6 +352,16 @@ fi
 # =========================================================================
 # 7. 未消費shared rule(context consumer contractに宣言され、実consumerから参照されること)
 # =========================================================================
+# K11: Codex writes hook trust, project trust, and UI state into the active profile's config layer,
+# which for the toolkit profiles is this checkout (symlink). scripts/codex-profile-trust.py moves it
+# to $CODEX_HOME/config.toml.
+for profile in "$REPO_ROOT"/codex/profiles/*.toml; do
+  [[ -f "$profile" ]] || continue
+  if grep -qE '^\[(hooks\.state|projects|tui)([].]|$)' "$profile"; then
+    fail "${profile#"$REPO_ROOT"/} carries local Codex state (hook trust, project trust, or UI state); run scripts/codex-profile-trust.py"
+  fi
+done
+
 echo "== 7. unconsumed shared rules =="
 CONSUMER_CONTRACT="$REPO_ROOT/docs/contracts/context-consumers.tsv"
 CONSUMER_ERRORS="$(python3 - "$REPO_ROOT" "$CONSUMER_CONTRACT" <<'PYCONSUMERS'

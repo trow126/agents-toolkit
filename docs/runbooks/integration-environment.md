@@ -30,7 +30,7 @@
 5. Windows host の `C:\Program Files\ClaudeCode\managed-settings.json` と `managed-settings.d` が空であることを確かめ、記録する。
 6. Claude Code と Codex に owner がログインする。
 7. `export AGENTS_TOOLKIT_SLACK_NOTIFY=off` を設定する。
-8. `codex` の `/hooks` などで、profile `toolkit-implementer` の inline hook を review して trust する（K11）。
+8. `codex -p toolkit-implementer` の `/hooks` で、inline hook を review して trust する（K11）。Codex は trust を profile の config（repo への symlink）に書くので、続けて `./scripts/codex-profile-trust.py` で `~/.codex/config.toml` に移し、profile を HEAD に戻す。live でも同じ手順を踏む。
 
 ## 2. 費用の上限（D12）
 

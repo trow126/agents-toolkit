@@ -140,6 +140,30 @@ def state_paths(repo: Path, contract_id: str) -> dict[str, Path]:
     }
 
 
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def active_problem(active: dict, paths: dict) -> str:
+    """Why a new delegation must not start while active.json exists."""
+    contract_id = active.get("contract_id")
+    if "exit_code" in active:
+        return (f"another delegation is active ({contract_id}, codex exec exit {active['exit_code']}); "
+                "verify and finish it, or clear it with ~/.claude/bin/delegation-evidence-check --clear")
+    pid = active.get("pid")
+    if isinstance(pid, int) and not pid_alive(pid):
+        return (f"stale active delegation {contract_id}: its launcher (pid {pid}) stopped before codex exec finished "
+                "(for example, the Claude session ended; claude -p ends with the turn). Inspect the worktree and "
+                f"{paths['result']}, then clear it with ~/.claude/bin/delegation-evidence-check --clear")
+    return f"another delegation is active ({contract_id}" + (f", launcher pid {pid} is running" if pid else "") + ")"
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 

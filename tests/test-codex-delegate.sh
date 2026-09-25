@@ -134,8 +134,17 @@ if [[ -f "$STATE/active.json" ]] && grep -q 'Do not commit, push' "$SANDBOX/prom
   ok "delegate: active.json を作り、契約から prompt を組み立てる"
 else ng "delegate: active.json or prompt missing"; fi
 if grep -qx -- '--output-schema' "$STUB_ARGV" && grep -qx 'toolkit-implementer' "$STUB_ARGV"; then ok "delegate: exec に profile と output schema を渡す"; else ng "delegate: argv $(tr '\n' ' ' < "$STUB_ARGV")"; fi
+if jq -e '(.pid | type) == "number" and .exit_code == 0 and .finished_at' "$STATE/active.json" >/dev/null; then
+  ok "delegate: active.json に launcher の pid と終了を記録する"
+else ng "delegate: active.json lacks pid/exit: $(cat "$STATE/active.json")"; fi
 run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
 expect_rc "delegate: 別の委任が active なら起動しない" 1 "another delegation is active"
+cp "$STATE/active.json" "$SANDBOX/active.bak"
+sh -c 'exit 0' & dead_pid=$!; wait "$dead_pid" || true
+jq --argjson pid "$dead_pid" 'del(.exit_code, .finished_at) | .pid = $pid' "$SANDBOX/active.bak" > "$STATE/active.json"
+run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
+expect_rc "delegate: launcher が途中で消えた委任を stale と示す" 1 "stale active delegation 42"
+cp "$SANDBOX/active.bak" "$STATE/active.json"
 
 run "$BIN/delegation-evidence-check" --repo "$R"
 expect_rc "evidence: gate 前は FAIL" 1 "no evidence for active delegation 42"

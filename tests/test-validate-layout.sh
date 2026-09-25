@@ -226,6 +226,9 @@ run_case unconsumed-rule \
 run_case tracked-user-settings \
   'printf "{}\n" > "$repo/claude/settings.json"; git -C "$repo" add claude/settings.json' \
   'claude/settings.json must not be tracked (D5'
+run_case codex-profile-local-state \
+  'mkdir -p "$repo/codex/profiles"; printf "developer_instructions = \"x\"\n\n[hooks.state.\"k\"]\ntrusted_hash = \"sha256:0\"\n" > "$repo/codex/profiles/p.config.toml"; git -C "$repo" add codex/profiles/p.config.toml' \
+  'codex/profiles/p.config.toml carries local Codex state'
 run_case managed-memory-enabled \
   'jq ".autoMemoryEnabled=true" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
   'managed settings must set autoMemoryEnabled=false'

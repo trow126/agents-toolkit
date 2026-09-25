@@ -91,7 +91,7 @@ codex_custom_agents: 4
 claude_skills: 18
 codex_skills: 19
 active_skill_entrypoints: 29
-active_skill_entrypoint_bytes: 70988
+active_skill_entrypoint_bytes: 71115
 active_skill_entrypoint_max_lines: 122
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
@@ -102,7 +102,7 @@ hook_registrations: 8
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 182
+inventory_audited_elements: 184
 review_progress_retrospective_mechanisms: 6
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0

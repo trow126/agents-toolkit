@@ -13,7 +13,9 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from delegation_common import DelegationError, changes_since, load_json, repo_root, state_dir, state_paths  # noqa: E402
+from delegation_common import (  # noqa: E402
+    DelegationError, active_problem, changes_since, load_json, pid_alive, repo_root, state_dir, state_paths,
+)
 
 
 def main(argv: list[str]) -> int:
@@ -42,6 +44,8 @@ def main(argv: list[str]) -> int:
         paths = state_paths(repo, active["contract_id"])
         contract = load_json(paths["contract"])
         if not paths["evidence"].exists():
+            if "exit_code" not in active and isinstance(active.get("pid"), int) and not pid_alive(active["pid"]):
+                raise DelegationError(active_problem(active, paths))
             raise DelegationError(f"no evidence for active delegation {active['contract_id']}; run ~/.claude/bin/verify-delegation {paths['contract']}")
         evidence = load_json(paths["evidence"])
         current = changes_since(repo, contract["baseline"])

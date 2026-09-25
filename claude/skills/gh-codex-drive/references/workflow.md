@@ -7,7 +7,7 @@
 3. Fetch the Issue through the bundled structured helper. Fail on missing/closed Issue unless the user explicitly asked to continue closed work.
 4. Write the contract (below) from the Issue body. If the body is ambiguous in a way that changes design, data, or public API, pause before delegating.
 5. Check it: `~/.claude/bin/codex-delegate-preflight <contract>`. Fix the contract, never the check.
-6. Launch from the main session with `Bash(run_in_background=true)`: `~/.claude/bin/codex-delegate <contract>`. Record the background task id. Never wrap the launch in an Agent.
+6. Launch from the main session with `Bash(run_in_background=true)`: `~/.claude/bin/codex-delegate <contract>`. Record the background task id. Never wrap the launch in an Agent. The session must outlive the turn (interactive or `claude --bg`); in `claude -p` the session ends with the turn, the background run is killed, and the next launch reports a stale delegation.
 7. While Codex runs, remain responsive; `--status` reads the state files below. On the completion notification, read the Codex report (`result-<N>.json`) and the actual diff — never trust the summary alone.
 8. Gate: `~/.claude/bin/verify-delegation <contract>`. It re-runs the required checks and writes `evidence-<N>.json`; a failure is reported with its violations.
 9. Review the diff with `/code-review`. Small, low-risk fixes follow the review-fix boundary; after any edit, run the gate again so the evidence matches the tree.

@@ -14,6 +14,7 @@ Run from the Claude main session with Bash(run_in_background=true). Steps:
 Exit status is codex exec's; verify the result with ~/.claude/bin/verify-delegation.
 """
 import datetime as dt
+import os
 import shlex
 import subprocess
 import sys
@@ -22,7 +23,7 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from delegation_common import (  # noqa: E402
-    PROFILE, REPORT_SCHEMA, DelegationError, load_json, preflight_errors, record_baseline,
+    PROFILE, REPORT_SCHEMA, DelegationError, active_problem, load_json, preflight_errors, record_baseline,
     render_prompt, repo_root, state_paths, write_json,
 )
 
@@ -57,8 +58,7 @@ def main(argv: list[str]) -> int:
             print("DRY RUN: " + " ".join(shlex.quote(c) for c in cmd) + f" < {paths['prompt']}")
             return 0
         if paths["active"].exists():
-            active = load_json(paths["active"])
-            raise DelegationError(f"another delegation is active ({active.get('contract_id')}); finish or clear it first")
+            raise DelegationError(active_problem(load_json(paths["active"]), paths))
         version = subprocess.run(["codex", "--version"], capture_output=True, text=True, check=False).stdout.strip()
         contract["route"]["cli_version"] = version
         if "baseline" not in contract:
@@ -71,6 +71,7 @@ def main(argv: list[str]) -> int:
             "contract_id": contract["id"], "contract": str(contract_path),
             "started_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
             "route": contract["route"], "baseline_head": contract["baseline"]["head"],
+            "pid": os.getpid(),
         })
     except DelegationError as exc:
         print(f"DELEGATE FAIL: {exc}", file=sys.stderr)
@@ -78,6 +79,12 @@ def main(argv: list[str]) -> int:
     print(f"[codex-delegate] {contract['id']}: {route['model']}/{route['effort']} ({version}); result -> {paths['result']}", file=sys.stderr)
     with paths["prompt"].open("rb") as stdin, paths["jsonl"].open("wb") as stdout, paths["stderr"].open("wb") as stderr:
         rc = subprocess.run(cmd, stdin=stdin, stdout=stdout, stderr=stderr, check=False).returncode
+    try:
+        active = load_json(paths["active"])
+        active.update(exit_code=rc, finished_at=dt.datetime.now(dt.UTC).isoformat(timespec="seconds"))
+        write_json(paths["active"], active)
+    except DelegationError:
+        pass  # cleared while Codex ran
     print(f"[codex-delegate] codex exec exit {rc}; next: ~/.claude/bin/verify-delegation {contract_path}", file=sys.stderr)
     return rc
 

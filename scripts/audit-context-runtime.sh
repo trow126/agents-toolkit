@@ -83,16 +83,11 @@ else
 fi
 
 codex_plugins="$(codex plugin list --json)"
-if jq -e '
-  any(.installed[];
-    .pluginId == "superpowers@openai-curated"
-    and .installed == true
-    and .enabled == false
-  )
-' <<< "$codex_plugins" >/dev/null; then
-  pass "Codex superpowers plugin is installed but disabled"
+# Codex 0.157.0 no longer offers superpowers; the policy is only that it is never active.
+if jq -e 'any(.installed[]?; (.pluginId | startswith("superpowers@")) and .enabled == true)' <<< "$codex_plugins" >/dev/null; then
+  fail "Codex superpowers plugin is enabled"
 else
-  fail "Codex superpowers plugin is missing or enabled"
+  pass "Codex superpowers plugin is absent or disabled"
 fi
 
 codex_memories="$(codex features list | awk '$1 == "memories" {print $3}')"
