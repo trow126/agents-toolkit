@@ -1103,9 +1103,8 @@ while IFS= read -r f; do
   case "$f" in
     # measure-metrics.sh は改名前 layout の計測のため、bootstrap.sh は stale link の
     # cleanup 対象（STALE_CLAUDE_SKILLS）として、旧 path を意図的に参照する
-    # measure-hook-injection.py は削除済み hook を含む旧 layout を計測し、check-managed-policy.py は
-    # 削除済み hook の登録を拒否する deny-list として名前を持つ
-    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | scripts/measure-hook-injection.py | scripts/check-managed-policy.py | bootstrap.sh) continue ;;
+    # check-managed-policy.py は削除済み hook の登録を拒否する deny-list として名前を持つ
+    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | scripts/check-managed-policy.py | bootstrap.sh) continue ;;
   esac
   [[ -f "$f" ]] || continue
   for pat in "${STALE_PATTERNS[@]}"; do
