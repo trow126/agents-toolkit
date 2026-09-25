@@ -129,7 +129,7 @@ discovery の snapshot は追跡しない。
 - `~/.claude/settings.json` は通常ファイルで、これが正本である。repo には追跡も link も無い。
 - 値は `model: opus`、`modelSettings` が Opus 5.5 は medium、Fable 5.1 は high。top-level の `effortLevel` は無い。
 - 変更前の file は `~/.local/state/agents-toolkit/backup/` に退避してある。
-- `skillOverrides`: agmsg は削除済み。gh-pr と config-audit は user-invocable-only。**gh-review、gh-index、python-refactor-analysis は off のまま**である。§6.5 では、off を name-only か user-invocable-only に変えるのは owner の作業になっている。
+- `skillOverrides`: agmsg は削除済み。5つの skill（gh-pr、gh-review、config-audit、gh-index、python-refactor-analysis）は、すべて user-invocable-only である（§6.5）。gh-review、gh-index、python-refactor-analysis は off だったので、2026-09-26 に owner の指示で変えた。変更前の file は `~/.local/state/agents-toolkit/backup/` に退避してある。
 - Codex: `~/.codex/config.toml` の既定と `[agents]` は routing 表と一致している。profile の hook の trust は `config.toml` にある。trust を移す前の file は `~/.local/state/agents-toolkit/backup/codex-config.toml.before-trust-move` に退避してある。
 - discovery の WARN は、haiku の退役予定の2件（claude-explore と claude-alias-haiku、not-before 2026-10-15）だけである。日付が発表されたら Level 1（routing 表の行の更新）として扱う。
 

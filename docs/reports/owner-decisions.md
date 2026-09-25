@@ -86,6 +86,8 @@
 
 Phase 8（`645b217`）: K15 を integration で確認し（Codex 2回）、mini を組み直して受入を行った（`--check` の DRIFT 0件、全 test、discovery の FAIL 0件、audit の13項目、Case 9、11、13。モデルを呼ぶ費用は0）。mini は元に戻した。live の master を `645b217` へ fast-forward し、統合した4つの skill の link 8本を手で張り替えた。live の `--check` の DRIFT は0件、discovery の FAIL は0件。最終報告は `docs/reports/2026-09-26-modernization-final.md`。
 
+skillOverrides（2026-09-26）: owner の指示で、live の `~/.claude/settings.json` で off だった gh-review、gh-index、python-refactor-analysis を user-invocable-only に変えた（§6.5。D5 により live が正本）。
+
 ## 反映状況
 
 | ID | 反映する Phase | 状態（2026-09-25） |
