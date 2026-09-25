@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # install-managed-policy.sh — Claude Code managed owner policy installer/checker.
 # The reviewed no-prompt preference and managed hooks are copied to the
-# documented OS-managed drop-in directory. bootstrap refuses to link user
-# settings until this exact policy is installed.
+# documented OS-managed drop-in directory. bootstrap refuses to create links
+# until this exact policy is installed. The live ~/.claude/settings.json is
+# canonical (D5); when it exists it must carry no security policy keys.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 SOURCE="$REPO_ROOT/claude/managed-settings.json"
-USER_SETTINGS="$REPO_ROOT/claude/settings.json"
+USER_SETTINGS="$HOME/.claude/settings.json"
 POLICY_CHECK="$SCRIPT_DIR/check-managed-policy.py"
 MODE="check"
 TARGET_OVERRIDE=""
@@ -44,7 +45,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-for required in "$SOURCE" "$USER_SETTINGS" "$POLICY_CHECK"; do
+for required in "$SOURCE" "$POLICY_CHECK"; do
   if [[ ! -f "$required" ]]; then
     echo "ERROR: required policy input is missing: $required" >&2
     exit 1
@@ -53,7 +54,9 @@ done
 
 # Validate both halves before touching the system. This also prevents a future
 # change from moving security keys back into the lower-precedence user file.
-python3 "$POLICY_CHECK" --user "$USER_SETTINGS" --managed "$SOURCE" >/dev/null
+user_args=()
+[[ -f "$USER_SETTINGS" ]] && user_args=(--user "$USER_SETTINGS")
+python3 "$POLICY_CHECK" "${user_args[@]}" --managed "$SOURCE" >/dev/null
 
 if [[ -n "$TARGET_OVERRIDE" ]]; then
   TARGET="$TARGET_OVERRIDE"

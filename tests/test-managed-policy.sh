@@ -16,17 +16,38 @@ expect_fail(){ local d="$1"; shift; if ! "$@" >/dev/null 2>&1; then ok "$d"; els
 
 USER="$SANDBOX/user.json"
 MANAGED="$SANDBOX/managed.json"
-cp "$REPO_ROOT/claude/settings.json" "$USER"
+# D5: the repo has no user settings; this fixture stands for a live ~/.claude/settings.json.
+USER_FIXTURE='{"language":"japanese","effortLevel":"high","modelSettings":{"claude-fable-5-1":{"effortLevel":"high"}}}'
+printf '%s\n' "$USER_FIXTURE" > "$USER"
 cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
 
 expect_ok "current managed/user split validates" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
+expect_ok "managed policy validates without a user file (D5)" python3 "$CHECK" --managed "$MANAGED"
+
+# Phase 7: version floor, codex-rescue deny, EX-004 memory policy, D2 env pins, retired hooks
+for mutation in \
+  "d['requiredMinimumVersion']='2.1.280'" \
+  "d['permissions']['deny'].remove('Agent(codex:codex-rescue)')" \
+  "d.pop('autoMemoryEnabled')" \
+  "d['autoMemoryEnabled']=True" \
+  "d['env'].pop('ANTHROPIC_DEFAULT_SONNET_MODEL')" \
+  "d['hooks']['UserPromptSubmit']=[{'hooks':[{'type':'command','command':'~/.claude/hooks/prompt-submit-hook.sh'}]}]" \
+  "d['hooks']['SessionStart'].append({'hooks':[{'type':'command','command':'~/.claude/hooks/session-init-hook.sh'}]})" \
+  "d['hooks']['PostCompact']=[{'hooks':[{'type':'command','command':'~/.claude/hooks/post-compact-hook.sh'}]}]"; do
+  python3 - "$MANAGED" "$mutation" <<'PY'
+import json,sys
+p=sys.argv[1]; d=json.load(open(p)); exec(sys.argv[2]); json.dump(d,open(p,'w'))
+PY
+  expect_fail "managed policy rejects: $mutation" python3 "$CHECK" --managed "$MANAGED"
+  cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
+done
 
 python3 - "$USER" <<'PY'
 import json,sys
 p=sys.argv[1]; d=json.load(open(p)); d['statusLine']={'type':'command','command':'~/.claude/statusline.sh','padding':0}; json.dump(d,open(p,'w'))
 PY
 expect_fail "status line command is rejected outside managed scope" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
-cp "$REPO_ROOT/claude/settings.json" "$USER"
+printf '%s\n' "$USER_FIXTURE" > "$USER"
 
 python3 - "$MANAGED" <<'PY'
 import json,sys
@@ -82,7 +103,7 @@ import json,sys
 p=sys.argv[1]; d=json.load(open(p)); d['sandbox']={'enabled':False}; json.dump(d,open(p,'w'))
 PY
 expect_fail "security key in user settings is rejected" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
-cp "$REPO_ROOT/claude/settings.json" "$USER"
+printf '%s\n' "$USER_FIXTURE" > "$USER"
 
 python3 - "$MANAGED" <<'PY'
 import json,sys
@@ -197,17 +218,17 @@ JSON
 expect_fail "project status line command is reserved for managed scope" "$GATE" --cwd "$PROJECT_ROOT"
 
 rm -f "$PROJECT_ROOT/.claude/settings.json"
-ln -s "$REPO_ROOT/claude/settings.json" "$PROJECT_ROOT/.claude/settings.json"
+ln -s "$USER" "$PROJECT_ROOT/.claude/settings.json"
 expect_fail "project settings symlink is rejected" "$GATE" --cwd "$PROJECT_ROOT"
 expect_fail "Git HOME remains a project root and rejects settings symlinks" \
   env HOME="$PROJECT_ROOT" "$GATE" --cwd "$PROJECT_ROOT"
 
-# A non-Git HOME is a user-config scope, not a project root. The bootstrap
-# manifest intentionally links ~/.claude/settings.json to the toolkit source,
-# and legacy ~/.claude/settings.local.json may also exist there.
+# A non-Git HOME is a user-config scope, not a project root. Older layouts
+# linked ~/.claude/settings.json to the toolkit source, and legacy
+# ~/.claude/settings.local.json may also exist there.
 HOME_ROOT="$SANDBOX/home-root"
 mkdir -p "$HOME_ROOT/.claude"
-ln -s "$REPO_ROOT/claude/settings.json" "$HOME_ROOT/.claude/settings.json"
+ln -s "$USER" "$HOME_ROOT/.claude/settings.json"
 cat > "$HOME_ROOT/.claude/settings.local.json" <<'JSON'
 {"permissions":{"allow":["Bash(ls *)"]}}
 JSON
@@ -215,15 +236,20 @@ expect_ok "non-Git HOME does not reinterpret global settings as project settings
   env HOME="$HOME_ROOT" "$GATE" --cwd "$HOME_ROOT"
 
 TARGET="$SANDBOX/managed-settings.d/20-agents-toolkit-security.json"
-expect_ok "test-mode managed policy apply" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
-expect_ok "test-mode managed policy check" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
+INSTALL_HOME="$SANDBOX/install-home"
+mkdir -p "$INSTALL_HOME/.claude"
+printf '{"statusLine":{"type":"command","command":"x"}}\n' > "$INSTALL_HOME/.claude/settings.json"
+expect_fail "install refuses a live user file with security keys" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
+printf '%s\n' "$USER_FIXTURE" > "$INSTALL_HOME/.claude/settings.json"
+expect_ok "test-mode managed policy apply" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
+expect_ok "test-mode managed policy check" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
 printf '\n' >> "$TARGET"
-expect_fail "managed policy drift is detected" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
-expect_ok "re-apply repairs managed policy drift" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
+expect_fail "managed policy drift is detected" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
+expect_ok "re-apply repairs managed policy drift" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --apply --target "$TARGET"
 chmod 0666 "$TARGET"
-expect_fail "group/world-writable managed policy is rejected" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
+expect_fail "group/world-writable managed policy is rejected" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
 rm -f "$TARGET"; ln -s "$REPO_ROOT/claude/managed-settings.json" "$TARGET"
-expect_fail "managed policy symlink target is rejected" env AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
+expect_fail "managed policy symlink target is rejected" env HOME="$INSTALL_HOME" AGENTS_TOOLKIT_TESTING=1 "$INSTALL" --check --target "$TARGET"
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then echo "PASS: all assertions succeeded"; exit 0; fi

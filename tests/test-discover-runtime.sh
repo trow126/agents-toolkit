@@ -24,9 +24,10 @@ build_fixture() {
   local repo="$base/repo" home="$base/home"
   mkdir -p "$repo/install" "$repo/claude" "$repo/docs/contracts" "$home/.claude/projects/p" "$home/.codex" \
     "$base/managed" "$base/win" "$base/bin" "$base/state"
-  printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\nlink-file\tclaude/settings.json\t.claude/settings.json\n' > "$repo/install/manifest.tsv"
+  printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\n' > "$repo/install/manifest.tsv"
   printf '# fixture\n' > "$repo/claude/CLAUDE.md"
-  printf '{"autoMemoryEnabled": false, "modelSettings": {"claude-fable-5-1": {"effortLevel": "high"}}, "model": "fable[1m]"}\n' > "$repo/claude/settings.json"
+  # D5: the live user settings are a regular file written by Claude Code
+  printf '{"autoMemoryEnabled": false, "modelSettings": {"claude-fable-5-1": {"effortLevel": "high"}}, "model": "fable[1m]"}\n' > "$home/.claude/settings.json"
   {
     printf '%s\n' "$ROUTE_HEADER"
     printf 'claude-main\tclaude\tmain session\tfable\thigh\tclaude/CLAUDE.md~lead\topus\t\tfixture\t2026-09-25\t\n'
@@ -36,7 +37,6 @@ build_fixture() {
   } > "$repo/docs/contracts/model-routing.tsv"
   git -C "$repo" init -q
   ln -s "$repo/claude/CLAUDE.md" "$home/.claude/CLAUDE.md"
-  ln -s "$repo/claude/settings.json" "$home/.claude/settings.json"
   printf '%s\n' '{"type":"assistant","message":{"model":"claude-fable-5-1","content":[]}}' \
     '{"type":"assistant","message":{"model":"claude-haiku-4-5-20251001","content":[]}}' > "$home/.claude/projects/p/s.jsonl"
   cat > "$home/.codex/models_cache.json" <<'JSON'
@@ -100,14 +100,16 @@ printf '# upper\n' > "$CASE/home/AGENTS.md"
 discover "$CASE"
 expect "§2.4-1: 上位ディレクトリの AGENTS.md を検出する" zero "WARN: upper-directory instruction file is loaded as project instructions in repos below it: $CASE/home/AGENTS.md"
 
-new_case settings-drift
-rm "$CASE/home/.claude/settings.json"
+new_case settings-live
+discover "$CASE"
+if [[ "$OUT" != *"settings.json is a symlink"* ]]; then ok "D5: 通常ファイルの live settings.json は WARN しない"; else ng "D5: regular live settings warned"; fi
 printf '{"autoMemoryEnabled": false, "skillOverrides": {"gh-pr": "off"}, "modelSettings": {"claude-fable-5-1": {"effortLevel": "high"}}}\n' > "$CASE/home/.claude/settings.json"
 discover "$CASE"
-expect "§2.4-4: settings.json が通常ファイル" zero "WARN: live ~/.claude/settings.json is a regular file, not the repo symlink"
-expect "§2.4-4: repo との差分キーを示す" zero "keys differing from the repo: model, skillOverrides"
 expect "§2.4-4: UI の model と routing の不一致" zero "WARN: live main model is unset (account default) (UI-managed); routing claude-main is fable"
-expect "§2.4-4: manifest drift" zero "WARN: manifest drift: .claude/settings.json is a regular file, not a symlink"
+mv "$CASE/home/.claude/settings.json" "$CASE/user-settings.json"
+ln -s "$CASE/user-settings.json" "$CASE/home/.claude/settings.json"
+discover "$CASE"
+expect "D5: symlink の live settings.json は旧構成として WARN" zero "WARN: live ~/.claude/settings.json is a symlink; D5 makes the live file canonical"
 
 new_case catalog-missing
 sed -i 's/\tgpt-6-astra\tmedium\t/\tgpt-6-sol\tmedium\t/' "$CASE/repo/docs/contracts/model-routing.tsv"
@@ -134,7 +136,7 @@ discover "$CASE"
 expect "not-before の退役は WARN" zero "WARN: routing claude-explore: haiku retires not before 2026-10-15"
 
 new_case instruction-unknown
-printf '{"autoMemoryEnabled": false, "pluginConfigs": {"agents-md@builtin": {"options": {"instructionFiles": "agents-md-only"}}}}\n' > "$CASE/repo/claude/settings.json"
+printf '{"autoMemoryEnabled": false, "pluginConfigs": {"agents-md@builtin": {"options": {"instructionFiles": "agents-md-only"}}}}\n' > "$CASE/home/.claude/settings.json"
 discover "$CASE"
 expect "未知の instructionFiles は FAIL" nonzero "FAIL: instructionFiles has an unknown value 'agents-md-only' (from user:pluginConfigs.agents-md@builtin.options.instructionFiles)"
 
@@ -144,14 +146,17 @@ discover "$CASE"
 expect "既定以外の instructionFiles は WARN（設定元つき）" zero "WARN: instructionFiles is claude-md-and-agents-md (from managed:managed-settings.json:pluginConfigs.agents-md@builtin.options.instructionFiles)"
 
 new_case agents-md-disabled
-printf '{"autoMemoryEnabled": false, "enabledPlugins": {"agents-md@builtin": false}}\n' > "$CASE/repo/claude/settings.json"
+printf '{"autoMemoryEnabled": false, "enabledPlugins": {"agents-md@builtin": false}}\n' > "$CASE/home/.claude/settings.json"
 discover "$CASE"
 expect "agents-md plugin の無効化は WARN（K14）" zero "WARN: built-in agents-md plugin is disabled in user"
 
 new_case auto-memory
-printf '{"autoMemoryEnabled": true}\n' > "$CASE/repo/claude/settings.json"
+printf '{"autoMemoryEnabled": true}\n' > "$CASE/home/.claude/settings.json"
 discover "$CASE"
-expect "autoMemoryEnabled が false でなければ FAIL" nonzero "FAIL: autoMemoryEnabled is True, must be false (EX-004)"
+expect "autoMemoryEnabled が false でなければ FAIL" nonzero "FAIL: autoMemoryEnabled is True (from user), must be false (EX-004)"
+printf '{"autoMemoryEnabled": false}\n' > "$CASE/managed/managed-settings.json"
+discover "$CASE"
+expect "managed の autoMemoryEnabled=false が user より優先される（EX-004）" zero "OK: autoMemoryEnabled is false (from managed; EX-004)"
 
 new_case alias-change
 discover "$CASE"

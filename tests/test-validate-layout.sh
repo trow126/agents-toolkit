@@ -30,7 +30,6 @@ build_fixture() {
   cp "$REPO_ROOT/scripts/lib/check-model-routing.py" "$repo/scripts/lib/check-model-routing.py"
   chmod +x "$repo/scripts/validate-layout.sh" "$repo/scripts/check-managed-policy.py"
 
-  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
   cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
 
   local accepted_sha
@@ -39,7 +38,6 @@ build_fixture() {
     "$accepted_sha" > "$repo/docs/reports/accepted-exceptions.md"
 
   cat > "$repo/install/manifest.tsv" <<'MANIFEST'
-link-file	claude/settings.json	.claude/settings.json
 link-file	claude/CLAUDE.md	.claude/CLAUDE.md
 link-dir	claude/rules	.claude/rules
 link-dir	claude/agents	.claude/agents
@@ -101,6 +99,11 @@ CONSUMERS
   printf 'role\truntime\tlauncher\tmodel\teffort\ttargets\tfallback\tretires_at\tevidence\tverified_at\tadaptation\n' > "$repo/docs/contracts/model-routing.tsv"
   printf 'fixture-claude-agent\tclaude\tAgent\thaiku\t-\tclaude/agents/sample.md#model\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
   printf 'fixture-codex-agent\tcodex\tspawn_agent\tgpt-5.6-terra\tmedium\tcodex/agents/sample.toml#model,model_reasoning_effort\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
+  # the copied managed policy carries the D2 env pins; each must be a routing-table target
+  jq -r '.env | to_entries[] | select(.key | test("^ANTHROPIC_DEFAULT_[A-Z]+_MODEL$"))
+    | [("fixture-pin-" + (.key | ascii_downcase | gsub("_"; "-"))), "claude", "managed env pin", .value, "-",
+       ("claude/managed-settings.json#env." + .key), "", "", "fixture", "2026-09-25", ""] | @tsv' \
+    "$repo/claude/managed-settings.json" >> "$repo/docs/contracts/model-routing.tsv"
   cat > "$repo/docs/contracts/skill-dependencies.tsv" <<'DEPENDENCIES'
 runtime	skill	dependency	trigger
 DEPENDENCIES
@@ -134,7 +137,7 @@ for base in ["scripts","tests","claude/bin","claude/hooks","claude/scripts","cla
             if rel.startswith("tests/") and not (rel.endswith(".sh") or "/lib/" in rel):
                 continue
             paths.append(rel)
-for rel in ["bootstrap.sh","claude/settings.json","claude/managed-settings.json","codex/hooks.json"]:
+for rel in ["bootstrap.sh","claude/managed-settings.json","codex/hooks.json"]:
     if (root/rel).exists(): paths.append(rel)
 rows=[]
 for i,rel in enumerate(sorted(set(paths)),1):
@@ -220,9 +223,12 @@ run_case manifest-orphan \
 run_case unconsumed-rule \
   'printf "orphan\n" > "$repo/shared/rules/orphan.md"; git -C "$repo" add shared/rules/orphan.md' \
   'shared rule has no context consumer declaration: orphan'
-run_case user-security-key \
-  'jq ". + {sandbox:{enabled:false}}" "$repo/claude/settings.json" > "$repo/u"; mv "$repo/u" "$repo/claude/settings.json"' \
-  'user settings must not carry security policy keys'
+run_case tracked-user-settings \
+  'printf "{}\n" > "$repo/claude/settings.json"; git -C "$repo" add claude/settings.json' \
+  'claude/settings.json must not be tracked (D5'
+run_case managed-memory-enabled \
+  'jq ".autoMemoryEnabled=true" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
+  'managed settings must set autoMemoryEnabled=false'
 run_case missing-managed-lock \
   'jq "del(.allowManagedPermissionRulesOnly)" "$repo/claude/managed-settings.json" > "$repo/m"; mv "$repo/m" "$repo/claude/managed-settings.json"' \
   'managed settings require allowManagedPermissionRulesOnly=true'
@@ -307,9 +313,6 @@ run_case inventory-skill-after-path-unlinked \
 run_case unsupported-model-syntax \
   'printf -- "---\n\"model\": opus\n---\n" > "$repo/claude/agents/bad.md"; git -C "$repo" add claude/agents/bad.md' \
   'model pin scan failed:'
-run_case runtime-model-pin-in-settings \
-  'jq ".model=\"claude-foo-9[1m]\"" "$repo/claude/settings.json" > "$repo/u"; mv "$repo/u" "$repo/claude/settings.json"' \
-  PASS
 run_case agent-full-model-pin \
   'printf -- "---\nname: pinned\nmodel: claude-foo-1\n---\n" > "$repo/claude/agents/pinned.md"; git -C "$repo" add claude/agents/pinned.md' \
   'dangerous setting without waiver: claude/agents/pinned.md:3: full model pin '"'"'claude-foo-1'"'"''

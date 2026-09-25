@@ -31,7 +31,7 @@ TOOLKIT_PROTECTED = [
     "claude/CLAUDE*.md", "codex/AGENTS*.md", "shared/rules/**", "claude/rules/**",
     "claude/hooks/**", "claude/bin/**", "codex/hooks.json", "codex/agents/**", "codex/profiles/**",
     "claude/skills/gh-codex-drive/**", "claude/skills/gh-finish/**", "claude/skills/gh-roadmap-drive/**",
-    "claude/managed-settings.json", "claude/settings.json", "install/manifest.tsv",
+    "claude/managed-settings.json", "install/manifest.tsv",
     "docs/reports/accepted-exceptions.md", "docs/contracts/model-routing.tsv",
     "scripts/validate-layout.sh", ".github/workflows/**",
 ]

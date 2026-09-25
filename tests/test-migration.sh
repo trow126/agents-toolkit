@@ -93,17 +93,16 @@ setup_sandbox() {
   cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
   cp "$REPO_ROOT/scripts/install-managed-policy.sh" "$repo/scripts/install-managed-policy.sh"
   chmod +x "$repo/scripts/check-runtime.sh" "$repo/scripts/check-managed-policy.py" "$repo/scripts/install-managed-policy.sh"
-  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
   cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
   mkdir -p "$repo/claude/bin"
   cp "$REPO_ROOT/claude/bin/project-policy-gate" "$repo/claude/bin/project-policy-gate"
   chmod +x "$repo/claude/bin/project-policy-gate"
   mkdir -p "$sandbox/managed"
-  AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply \
+  HOME="$sandbox" AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply \
     --target "$sandbox/managed/20-agents-toolkit-security.json" >/dev/null
   # migration は tracked source と untracked runtime を区別する。fixture に追加した
   # bootstrap/policy source は tracked として commit し、runtime 移動対象から除外する。
-  git -C "$repo" add bootstrap.sh install/manifest.tsv claude/settings.json claude/managed-settings.json \
+  git -C "$repo" add bootstrap.sh install/manifest.tsv claude/managed-settings.json \
     scripts/migrate-layout.sh scripts/check-runtime.sh scripts/check-managed-policy.py scripts/install-managed-policy.sh \
     claude/bin/project-policy-gate
   git -C "$repo" -c user.email="fixture@example.invalid" -c user.name="Fixture" \
@@ -115,7 +114,7 @@ setup_sandbox() {
 STUB_CLAUDE_BIN="$(mktemp -d)/stub-claude-bin"
 trap 'rm -rf "$(dirname "$STUB_CLAUDE_BIN")"' EXIT
 mkdir -p "$STUB_CLAUDE_BIN"
-printf '#!/usr/bin/env bash\necho "2.1.219 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
+printf '#!/usr/bin/env bash\necho "2.1.281 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
 chmod +x "$STUB_CLAUDE_BIN/claude"
 
 run_migrate() {

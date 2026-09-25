@@ -64,7 +64,7 @@ if [[ ${#CLAUDE_SKILL_SOURCES[@]} -eq 0 || ${#CODEX_SKILL_SOURCES[@]} -eq 0 ]]; 
   exit 1
 fi
 
-if jq -e '.autoMemoryEnabled == false' "$REPO_DIR/claude/settings.json" >/dev/null; then
+if jq -e '.autoMemoryEnabled == false' "$REPO_DIR/claude/managed-settings.json" >/dev/null; then
   pass "Claude native auto memory is disabled"
 else
   fail "Claude native auto memory must be disabled"

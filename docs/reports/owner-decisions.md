@@ -62,21 +62,25 @@
 | P1-Q1 | pr-review を一本化するか | 案A。pr-review を両方の runtime から外し、`gh-pr --review-comment` に一本化する。PostToolUse の pr-review-hook は、`/code-review <PR>` によるレビューと、ユーザーの明示指示による `/gh-pr --review-comment` を案内するだけにする |
 | P1-Q2 | `bootstrap.sh` の `STALE_CLAUDE_SKILLS` への追加 | 承認。`plan-review` と `pr-review`（旧 source `shared/skills/claude-code/<name>`）を加え、live に残った link を `--check` で DRIFT として検出する |
 | P1-Q3 | Slack 通知の opt-out env の名前 | 承認。`AGENTS_TOOLKIT_SLACK_NOTIFY=off` |
+| P7-Q1 | session-init と post-compact の hook | 両方を削除する（登録、script、`emit_system_message.py`、test）。systemMessage は user にだけ表示され、モデルは system prompt の gitStatus で同じ情報を得ている（2026-09-25） |
+| P7-Q2 | manifest の link を外した後の `claude/settings.json` | repo から削除する。live の `~/.claude/settings.json` を正本とし、validator は repo での追跡と manifest の link を拒否する（2026-09-25） |
+| P7-Q3 | D2 の env pin の対象 | fable、opus、sonnet、haiku の4つすべて。sonnet は CLI 2.1.282 の内蔵 model 一覧の `claude-sonnet-5`（2026-09-25） |
+| P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
 ## 反映状況
 
 | ID | 反映する Phase | 状態（2026-09-25） |
 |---|---|---|
-| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 branch で反映（live 未反映）。② の登録解除と ④ の gate は未反映 |
+| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 で反映。④ の gate は Phase 4 branch。② の登録解除は Phase 7 branch で準備（script と test も削除。managed の適用待ち） |
 | D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: 反映済み。撤去: 2026-09-25 に実施（`~/.local/state/agents-toolkit/backup/` へ退避）。WARN: Phase 3 の discovery で実装 |
-| D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | routing 表: Phase 2 branch で作成（env pin の検査は実装済みで、対象は現状0件）。env pin は未反映 |
-| D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | discovery の WARN（UI キーと settings の drift）と FAIL（`autoMemoryEnabled`）: Phase 3 で実装。settings と manifest は未反映 |
+| D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | routing 表: Phase 2 で作成。env pin: Phase 7 branch で managed に4つ入れ、routing 表に claude-alias-* の4行を加えた（managed の適用待ち） |
+| D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | Phase 7 branch で `claude/settings.json` を削除し、manifest の link を外した（P7-Q2）。discovery は live の symlink を旧構成として WARN し、`autoMemoryEnabled` は managed を優先して FAIL で監視する。effort は D9 に従い owner が live の `modelSettings` で設定する |
 | D6 | Phase 1 | Phase 1 branch で反映（live 未反映。`~/.claude/skills/plan-review` の link 削除は owner） |
 | D10 | Phase 1 | Phase 1 branch で反映（live 未反映） |
 | D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 不使用を確認し、gh-codex-drive と gh-roadmap-drive に明記した（Phase 1 branch）。上流版への復帰は owner |
 | OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | Phase 2 branch で反映。`claude/CLAUDE.md` の lead の行と worker の行を分け、それぞれを routing 表の target にした（決定の内容は変えていない） |
-| OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch で実装する（integration で検証が通るまで live には取り込まない）。codex-rescue の部分は現行のまま |
+| OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch。managed の deny `Agent(codex:codex-rescue)` と `claude/CLAUDE.md` の禁止文の削除は Phase 7 branch で準備（K3 は integration で確認） |
 | D7 | Phase 6 | Phase 6 branch で静的な部分を実装（live 未反映。phase-4 の上に作ったので、phase-4 の後に取り込む）。route は divergent-claude が opus、divergent-codex が gpt-6-astra/medium、`skill-authority.tsv` の egress 列は別の model provider への送信を表す（いずれも 2026-09-25、この作業 session で owner が選択）。K18 は静的には使える（2.1.282 に `agent()` の `opts.disallowedTools` が実装されている。model 向けの API 説明には載っていない）。C.5 の実行と K18 の実行時の確認は integration 待ち |
 | D8 | Phase 4 | Phase 4 branch で実装する（live は、integration で検証が通るまで companion のまま） |
 | D12 | Phase 4 と Phase 5 の integration での試験 | 未適用（integration 環境の準備待ち） |
-| OD-7 | D9 で置き換える: Phase 7 | 現行の値のまま |
+| OD-7 | D9 で置き換える: Phase 7 | repo の `effortLevel: xhigh` は `claude/settings.json` とともに削除（P7-Q2）。live の値は D9（Phase 5）の決定後に owner が設定する |

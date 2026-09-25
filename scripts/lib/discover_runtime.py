@@ -295,19 +295,20 @@ def main(argv: list[str]) -> int:
     snap["advisor_model"] = merged.get("advisorModel")
     report.add("INFO", f"advisorModel: {merged.get('advisorModel') or 'unset'}")
     user_settings = read_json(home / ".claude/settings.json") or {}
-    auto_memory = user_settings.get("autoMemoryEnabled", managed_only.get("autoMemoryEnabled"))
+    # managed wins over user; EX-004 puts autoMemoryEnabled=false in managed (Phase 7)
+    if "autoMemoryEnabled" in managed_only:
+        auto_memory, memory_source = managed_only["autoMemoryEnabled"], "managed"
+    else:
+        auto_memory, memory_source = user_settings.get("autoMemoryEnabled"), "user"
     snap["auto_memory_enabled"] = auto_memory
     if auto_memory is not False:
-        report.add("FAIL", f"autoMemoryEnabled is {auto_memory!r}, must be false (EX-004)")
+        report.add("FAIL", f"autoMemoryEnabled is {auto_memory!r} (from {memory_source}), must be false (EX-004)")
     else:
-        report.add("OK", "autoMemoryEnabled is false (EX-004)")
+        report.add("OK", f"autoMemoryEnabled is false (from {memory_source}; EX-004)")
     live_settings = home / ".claude/settings.json"
-    repo_settings = read_json(repo / "claude/settings.json") or {}
     snap["claude_settings_is_symlink"] = live_settings.is_symlink()
-    if live_settings.exists() and not live_settings.is_symlink():
-        diff_keys = sorted(k for k in set(user_settings) | set(repo_settings) if user_settings.get(k) != repo_settings.get(k))
-        snap["claude_settings_diff_keys"] = diff_keys
-        report.add("WARN", f"live ~/.claude/settings.json is a regular file, not the repo symlink (D5: resolved in the governance phase); keys differing from the repo: {', '.join(diff_keys) or 'none'}")
+    if live_settings.is_symlink():
+        report.add("WARN", "live ~/.claude/settings.json is a symlink; D5 makes the live file canonical (a regular file written by Claude Code)")
     main_row = next((r for r in rows if r["role"] == "claude-main"), None)
     if main_row:
         live_model = user_settings.get("model")

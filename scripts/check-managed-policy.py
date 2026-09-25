@@ -27,6 +27,7 @@ SECURITY_KEYS = {
 }
 
 REQUIRED_DENIES = {
+    "Agent(codex:codex-rescue)",
     "Edit(.git/config)",
     "Edit(.git/hooks/**)",
     "Read(//**/.env)",
@@ -34,6 +35,16 @@ REQUIRED_DENIES = {
     "Edit(//**/.env)",
     "Edit(//**/.env.*)",
 }
+# D2: aliases resolve through managed env pins; routing-table rows own the values.
+REQUIRED_ENV_PINS = {
+    "ANTHROPIC_DEFAULT_FABLE_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+}
+# D3 and Phase 7: hooks that injected per-prompt text or user-only systemMessage JSON are retired.
+RETIRED_HOOK_EVENTS = {"UserPromptSubmit", "PostCompact"}
+RETIRED_HOOK_SCRIPTS = ("prompt-submit-hook.sh", "session-init-hook.sh", "post-compact-hook.sh")
 REQUIRED_ALLOW_READ = {
     "~/.claude/bin",
     "~/.claude/skills",
@@ -75,12 +86,6 @@ def validate_user(user: dict[str, Any], errors: list[str]) -> None:
         + ", ".join(leaked),
         errors,
     )
-    require(
-        user.get("autoMemoryEnabled") is False,
-        "user settings must set autoMemoryEnabled=false "
-        "(owner policy requires explicit, deterministic persistent context)",
-        errors,
-    )
 
 
 def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, Any]:
@@ -106,10 +111,25 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
     )
 
     require(
-        managed.get("requiredMinimumVersion") == "2.1.219",
-        'managed settings require requiredMinimumVersion="2.1.219"',
+        managed.get("requiredMinimumVersion") == "2.1.281",
+        'managed settings require requiredMinimumVersion="2.1.281"',
         errors,
     )
+    require(
+        managed.get("autoMemoryEnabled") is False,
+        "managed settings must set autoMemoryEnabled=false "
+        "(EX-004: persistent context stays explicit and deterministic)",
+        errors,
+    )
+    env = managed.get("env")
+    require(isinstance(env, dict), "managed env must be an object", errors)
+    if isinstance(env, dict):
+        missing_pins = sorted(k for k in REQUIRED_ENV_PINS if not isinstance(env.get(k), str) or not env.get(k))
+        require(
+            not missing_pins,
+            "managed env pins are missing (D2): " + ", ".join(missing_pins),
+            errors,
+        )
 
     permissions = managed.get("permissions")
     require(isinstance(permissions, dict), "managed permissions must be an object", errors)
@@ -221,6 +241,21 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
 
     hooks = managed.get("hooks")
     require(isinstance(hooks, dict) and bool(hooks), "managed hooks must be a non-empty object", errors)
+    if isinstance(hooks, dict):
+        retired_events = sorted(RETIRED_HOOK_EVENTS.intersection(hooks))
+        require(
+            not retired_events,
+            "managed hooks register retired events: " + ", ".join(retired_events),
+            errors,
+        )
+        commands = [
+            hook.get("command", "")
+            for groups in hooks.values() if isinstance(groups, list)
+            for group in groups if isinstance(group, dict)
+            for hook in group.get("hooks") or [] if isinstance(hook, dict)
+        ]
+        retired = sorted({s for s in RETIRED_HOOK_SCRIPTS for c in commands if s in c})
+        require(not retired, "managed hooks register retired scripts: " + ", ".join(retired), errors)
 
     return {
         "bash_allows": bash_allows,
@@ -282,7 +317,8 @@ def validate_lower_scope(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--user", required=True, type=Path)
+    # Optional: the live ~/.claude/settings.json (D5: live is canonical; the repo has no user file).
+    parser.add_argument("--user", type=Path)
     parser.add_argument("--managed", required=True, type=Path)
     parser.add_argument("--project", type=Path)
     parser.add_argument("--local", type=Path)
@@ -293,13 +329,14 @@ def main() -> int:
     args = parse_args()
     errors: list[str] = []
     try:
-        user = load_json(args.user, "user settings")
+        user = load_json(args.user, "user settings") if args.user is not None else None
         managed = load_json(args.managed, "managed settings")
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    validate_user(user, errors)
+    if user is not None:
+        validate_user(user, errors)
     summary = validate_managed(managed, errors)
     attempted: list[str] = []
     for path, label in ((args.project, "project"), (args.local, "project-local")):
@@ -317,7 +354,7 @@ def main() -> int:
             print(f"ERROR: {error}", file=sys.stderr)
         return 1
 
-    print("OK: managed bypass policy and user-settings split are valid")
+    print("OK: managed bypass policy" + (" and user-settings split are" if user is not None else " is") + " valid")
     return 0
 
 

@@ -77,15 +77,15 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 3215
+claude_md_bytes: 3104
 claude_md_lines: 41
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1441 (1 files)
-claude_always_on_total: 4656
+claude_always_on_total: 4545
 codex_agents_md_bytes: 3513
 codex_agents_md_lines: 48
-combined_always_on_total: 8169
+combined_always_on_total: 8058
 custom_agents: 1
 codex_custom_agents: 4
 claude_skills: 18
@@ -97,21 +97,21 @@ active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
 shared_rules_always_on_bytes: 1441
 shared_rules_on_demand_bytes: 12004
-hook_scripts: 9
-hook_registrations: 11
+hook_scripts: 6
+hook_registrations: 8
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 181
+inventory_audited_elements: 182
 review_progress_retrospective_mechanisms: 6
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
 tier_aliases: 1
-routing_rows: 12
+routing_rows: 16
 model_name_mentions_outside_targets: 0
 permissions_allow_count: 4
 permissions_ask_count: 0
-permissions_deny_count: 87
+permissions_deny_count: 88
 bypass_permissions_default: yes
 dangerous_mode_prompt_skipped: yes
 sandbox_enabled: no
@@ -126,14 +126,14 @@ managed_read_lock_ok: yes
 managed_domain_lock_ok: yes
 sandbox_auto_allow_bash: yes
 auto_memory_enabled: no
-session_start_system_message_typical_bytes: 102
-session_start_system_message_max_bytes: 512
-post_compact_system_message_typical_bytes: 128
-post_compact_system_message_max_bytes: 512
+session_start_system_message_typical_bytes: 0
+session_start_system_message_max_bytes: 0
+post_compact_system_message_typical_bytes: 0
+post_compact_system_message_max_bytes: 0
 user_prompt_submit_injection_typical_bytes: 0
 user_prompt_submit_injection_max_bytes: 0
-claude_session_start_injection_typical_bytes: 4758
-claude_session_start_injection_max_bytes: 5168
+claude_session_start_injection_typical_bytes: 4545
+claude_session_start_injection_max_bytes: 4545
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)

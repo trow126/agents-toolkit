@@ -104,7 +104,6 @@ build_fixture_repo() {
   echo "# AGENTS.md (fixture)" > "$repo/codex/AGENTS.md"
   echo "# fixture-shared SKILL.md (fixture)" > "$repo/shared/skills/fixture-shared/SKILL.md"
   # bootstrap は managed policy checker/installer と doctor を強制する。
-  cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
   cp "$REPO_ROOT/claude/managed-settings.json" "$repo/claude/managed-settings.json"
   cp "$REPO_ROOT/claude/bin/project-policy-gate" "$repo/claude/bin/project-policy-gate"
   chmod +x "$repo/claude/bin/project-policy-gate"
@@ -128,7 +127,7 @@ NO_OVERLAY="$SANDBOX/no-such-overlay"
 # tests/test-check-runtime.sh が網羅する
 STUB_CLAUDE_BIN="$SANDBOX/stub-claude-bin"
 mkdir -p "$STUB_CLAUDE_BIN"
-printf '#!/usr/bin/env bash\necho "2.1.219 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
+printf '#!/usr/bin/env bash\necho "2.1.281 (Claude Code)"\n' > "$STUB_CLAUDE_BIN/claude"
 chmod +x "$STUB_CLAUDE_BIN/claude"
 
 managed_target() {
@@ -140,7 +139,7 @@ install_fixture_policy() {
   local repo="$1" home="$2" target
   target="$(managed_target "$home")"
   if [[ ! -f "$target" ]]; then
-    AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply --target "$target" >/dev/null
+    HOME="$home" AGENTS_TOOLKIT_TESTING=1 "$repo/scripts/install-managed-policy.sh" --apply --target "$target" >/dev/null
   fi
 }
 

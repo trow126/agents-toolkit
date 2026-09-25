@@ -5,7 +5,6 @@
 #   target : $HOME 相対 path（絶対 path・".." 禁止）
 # "#" 始まりの行と空行は無視する。
 link-file	claude/CLAUDE.md	.claude/CLAUDE.md
-link-file	claude/settings.json	.claude/settings.json
 link-file	claude/statusline.sh	.claude/statusline.sh
 link-file	claude/.claudeignore	.claude/.claudeignore
 link-dir	claude/rules	.claude/rules

@@ -38,4 +38,4 @@
 - `~/.claude/settings.json`をsession内で直接編集せず、project/local settingsへpermission・hook・sandbox policyを追加しない。
 - project/localのsecurity policy driftは`scripts/check-runtime.sh`と`project-policy-gate`が拒否する。
 - bypassPermissions下ではGit操作がpromptなしで実行されるため、commit・push・外部writeの承認はcore contractに従う。
-- Codex委任は`codex:codex-rescue` Agentで包まない（hookが拒否し、完了通知がmain sessionに届かない）。`~/.claude/bin/codex-delegate`をmain sessionから`Bash(run_in_background=true)`で起動する。
+- Codex委任は`~/.claude/bin/codex-delegate`をmain sessionから`Bash(run_in_background=true)`で起動する。

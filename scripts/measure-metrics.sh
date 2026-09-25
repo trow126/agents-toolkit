@@ -256,8 +256,11 @@ measure_tree() {
     echo "managed_domain_lock_ok: n/a"
     echo "sandbox_auto_allow_bash: n/a"
   fi
-  if [[ -f "$user_settings" ]] && command -v jq >/dev/null; then
-    echo "auto_memory_enabled: $(jq -r 'if .autoMemoryEnabled == true then "yes" else "no" end' "$user_settings")"
+  # EX-004: managed carries autoMemoryEnabled since Phase 7; older layouts carry it in the user file.
+  local memory_settings="$user_settings"
+  [[ -f "$managed_settings" ]] && jq -e 'has("autoMemoryEnabled")' "$managed_settings" >/dev/null 2>&1 && memory_settings="$managed_settings"
+  if [[ -f "$memory_settings" ]] && command -v jq >/dev/null; then
+    echo "auto_memory_enabled: $(jq -r 'if .autoMemoryEnabled == true then "yes" else "no" end' "$memory_settings")"
   else
     echo "auto_memory_enabled: n/a"
   fi

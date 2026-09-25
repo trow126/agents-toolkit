@@ -4,6 +4,13 @@
   "allowManagedPermissionRulesOnly": true,
   "disableAutoMode": "disable",
   "skipDangerousModePermissionPrompt": true,
+  "autoMemoryEnabled": false,
+  "env": {
+    "ANTHROPIC_DEFAULT_FABLE_MODEL": "claude-fable-5-1",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-5-5",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-5",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5-20251001"
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
@@ -103,7 +110,8 @@
       "Read(//**/.env)",
       "Read(//**/.env.*)",
       "Edit(//**/.env)",
-      "Edit(//**/.env.*)"
+      "Edit(//**/.env.*)",
+      "Agent(codex:codex-rescue)"
     ],
     "defaultMode": "bypassPermissions",
     "ask": []
@@ -235,17 +243,6 @@
         ]
       }
     ],
-    "PostCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/post-compact-hook.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
@@ -292,15 +289,6 @@
     ],
     "SessionStart": [
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/session-init-hook.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "*",
         "hooks": [
           {
@@ -321,18 +309,7 @@
           }
         ]
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/prompt-submit-hook.sh",
-            "timeout": 5
-          }
-        ]
-      }
     ]
   },
-  "requiredMinimumVersion": "2.1.219"
+  "requiredMinimumVersion": "2.1.281"
 }

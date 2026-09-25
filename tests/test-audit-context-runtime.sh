@@ -49,7 +49,7 @@ mkdir -p \
   "$FIXTURE_HOME/.claude/skills" \
   "$FIXTURE_HOME/.agents/skills" \
   "$STUB_BIN"
-printf '{"autoMemoryEnabled":false}\n' > "$FIXTURE_REPO/claude/settings.json"
+printf '{"autoMemoryEnabled":false}\n' > "$FIXTURE_REPO/claude/managed-settings.json"
 printf '%s\n' '# Claude fixture' '' '[Workflow](references/workflow.md)' > "$FIXTURE_REPO/shared/skills/claude-sample/SKILL.md"
 printf '%s\n' '# Workflow fixture' > "$FIXTURE_REPO/shared/skills/claude-sample/references/workflow.md"
 printf '%s\n' '# Codex fixture' > "$FIXTURE_REPO/shared/skills/codex-sample/SKILL.md"

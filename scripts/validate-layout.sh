@@ -569,7 +569,6 @@ echo "== 9. managed owner policy and governed settings =="
 WAIVER_FILE="$REPO_ROOT/docs/waivers/settings-waivers.tsv"
 WAIVER_ENVS="$REPO_ROOT/docs/waivers/environments.txt"
 TODAY="$(date +%F)"
-USER_SETTINGS="$REPO_ROOT/claude/settings.json"
 MANAGED_SETTINGS="$REPO_ROOT/claude/managed-settings.json"
 POLICY_CHECK="$SCRIPT_DIR/check-managed-policy.py"
 
@@ -620,8 +619,17 @@ has_waiver() {
 if [[ ! -x "$POLICY_CHECK" ]]; then
   fail "managed policy checker missing or non-executable: scripts/check-managed-policy.py"
 else
-  POLICY_OUT="$(python3 "$POLICY_CHECK" --user "$USER_SETTINGS" --managed "$MANAGED_SETTINGS" 2>&1)" || \
+  POLICY_OUT="$(python3 "$POLICY_CHECK" --managed "$MANAGED_SETTINGS" 2>&1)" || \
     fail "managed policy contract: $POLICY_OUT"
+fi
+
+# D5: the live ~/.claude/settings.json is canonical and written by Claude Code; the repo neither
+# tracks nor links a user settings file.
+if git -C "$REPO_ROOT" ls-files --error-unmatch claude/settings.json >/dev/null 2>&1; then
+  fail "claude/settings.json must not be tracked (D5: live ~/.claude/settings.json is canonical)"
+fi
+if grep -qP '\t\.claude/settings\.json$' "$MANIFEST" 2>/dev/null; then
+  fail "the manifest must not link ~/.claude/settings.json (D5)"
 fi
 
 # Managed policy is deliberately not linked into ~/.claude; it is installed by
@@ -1075,7 +1083,7 @@ STALE_PATTERNS=(
   "skills/issue-parser"
   "fast-worker|project-orchestrator|plan-reviewer-(completeness|critic|feasibility)|security-reviewer"
   "rules/(scope-discipline|framework-respect|git-safety)\.md"
-  "test-quality-hook|user-prompt-submit-hook"
+  "test-quality-hook|user-prompt-submit-hook|prompt-submit-hook|session-init-hook|post-compact-hook|emit_system_message"
   "claude-bypass|bypass-profile|srt-bypass|bypass-gate"
   "agmsg"
   "claude-code/(plan-review|pr-review)|codex/references/python-quality|gpt-5-4-prompting"
@@ -1085,7 +1093,9 @@ while IFS= read -r f; do
   case "$f" in
     # measure-metrics.sh は改名前 layout の計測のため、bootstrap.sh は stale link の
     # cleanup 対象（STALE_CLAUDE_SKILLS）として、旧 path を意図的に参照する
-    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | bootstrap.sh) continue ;;
+    # measure-hook-injection.py は削除済み hook を含む旧 layout を計測し、check-managed-policy.py は
+    # 削除済み hook の登録を拒否する deny-list として名前を持つ
+    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | scripts/measure-hook-injection.py | scripts/check-managed-policy.py | bootstrap.sh) continue ;;
   esac
   [[ -f "$f" ]] || continue
   for pat in "${STALE_PATTERNS[@]}"; do
