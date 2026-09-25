@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "break-consensus --cross worker output",
   "description": "Final answer of one divergent worker (Codex: codex exec --output-schema; Claude: Workflow agent() schema). break-consensus-cross collect also checks the hash format, candidate count, and mechanism coverage.",
   "type": "object",

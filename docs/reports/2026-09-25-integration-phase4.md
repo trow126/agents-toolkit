@@ -42,8 +42,26 @@
 4. launcher が途中で止まると `active.json` が残り、次の委任が「別の委任が active」と拒否される。`active.json` に launcher の pid と終了を記録し、途中で止まった委任を stale と明示するようにした。
 5. `claude -p` では、ターンの終わりに session が終わり、background の Codex も止まる。委任は対話か `claude --bg` の session で行うと、gh-codex-drive に明記した。
 
+## Phase 6（C.5、K18）
+
+同じ host で、`claude --bg`（fable/high）から `/break-consensus --cross` を1回実行した（題材: 小規模チームの CI での flaky な integration test）。run は `~/.local/state/agents-toolkit/break-consensus/20260925T120924Z-916219f4/`。
+
+| C.5 の項目 | 結果 | 根拠 |
+|---|---|---|
+| brief の hash が両方の worker で一致する | PASS | 両方の出力の `brief_sha256` が `916219f4…` |
+| 片方の出力が、もう片方の入力に含まれない | PASS | worker prompt は prepare で固定（sha256 不変）。Codex が受け取った prompt の sha256 も一致 |
+| 実行の前後で `git status` が変わらない | PASS | `collect` と `finish`、および実行前に保存した status と HEAD との比較 |
+| Codex は read-only で、cwd は空の一時ディレクトリ | PASS | rollout の `turn_context`: gpt-6-astra/medium、`read-only`、`/tmp/break-consensus-…`（前後とも空） |
+| Claude worker は Bash、Edit、Write、NotebookEdit を使えない | PASS | K18 の probe（下）。本番の worker が使った tool は StructuredOutput だけ |
+| 統合結果に一致点、相違点、両方の生の出力がある | PASS | `result.md` に Agreements、Differences、Decisions、Notes、Raw output（Codex、Claude）、Brief |
+| 実装へ自動で移らない | PASS | main の tool は Bash、WebSearch（3回）、Workflow、ToolSearch だけ。gh-codex-drive などは skill 一覧と CLAUDE.md の中にだけ現れる |
+
+- K18（実行時）: PASS。`agent()` に `disallowedTools: ['Bash','Edit','Write','NotebookEdit']` を付けた worker（haiku）の tool は Read、Glob、Grep、Skill、ToolSearch などで、Bash と Write の呼び出しは「無い」と返った。`Artifact` のような外部へ書く tool は残る（spec が除外を求める4つには入らない）。
+- C.2（toolkit-divergent）: audit で PASS。
+- 所見: `divergent.schema.json` の `$schema` を Workflow の `agent()` が解決できず、1回目の Workflow が失敗した（main が `$schema` を外して再実行し、Notes に記録した）。schema から `$schema` を外した。
+- 費用: K18 の probe 約 0.08 USD。C.5 の run は約 3.18 USD（transcript の token からの推定。owner がこの1回に限り 3 USD まで許可したが、最終報告のターンで超えた）。main が references を読み込み、先行事例を検索するため、D12 の1回 2 USD は `--cross` には足りない。Codex は1回（入力 13,868、出力 1,785）。
+
 ## 残り
 
-- Phase 6 の C.5（`/break-consensus --cross`）と K18 の実行時の確認。
 - 委任の review での `/code-review` の実行（今回は `git diff` の review で代替した）。
 - mini の後片付け（managed の削除、退避した設定の復元、`~/.profile` の Slack 行の削除）。

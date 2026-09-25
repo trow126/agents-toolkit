@@ -287,10 +287,12 @@ def strict(node, where="$"):
     elif isinstance(node, list):
         for index, value in enumerate(node):
             strict(value, f"{where}[{index}]")
-strict(json.load(open(sys.argv[1])))
+schema = json.load(open(sys.argv[1]))
+assert "$schema" not in schema, "Workflow agent() cannot resolve $schema (C.5, 2026-09-25)"
+strict(schema)
 PY
 then
-  ok "divergent.schema.json は Codex の --output-schema の strict 形式"
+  ok "divergent.schema.json は Codex の --output-schema の strict 形式で、Workflow の agent() が読める（\$schema なし）"
 else
   ng "divergent.schema.json が strict でない"
 fi
