@@ -83,9 +83,15 @@ repo内での開発・実行により `.venv`、`.mypy_cache`、`.pytest_cache`�
 
 `./scripts/audit-context-runtime.sh`は、Claude Code/Codexのmemory・plugin policy、toolkit skill link、Claudeのzero-inference discovery、Codexのmodel-visible prompt discoveryをread-onlyで確認する。vendor CLIを必要とするためCIではなくbootstrap後のlive acceptanceとして実行する。
 
+## Runtime とモデルの変化の検出
+
+model と effort の割当は `docs/contracts/model-routing.tsv`（routing 表）が正本で、実行時の値は各行の targets にある。`scripts/validate-layout.sh` が routing 表と targets の一致、agent file の帰属、配布ファイルのモデル名を検査する。
+
+`./scripts/discover-runtime.sh` は Claude Code / Codex の version、instructionFiles の実効値、alias の解決先、Codex の catalog、codex-plugin-cc、manifest の drift などを read-only で取得し、routing 表と照合する。snapshot を `${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/runtime-snapshot.json` に書き、前回との差分を WARN として報告する。FAIL があれば exit 1。公式の models / deprecations ページとの照合は `--online` のときだけ行う。Codex CLI の更新手順は [`docs/runbooks/codex-cli-update.md`](docs/runbooks/codex-cli-update.md) にある。
+
 ## CI
 
-`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON/Python構文検証・`scripts/validate-layout.sh`・release package lint・`shared/bin/sync-shared-rules.sh --check`・XDG を隔離した `tests/test-*.sh`・`python-refactor-analysis` の pytest・全履歴 gitleaks スキャンを実行する。
+`.github/workflows/ci.yml` が push・pull request ごとに、shell/JSON/Python構文検証・`scripts/validate-layout.sh`・release package lint・`shared/bin/sync-shared-rules.sh --check`・配布 Markdown の lint（`scripts/lint-distributed-markdown.sh`）・XDG を隔離した `tests/test-*.sh`・`claude-second-opinion` の test・`python-refactor-analysis` の pytest・全履歴 gitleaks スキャンを実行する。
 
 ## 注意
 
