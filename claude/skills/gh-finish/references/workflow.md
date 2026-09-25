@@ -8,6 +8,7 @@
 4. Map every acceptance criterion and checkbox in the Issue body to concrete evidence: code paths, test names, run output. Unchecked or unverifiable items are reported as gaps and stop `--apply`.
 5. Run the project's tests and lint for the affected scope. Failures stop both modes with the output shown.
 6. Confirm the diff contains only Issue-attributable changes. Overlapping unrelated changes are never staged; report and stop.
+7. Delegated work: run `~/.claude/bin/delegation-evidence-check`. With an active Codex delegation it passes only when `verify-delegation` evidence exists, passed, and matches the current HEAD and diff; otherwise stop both modes and show its reason (re-run the gate after any later edit).
 
 ## Preview (default mode)
 
@@ -19,6 +20,7 @@ Show, without executing: the paths to stage, the Conventional Commit message(s),
 2. Check out the default branch, merge the feature branch locally, and return any pre-existing state faithfully. On merge conflict: abort the merge, restore the branch state, report — never resolve conflicts silently inside this skill.
 3. Close the Issue with exactly one `gh issue close --comment` citing commit hash and test evidence. Prefer the GitHub connector; `gh` fallback does not broaden authorization.
 4. No push at any point. If the user wants the merge pushed, name the exact command and require a separate request.
+5. After the close, clear the delegation state with `~/.claude/bin/delegation-evidence-check --clear` when one was active.
 
 ## Stop conditions
 

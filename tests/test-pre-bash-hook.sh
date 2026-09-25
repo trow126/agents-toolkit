@@ -236,10 +236,10 @@ expect_allow_agent "codex-rescue の status は許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" status task-123"
 expect_allow_agent "codex-rescue の result は許可" "$CODEX_AGENT" \
   "node \"$COMPANION\" result task-123"
-expect_allow_agent "別 agent の companion background は本規則の対象外" "general-purpose" \
+expect_block_agent "別 agent からの companion task も block（D8 で一般化）" "general-purpose" \
   "node \"$COMPANION\" task --background \"implement the fix\""
-expect_allow_agent_tool_background \
-  "別 agent の Bash run_in_background=true は本規則の対象外" "general-purpose" \
+expect_block_agent_tool_background \
+  "別 agent の Bash run_in_background=true の companion task も block" "general-purpose" \
   "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow_agent_tool_background \
   "main session相当の companion Bash background は許可" "" \
@@ -321,6 +321,27 @@ expect_allow "task --write \"prompt\" は許可" "node \"$COMPANION\" task --wri
 expect_allow "status / result は許可" "node \"$COMPANION\" status; node \"$COMPANION\" result task-123"
 expect_allow "別 segment の -h は本規則の対象外" "node \"$COMPANION\" status; grep -h foo bar"
 expect_allow "-h を含む file 名は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/x-h.md"
+
+# ---- 8. Codex 起動 guard の一般化（D8。launcher は ~/.claude/bin/codex-delegate）----
+DELEGATE='~/.claude/bin/codex-delegate'
+CONTRACT='.git/agents-toolkit/contract-42.json'
+expect_block_agent "subagent からの codex-delegate は block" "general-purpose" "$DELEGATE $CONTRACT"
+expect_block_agent "Explore からの codex exec は block" "Explore" "codex exec -s read-only -C /tmp/x 'review'"
+rc=0
+jq -n --arg c "$DELEGATE $CONTRACT" '{"hook_event_name":"PreToolUse","tool_name":"Bash","agent_id":"a-1","tool_input":{"command":$c,"run_in_background":true}}' \
+  | "$HOOK" >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]]; then ok "agent_id だけを持つ入力（subagent）の codex-delegate も block"; else ng "agent_id subagent delegate: exit $rc"; fi
+expect_allow_agent_tool_background "main session の codex-delegate（background）は許可" "" "$DELEGATE $CONTRACT"
+expect_block_agent_tool_foreground "main session の codex-delegate（foreground）は block" "" "$DELEGATE $CONTRACT"
+expect_allow "main session の codex-delegate --dry-run は foreground でも許可" "$DELEGATE $CONTRACT --dry-run"
+expect_allow "codex-delegate-preflight は起動ではないので許可" "~/.claude/bin/codex-delegate-preflight $CONTRACT"
+expect_block "main session の companion task --background は block" "node \"$COMPANION\" task --background --write \"fix\""
+expect_block "launcher を通さない codex exec（sandbox 指定なし）は block" "codex exec -C /tmp/x - < prompt.md"
+expect_block "launcher を通さない codex exec（workspace-write）は block" "codex exec -p toolkit-implementer -s workspace-write -C /tmp/x - < p.md"
+expect_block "global option の後ろの exec も検出する" "codex -p toolkit-implementer exec --full-auto 'fix'"
+expect_block "read-only に --full-auto を足した exec は block" "codex exec -s read-only --full-auto 'x'"
+expect_allow "main session の codex exec -s read-only は許可（break-consensus --cross）" "codex exec -C /tmp/empty --skip-git-repo-check -p toolkit-divergent -s read-only --json - < brief.md"
+expect_allow "codex の他の subcommand は対象外" "codex --version; codex debug models"
 
 # ---- 6. 既存の危険 pattern ----
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'

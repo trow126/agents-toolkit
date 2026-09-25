@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""codex-delegate — launch one contracted Codex delegation with codex exec (agents-toolkit, D8).
+
+usage: codex-delegate <contract.json> [--repo DIR] [--dry-run]
+
+Run from the Claude main session with Bash(run_in_background=true). Steps:
+  1. preflight (schema, catalog route, no ultra, profile present)
+  2. record the baseline (HEAD, status, untracked hashes) and the Codex CLI version in the contract
+  3. render the prompt and write the active-delegation state (active.json)
+  4. codex exec -C <repo> -p toolkit-implementer -s workspace-write -m <model>
+     -c model_reasoning_effort=<effort> --json --output-schema report.schema.json
+     -o <git-dir>/agents-toolkit/result-<id>.json - < prompt
+--dry-run stops after step 1 and prints the command without writing state.
+Exit status is codex exec's; verify the result with ~/.claude/bin/verify-delegation.
+"""
+import datetime as dt
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import (  # noqa: E402
+    PROFILE, REPORT_SCHEMA, DelegationError, load_json, preflight_errors, record_baseline,
+    render_prompt, repo_root, state_paths, write_json,
+)
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    dry_run = "--dry-run" in args
+    args = [a for a in args if a != "--dry-run"]
+    repo_arg = None
+    if "--repo" in args:
+        i = args.index("--repo")
+        repo_arg = args[i + 1] if i + 1 < len(args) else ""
+        del args[i:i + 2]
+    if len(args) != 1 or repo_arg == "":
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        repo = repo_root(Path(repo_arg or "."))
+        contract_path = Path(args[0])
+        errors = preflight_errors(contract_path, repo)
+        if errors:
+            for error in errors:
+                print(f"PREFLIGHT FAIL: {error}", file=sys.stderr)
+            return 1
+        contract = load_json(contract_path)
+        paths = state_paths(repo, contract["id"])
+        route = contract["route"]
+        cmd = ["codex", "exec", "-C", str(repo), "-p", PROFILE, "-s", "workspace-write",
+               "-m", route["model"], "-c", f"model_reasoning_effort={route['effort']}",
+               "--json", "--output-schema", str(REPORT_SCHEMA), "-o", str(paths["result"]), "-"]
+        if dry_run:
+            print("DRY RUN: " + " ".join(shlex.quote(c) for c in cmd) + f" < {paths['prompt']}")
+            return 0
+        if paths["active"].exists():
+            active = load_json(paths["active"])
+            raise DelegationError(f"another delegation is active ({active.get('contract_id')}); finish or clear it first")
+        version = subprocess.run(["codex", "--version"], capture_output=True, text=True, check=False).stdout.strip()
+        contract["route"]["cli_version"] = version
+        if "baseline" not in contract:
+            contract["baseline"] = record_baseline(repo)
+        write_json(contract_path, contract)
+        paths["prompt"].write_text(render_prompt(contract), encoding="utf-8")
+        for stale in (paths["result"], paths["evidence"]):
+            stale.unlink(missing_ok=True)
+        write_json(paths["active"], {
+            "contract_id": contract["id"], "contract": str(contract_path),
+            "started_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
+            "route": contract["route"], "baseline_head": contract["baseline"]["head"],
+        })
+    except DelegationError as exc:
+        print(f"DELEGATE FAIL: {exc}", file=sys.stderr)
+        return 1
+    print(f"[codex-delegate] {contract['id']}: {route['model']}/{route['effort']} ({version}); result -> {paths['result']}", file=sys.stderr)
+    with paths["prompt"].open("rb") as stdin, paths["jsonl"].open("wb") as stdout, paths["stderr"].open("wb") as stderr:
+        rc = subprocess.run(cmd, stdin=stdin, stdout=stdout, stderr=stderr, check=False).returncode
+    print(f"[codex-delegate] codex exec exit {rc}; next: ~/.claude/bin/verify-delegation {contract_path}", file=sys.stderr)
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

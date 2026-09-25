@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "gh-codex-drive delegation contract",
+  "description": "One Codex delegation. Lives at $(git rev-parse --git-dir)/agents-toolkit/contract-<id>.json; codex-delegate records baseline and route.cli_version at launch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "goal", "acceptance_criteria", "scope_paths", "required_checks", "diff_budget",
+               "allowed_dependency_changes", "non_goals", "invariants", "protected_paths_extra", "route"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "minLength": 1},
+    "goal": {"type": "string", "minLength": 1},
+    "acceptance_criteria": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "scope_paths": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "required_checks": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "diff_budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "lines"],
+      "properties": {
+        "files": {"type": "integer", "minimum": 1},
+        "lines": {"type": "integer", "minimum": 1}
+      }
+    },
+    "allowed_dependency_changes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "non_goals": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "invariants": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "protected_paths_extra": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["head", "status", "untracked"],
+      "properties": {
+        "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "status": {"type": "array", "items": {"type": "string"}},
+        "untracked": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "effort"],
+      "properties": {
+        "model": {"type": "string", "minLength": 1},
+        "effort": {"type": "string", "minLength": 1},
+        "cli_version": {"type": "string"}
+      }
+    }
+  }
+}

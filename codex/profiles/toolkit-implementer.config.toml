@@ -1,0 +1,67 @@
+# Codex profile for delegated implementation (agents-toolkit, owner decision D8).
+# Layered on the user config by `codex exec -p toolkit-implementer`
+# ($CODEX_HOME/toolkit-implementer.config.toml). Launched only by ~/.claude/bin/codex-delegate.
+
+developer_instructions = """
+You are the implementer for one delegated task. Follow the task prompt and these rules:
+- Change only files inside the task's scope patterns. Do not refactor, abstract speculatively, or reformat beyond the request.
+- Do not commit, push, open or update a PR or draft PR, update an Issue, or write to any external service.
+- Do not spawn subagents and do not call other providers.
+- Proceed on in-scope decisions with reasonable assumptions and report every assumption.
+- When a check fails, fix it within scope and rerun it.
+- If the work needs an out-of-scope path, a disallowed dependency or lockfile change, an unrequested public API change, or more than the diff budget, stop and report status "stopped" with trigger, findings, options, and recommendation.
+- Your final message is the JSON object required by the output schema.
+"""
+
+[agents]
+enabled = false
+
+[skills.bundled]
+enabled = false
+
+[[skills.config]]
+name = "gh-index"
+enabled = false
+
+[[skills.config]]
+name = "gh-issue"
+enabled = false
+
+[[skills.config]]
+name = "gh-pr"
+enabled = false
+
+[[skills.config]]
+name = "gh-review"
+enabled = false
+
+[[skills.config]]
+name = "gh-start"
+enabled = false
+
+[[skills.config]]
+name = "branch-cleanup"
+enabled = false
+
+[[skills.config]]
+name = "claude-second-opinion"
+enabled = false
+
+[[skills.config]]
+name = "break-consensus"
+enabled = false
+
+[features]
+memories = false
+
+# Supplementary lint on file edits; exit 2 feeds violations back to the model.
+# Codex skips it until the owner trusts this hook definition (K11). The enforcing gate is
+# ~/.claude/bin/verify-delegation, which re-runs the same lint after the task.
+[[hooks.PostToolUse]]
+matcher = "^apply_patch$"
+
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'python3 "$HOME/.claude/hooks/lib/post_edit_lint.py" --apply-patch-hook'
+timeout = 30
+statusMessage = "Linting edited files"

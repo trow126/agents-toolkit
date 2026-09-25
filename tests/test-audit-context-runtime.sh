@@ -58,6 +58,10 @@ printf 'link-dir\tshared/skills/codex-sample\t.agents/skills/codex-sample\n' >> 
 printf '%s\n' '# Codex manual-only fixture' > "$FIXTURE_REPO/shared/skills/codex-manual/SKILL.md"
 printf '%s\n' 'policy:' '  allow_implicit_invocation: false' > "$FIXTURE_REPO/shared/skills/codex-manual/agents/openai.yaml"
 printf 'link-dir\tshared/skills/codex-manual\t.agents/skills/codex-manual\n' >> "$FIXTURE_REPO/install/manifest.tsv"
+mkdir -p "$FIXTURE_REPO/codex/profiles" "$FIXTURE_HOME/.codex"
+cp "$REPO_ROOT/codex/profiles/toolkit-implementer.config.toml" "$FIXTURE_REPO/codex/profiles/"
+ln -s "$FIXTURE_REPO/codex/profiles/toolkit-implementer.config.toml" "$FIXTURE_HOME/.codex/toolkit-implementer.config.toml"
+printf 'link-file\tcodex/profiles/toolkit-implementer.config.toml\t.codex/toolkit-implementer.config.toml\n' >> "$FIXTURE_REPO/install/manifest.tsv"
 ln -s "$FIXTURE_REPO/shared/skills/claude-sample" "$FIXTURE_HOME/.claude/skills/claude-sample"
 ln -s "$FIXTURE_REPO/shared/skills/codex-sample" "$FIXTURE_HOME/.agents/skills/codex-sample"
 
@@ -92,6 +96,17 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "list" ]]; then
   printf '{"installed":[{"pluginId":"superpowers@openai-curated","installed":true,"enabled":false}]}\n'
 elif [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
   printf 'memories stable false\n'
+elif [[ "${1:-}" == "-p" && "${3:-}" == "debug" && "${4:-}" == "prompt-input" ]]; then
+  # profile prompt: developer instructions first unless STUB_PROFILE_BAD names a failure
+  first='You are the implementer for one delegated task. Follow the task prompt and these rules:'
+  [[ "${STUB_PROFILE_BAD:-}" == order ]] && first='Some other developer text.'
+  listed='codex-sample'
+  [[ "${STUB_PROFILE_BAD:-}" == skill ]] && listed='codex-sample gh-pr'
+  body='<skills_instructions>\n### Available skills\n'
+  for name in $listed; do body="${body}- ${name}: fixture (file: r0/${name}/SKILL.md)\n"; done
+  extra=''
+  [[ "${STUB_PROFILE_BAD:-}" == multi ]] && extra=',{"type":"input_text","text":"<multi_agent_role>x"}'
+  printf '[{"type":"message","role":"developer","content":[{"type":"input_text","text":"%s"},{"type":"input_text","text":"%s</skills_instructions>"}%s]}]\n' "$first" "$body" "$extra"
 elif [[ "${1:-}" == "debug" && "${2:-}" == "prompt-input" ]]; then
   # 0.157.0 lists skills by name with root-relative paths, never the repo source path
   body='<skills_instructions>\n### Available skills\n'
@@ -120,6 +135,15 @@ out="$(run_audit 2>&1)" || rc=$?
 assert_exit_zero "準拠fixtureは成功する" "$rc"
 assert_contains "Claude memory offを確認する" "$out" "PASS: Claude native auto memory is disabled"
 assert_contains "Codex discoveryを確認する" "$out" "PASS: Codex prompt discovery contains all manifest skills"
+assert_contains "implementer profile の prompt を確認する（C.2）" "$out" "PASS: Codex implementer profile prompt drops disabled skills and multi-agent instructions"
+for bad in order skill multi; do
+  out=""; rc=0
+  out="$(STUB_PROFILE_BAD="$bad" run_audit 2>&1)" || rc=$?
+  assert_exit_nonzero "implementer profile の違反（$bad）は失敗する" "$rc"
+done
+out=""; rc=0
+out="$(STUB_PROFILE_BAD=skill run_audit 2>&1)" || rc=$?
+assert_contains "無効にした skill の残存を名前で示す" "$out" "FAIL: Codex implementer profile: profile-disabled skill is still listed: gh-pr"
 
 out=""; rc=0
 out="$(STUB_CODEX_LISTED="" run_audit 2>&1)" || rc=$?

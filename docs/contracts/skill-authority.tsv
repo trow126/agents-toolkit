@@ -16,7 +16,7 @@ config-audit	default	deny	deny	deny	deny	deny	deny	read-only report
 config-audit	--record	deny	allow	deny	deny	deny	deny	append one XDG history record
 knowledge-audit	default	deny	deny	deny	deny	deny	deny	in-chat report
 knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	selected project knowledge files only
-gh-codex-drive	default	allow	allow	deny	deny	deny	deny	Codex implements and creates or switches the feature branch; completion side effects are forbidden
+gh-codex-drive	default	allow	allow	deny	deny	deny	deny	Codex implements through codex-delegate; creates or switches the feature branch and writes contract result evidence and active state under the git-dir; completion side effects are forbidden
 gh-codex-drive	--status	deny	deny	deny	deny	deny	deny	report task state and local evidence only; no delegation or edits
 gh-finish	default	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
 gh-finish	--apply	allow	allow	allow	deny	allow	deny	commit scoped changes locally merge and close one Issue with a comment

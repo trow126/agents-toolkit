@@ -69,6 +69,15 @@ if ! AGENT_TYPE=$(echo "$INPUT" | jq -er '
 ' 2>/dev/null); then
     block "hook input agent_type must be a string when present (fail-closed)"
 fi
+if ! AGENT_ID=$(echo "$INPUT" | jq -er '
+    if has("agent_id") then
+        .agent_id | select(type == "string")
+    else
+        ""
+    end
+' 2>/dev/null); then
+    block "hook input agent_id must be a string when present (fail-closed)"
+fi
 if ! RUN_IN_BACKGROUND=$(echo "$INPUT" | jq -er '
     if (.tool_input | has("run_in_background")) then
         .tool_input.run_in_background
@@ -98,15 +107,39 @@ fi
 # \042 = double quote, \047 = single quote
 NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 
-# codex:codex-rescue 内で companion task を起動すると、foreground でも600秒経過時に
-# Bash runtimeがprocessをbackgroundへ移し、rescue Agent終了後の完了通知がmain sessionへ
-# 届かない。agent_type と companion task の共起に限定して全実行をfail-closedにし、
-# main sessionがBash(run_in_background=true)で直接completion ownerになるよう強制する。
-# raw command に対する heuristic なので、対象 agent 内では過剰側に倒す。
-if [[ "$AGENT_TYPE" == "codex:codex-rescue" ]]; then
-    if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
-        printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
-        block "codex:codex-rescue 内の companion task 起動を拒否した。foregroundでも600秒後にdetachして完了通知を失うため、Claude main sessionから codex-companion.mjs task を直接 Bash(run_in_background=true) で起動すること"
+# Codex の起動 guard（owner 決定 D8、指示書 §6.4）。raw command の heuristic なので過剰側に倒す。
+# - subagent（hook 入力に agent_id または agent_type がある）からは Codex を起動しない。
+#   subagent 内の process は 600 秒後の Bash 自動 background 化で終了済み agent に残り、
+#   完了通知が main session に届かない（2026-09 の codex-rescue で再現）。
+# - main session でも companion の task --background と、launcher を通さない書き込み可能な
+#   codex exec は拒否する。委任は ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で
+#   起動する（--dry-run を除く）。codex exec -s read-only（break-consensus --cross）は main だけ許可する。
+IS_DELEGATE=false
+IS_COMPANION_TASK=false
+IS_EXEC=false
+printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-delegate([[:space:]]|$)' && IS_DELEGATE=true
+if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
+    printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
+    IS_COMPANION_TASK=true
+fi
+printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex([[:space:]]+[^;|&[:space:]]+)*[[:space:]]+exec([[:space:]]|$)' && IS_EXEC=true
+if [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]]; then
+    if [[ "$IS_DELEGATE" == true || "$IS_COMPANION_TASK" == true || "$IS_EXEC" == true ]]; then
+        block "subagent（${AGENT_TYPE:-agent_id=$AGENT_ID}）からの Codex 起動を拒否した。subagent 内の process は完了通知を main session に返せないため、Claude main sessionから ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で起動すること"
+    fi
+else
+    if [[ "$IS_COMPANION_TASK" == true ]] && printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--background([[:space:]]|$)'; then
+        block "companion の task --background を拒否した。完了通知を main session が受け取れるよう、Bash(run_in_background=true) で起動すること"
+    fi
+    if [[ "$IS_EXEC" == true ]]; then
+        if ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])(-s|--sandbox)([[:space:]]+|=)read-only([[:space:]]|$)' ||
+            printf '%s' "$NORM" | grep -qE 'workspace-write|danger-full-access|--full-auto|--dangerously-bypass-approvals-and-sandbox|--yolo'; then
+            block "launcher を通さない書き込み可能な codex exec を拒否した。委任は ~/.claude/bin/codex-delegate <contract.json> を使い、read-only の検討だけ codex exec -s read-only を直接使うこと"
+        fi
+    fi
+    if [[ "$IS_DELEGATE" == true && "$RUN_IN_BACKGROUND" != true ]] &&
+        ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--dry-run([[:space:]]|$)'; then
+        block "codex-delegate は Bash(run_in_background=true) で起動すること（完了通知を main session が受け取るため）。確認だけなら --dry-run を付ける"
     fi
 fi
 

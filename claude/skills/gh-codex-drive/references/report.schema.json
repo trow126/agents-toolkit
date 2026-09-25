@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Codex delegation completion report",
+  "description": "Final message of a delegated Codex run, enforced with codex exec --output-schema. Codex's self-report is not evidence; verify-delegation re-runs the checks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status", "summary", "changed_files", "assumptions", "checks_run", "checks_not_run",
+               "residual_risks", "discovered_issues", "deliberately_unchanged", "stopped"],
+  "properties": {
+    "status": {"type": "string", "enum": ["completed", "stopped"]},
+    "summary": {"type": "string"},
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {"path": {"type": "string"}, "reason": {"type": "string"}}
+      }
+    },
+    "assumptions": {"type": "array", "items": {"type": "string"}},
+    "checks_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd", "exit_code"],
+        "properties": {"cmd": {"type": "string"}, "exit_code": {"type": "integer"}}
+      }
+    },
+    "checks_not_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cmd", "reason"],
+        "properties": {"cmd": {"type": "string"}, "reason": {"type": "string"}}
+      }
+    },
+    "residual_risks": {"type": "array", "items": {"type": "string"}},
+    "discovered_issues": {"type": "array", "items": {"type": "string"}},
+    "deliberately_unchanged": {"type": "array", "items": {"type": "string"}},
+    "stopped": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["trigger", "findings", "options", "recommendation"],
+      "properties": {
+        "trigger": {"type": "string", "enum": ["out_of_scope_path", "dependency_change", "public_api_change", "diff_budget_exceeded"]},
+        "findings": {"type": "string"},
+        "options": {"type": "array", "items": {"type": "string"}},
+        "recommendation": {"type": "string"}
+      }
+    }
+  }
+}

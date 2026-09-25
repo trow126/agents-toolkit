@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""codex-delegate-preflight — check a delegation contract before launch (agents-toolkit B.3).
+
+usage: codex-delegate-preflight <contract.json> [--repo DIR]
+Fails (exit 1) when the contract violates its schema or lives outside the repo's
+git-dir state directory, the route model/effort is not in the live Codex catalog, the
+effort is ultra, or the toolkit-implementer profile is missing.
+"""
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import DelegationError, preflight_errors, repo_root  # noqa: E402
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    repo_arg = None
+    if "--repo" in args:
+        i = args.index("--repo")
+        repo_arg = args[i + 1] if i + 1 < len(args) else None
+        del args[i:i + 2]
+    if len(args) != 1 or repo_arg == "":
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        repo = repo_root(Path(repo_arg or "."))
+    except DelegationError as exc:
+        print(f"PREFLIGHT FAIL: {exc}", file=sys.stderr)
+        return 1
+    errors = preflight_errors(Path(args[0]), repo)
+    for error in errors:
+        print(f"PREFLIGHT FAIL: {error}", file=sys.stderr)
+    if errors:
+        return 1
+    print(f"PREFLIGHT OK: {args[0]}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

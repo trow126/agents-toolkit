@@ -281,6 +281,53 @@ elif [[ "$FAILURES" -eq "$codex_before" ]]; then
   pass "Codex prompt discovery contains all manifest skills and no superpowers skills"
 fi
 
+# D8 (exec launcher): the delegation profile must put its developer instructions first and
+# drop the skills it disables, the bundled skills, and the multi-agent instructions
+# (appendix C.2). Checked only when the manifest distributes the profile.
+if grep -qP '\t\.codex/toolkit-implementer\.config\.toml$' "$MANIFEST"; then
+  profile_file="$HOME/.codex/toolkit-implementer.config.toml"
+  if [[ ! -f "$profile_file" ]]; then
+    fail "Codex implementer profile is not installed: $profile_file"
+  elif ! profile_prompt="$(codex -p toolkit-implementer debug prompt-input "context-runtime-audit")"; then
+    fail "codex -p toolkit-implementer debug prompt-input failed"
+  else
+    profile_prompt_file="$(mktemp)"
+    printf '%s' "$profile_prompt" > "$profile_prompt_file"
+    profile_problems="$(python3 - "$profile_file" "$profile_prompt_file" <<'PYPROFILE'
+import json, re, sys, tomllib
+profile = tomllib.loads(open(sys.argv[1], encoding="utf-8").read())
+first_line = next(l.strip() for l in profile["developer_instructions"].splitlines() if l.strip())
+disabled = {c["name"] for c in (profile.get("skills") or {}).get("config") or [] if c.get("enabled") is False}
+parts = []
+for item in json.load(open(sys.argv[2], encoding="utf-8")):
+    for content in item.get("content") or []:
+        if isinstance(content, dict) and isinstance(content.get("text"), str):
+            parts.append((item.get("role"), content["text"]))
+listed = set()
+for _, text in parts:
+    if "<skills_instructions>" in text:
+        listed |= set(re.findall(r"^- ([a-z0-9][a-z0-9-]*):", text, re.M))
+problems = []
+if not parts or parts[0][0] != "developer" or not parts[0][1].lstrip().startswith(first_line):
+    problems.append("profile developer_instructions are not the first developer message")
+for name in sorted(listed & disabled):
+    problems.append(f"profile-disabled skill is still listed: {name}")
+if any(re.search(r"\(file: r\d+/[^)]*\)", t) and "/.system/" in t for _, t in parts):
+    problems.append("bundled (.system) skills are still listed")
+if any("<multi_agent" in t for _, t in parts):
+    problems.append("multi-agent instructions are still injected")
+print("\n".join(problems))
+PYPROFILE
+)"
+    rm -f "$profile_prompt_file"
+    if [[ -n "$profile_problems" ]]; then
+      while IFS= read -r problem; do fail "Codex implementer profile: $problem"; done <<< "$profile_problems"
+    else
+      pass "Codex implementer profile prompt drops disabled skills and multi-agent instructions"
+    fi
+  fi
+fi
+
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "PASS: runtime context policy is effective"

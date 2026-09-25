@@ -19,7 +19,7 @@ Read [`references/workflow.md`](references/workflow.md) and `~/.agents/rules/git
 
 1. Verify Issue number, repository, feature branch, and that the working diff is attributable to the Issue.
 2. Fetch the Issue via `~/.claude/bin/gh-issue-fetch.sh`; check every acceptance criterion / checkbox against actual code and test evidence, not the conversation.
-3. Run the project's deterministic verification. A failing check stops both modes — report, never merge over a failure.
+3. Run the project's deterministic verification and, for delegated work, `~/.claude/bin/delegation-evidence-check`. A failing check or missing/stale delegation evidence stops both modes — report, never merge over a failure.
 4. In `--apply`, stage only Issue-scoped paths, use semantic Conventional Commits, fast-forward or no-ff merge per repo convention, and close via one `gh issue close --comment` citing the evidence.
 5. Leave the merged feature branch in place; cleanup is a separate `/branch-cleanup` request.
 6. Report each operation performed or skipped, with the evidence, and the exact remaining manual steps (e.g. push) if the user wants them.

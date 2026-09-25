@@ -282,7 +282,43 @@ def lint(path: Path) -> list[Violation]:
     return []
 
 
+APPLY_PATCH_FILE_RE = re.compile(r"^\*\*\* (?:Add File|Update File|Move to): (.+)$", re.M)
+
+
+def apply_patch_hook() -> int:
+    """Codex PostToolUse hook for apply_patch: lint the files named in tool_input.command.
+
+    Exit 2 with the violations on stderr feeds them back to the model (Codex hooks
+    contract); malformed input or internal errors stay fail-open (exit 0).
+    """
+    try:
+        event = json.loads(sys.stdin.read() or "{}")
+        patch = (event.get("tool_input") or {}).get("command")
+        if not isinstance(patch, str):
+            return 0
+        base = Path(event.get("cwd") or ".")
+        reported = False
+        for name in dict.fromkeys(m.strip() for m in APPLY_PATCH_FILE_RE.findall(patch)):
+            path = Path(name) if Path(name).is_absolute() else base / name
+            if not path.is_file():
+                continue
+            for violation in lint(path):
+                print(
+                    f"post-edit-lint: {name}:{violation.line}: {violation.problem} — {violation.fix}",
+                    file=sys.stderr,
+                )
+                reported = True
+        if reported:
+            print("意図的な場合はレポートにその理由を書くこと。", file=sys.stderr)
+            return 2
+        return 0
+    except Exception:
+        return 0
+
+
 def main() -> int:
+    if sys.argv[1:] == ["--apply-patch-hook"]:
+        return apply_patch_hook()
     try:
         if len(sys.argv) != 2:
             return 0

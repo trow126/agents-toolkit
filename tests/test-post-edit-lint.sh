@@ -211,6 +211,26 @@ cat > "$SANDBOX/project/.claude/managed-settings.json" <<'JSON'
 JSON
 expect_pass "file tool の path glob（Edit(**)・Read(**)）は no-space wildcard とみなさない" Edit "$SANDBOX/project/.claude/managed-settings.json"
 
+# ---- Codex apply_patch PostToolUse mode（toolkit-implementer profile の inline hook）----
+LINT_PY="$REPO_ROOT/claude/hooks/lib/post_edit_lint.py"
+mkdir -p "$SANDBOX/codex"
+printf '# Title\nno blank line\n' > "$SANDBOX/codex/bad.md"
+printf '# Title\n\nfine\n' > "$SANDBOX/codex/good.md"
+patch_input() {
+  jq -n --arg cwd "$SANDBOX/codex" --arg cmd "$1" \
+    '{hook_event_name: "PostToolUse", tool_name: "apply_patch", cwd: $cwd, tool_input: {command: $cmd}}'
+}
+rc=0; out="$(patch_input $'*** Begin Patch\n*** Update File: bad.md\n@@\n-x\n+y\n*** End Patch' | python3 "$LINT_PY" --apply-patch-hook 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && "$out" == *"post-edit-lint: bad.md:1: Markdown 見出しの後に空行がありません"* ]]; then
+  ok "apply_patch hook: 違反は exit 2 と stderr で返す"
+else
+  ng "apply_patch hook: expected exit 2 with violation, got $rc: $out"
+fi
+rc=0; out="$(patch_input $'*** Begin Patch\n*** Add File: good.md\n+# Title\n*** End Patch' | python3 "$LINT_PY" --apply-patch-hook 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && -z "$out" ]]; then ok "apply_patch hook: 違反なしは exit 0"; else ng "apply_patch hook: clean file got $rc: $out"; fi
+rc=0; out="$(printf 'not-json' | python3 "$LINT_PY" --apply-patch-hook 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 ]]; then ok "apply_patch hook: 不正な入力は fail-open"; else ng "apply_patch hook: malformed input got $rc"; fi
+
 # ---- routing と fail-open internal errors ----
 printf 'not linted\n' > "$SANDBOX/notes.txt"
 expect_pass "対象外 extension" Edit "$SANDBOX/notes.txt"

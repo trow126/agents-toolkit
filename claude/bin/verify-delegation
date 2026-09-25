@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""verify-delegation — post-delegation gate (agents-toolkit B.4). Always run the live copy
+(~/.claude/bin/verify-delegation), never one inside the delegated worktree.
+
+usage: verify-delegation <contract.json> [--repo DIR]
+
+Checks only the diff since the contract baseline: HEAD unchanged, every changed path inside
+scope_paths, no protected path or lockfile (unless allowed), diff_budget (untracked new files
+count), post_edit_lint on changed files, the Codex report against report.schema.json, and a
+re-run of every required_check. Codex's self-report is not evidence. Writes
+<git-dir>/agents-toolkit/evidence-<id>.json and exits 0 only when everything passes.
+env: VERIFY_CHECK_TIMEOUT (seconds per required check, default 1800)
+"""
+import datetime as dt
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import (  # noqa: E402
+    CONTRACT_SCHEMA, LOCKFILES, POST_EDIT_LINT, REPORT_SCHEMA, DelegationError, changes_since,
+    load_json, matches_any, protected_patterns, repo_root, schema_errors, state_paths, write_json,
+)
+
+
+def now() -> str:
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    repo_arg = None
+    if "--repo" in args:
+        i = args.index("--repo")
+        repo_arg = args[i + 1] if i + 1 < len(args) else ""
+        del args[i:i + 2]
+    if len(args) != 1 or repo_arg == "":
+        print(__doc__, file=sys.stderr)
+        return 2
+    violations: list[str] = []
+    try:
+        repo = repo_root(Path(repo_arg or "."))
+        contract_path = Path(args[0])
+        contract = load_json(contract_path)
+        violations += [f"contract {e}" for e in schema_errors(contract, load_json(CONTRACT_SCHEMA))]
+        if "baseline" not in contract:
+            raise DelegationError("contract has no baseline; launch through ~/.claude/bin/codex-delegate")
+        paths = state_paths(repo, contract["id"])
+        changes = changes_since(repo, contract["baseline"])
+    except DelegationError as exc:
+        print(f"GATE FAIL: {exc}", file=sys.stderr)
+        return 1
+
+    if changes["head"] != contract["baseline"]["head"]:
+        violations.append(f"HEAD moved from {contract['baseline']['head'][:12]} to {changes['head'][:12]} (delegated work must not commit)")
+    protected = protected_patterns(repo, contract)
+    allowed_deps = contract.get("allowed_dependency_changes") or []
+    for path in changes["files"]:
+        if not matches_any(path, contract["scope_paths"]):
+            violations.append(f"out of scope: {path}")
+        if matches_any(path, protected):
+            violations.append(f"protected path changed: {path}")
+        if Path(path).name in LOCKFILES and path not in allowed_deps and Path(path).name not in allowed_deps:
+            violations.append(f"lockfile changed without allowed_dependency_changes: {path}")
+    budget = contract["diff_budget"]
+    if len(changes["files"]) > budget["files"]:
+        violations.append(f"diff budget exceeded: {len(changes['files'])} files > {budget['files']}")
+    if changes["lines"] > budget["lines"]:
+        violations.append(f"diff budget exceeded: {changes['lines']} lines > {budget['lines']}")
+
+    lint = []
+    for path in changes["files"]:
+        target = repo / path
+        if not target.is_file():
+            continue
+        result = subprocess.run([sys.executable, str(POST_EDIT_LINT), str(target)], capture_output=True, text=True, check=False)
+        lint.append({"path": path, "exit_code": result.returncode})
+        if result.returncode != 0:
+            violations.append(f"lint: {path}: {result.stderr.strip().splitlines()[0] if result.stderr.strip() else 'violation'}")
+
+    report_status = None
+    try:
+        report = load_json(paths["result"])
+        report_errors = schema_errors(report, load_json(REPORT_SCHEMA))
+        if report_errors:
+            violations += [f"report {e}" for e in report_errors]
+        else:
+            report_status = report["status"]
+            if report_status == "stopped":
+                violations.append(f"Codex stopped: {report['stopped']['trigger']}: {report['stopped']['findings']}")
+    except DelegationError as exc:
+        violations.append(f"report missing or unreadable: {exc}")
+
+    timeout = int(os.environ.get("VERIFY_CHECK_TIMEOUT", "1800"))
+    checks = []
+    for cmd in contract["required_checks"]:
+        started = now()
+        try:
+            rc = subprocess.run(["bash", "-c", cmd], cwd=repo, capture_output=True, text=True, timeout=timeout, check=False).returncode
+        except subprocess.TimeoutExpired:
+            rc = 124
+        checks.append({"cmd": cmd, "exit_code": rc, "started_at": started, "finished_at": now()})
+        if rc != 0:
+            violations.append(f"required check failed (exit {rc}): {cmd}")
+
+    passed = not violations
+    evidence = {
+        "contract_id": contract["id"], "repo": str(repo), "verified_at": now(),
+        "verifier": str(Path(__file__).resolve()), "head": changes["head"], "diff_hash": changes["diff_hash"],
+        "changed_files": changes["files"], "changed_lines": changes["lines"], "checks": checks, "lint": lint,
+        "report_status": report_status, "route": contract["route"], "violations": violations, "passed": passed,
+    }
+    write_json(paths["evidence"], evidence)
+    for violation in violations:
+        print(f"GATE FAIL: {violation}", file=sys.stderr)
+    print(f"GATE {'PASS' if passed else 'FAIL'}: {contract['id']} ({len(changes['files'])} files, {changes['lines']} lines, "
+          f"{sum(c['exit_code'] == 0 for c in checks)}/{len(checks)} checks); evidence -> {paths['evidence']}")
+    return 0 if passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

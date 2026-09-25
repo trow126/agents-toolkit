@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""delegation-evidence-check — gh-finish's completion gate for delegated work (agents-toolkit §6.4).
+
+usage: delegation-evidence-check [--repo DIR] [--clear]
+
+With no active delegation (<git-dir>/agents-toolkit/active.json absent) it passes. Otherwise it
+passes only when evidence-<id>.json exists, passed, and its HEAD and diff hash equal the current
+working tree (any later edit, including review fixes, requires re-running verify-delegation).
+--clear removes active.json after gh-finish completes or the user abandons the delegation.
+"""
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import DelegationError, changes_since, load_json, repo_root, state_dir, state_paths  # noqa: E402
+
+
+def main(argv: list[str]) -> int:
+    args = argv[1:]
+    clear = "--clear" in args
+    args = [a for a in args if a != "--clear"]
+    repo_arg = None
+    if "--repo" in args:
+        i = args.index("--repo")
+        repo_arg = args[i + 1] if i + 1 < len(args) else ""
+        del args[i:i + 2]
+    if args or repo_arg == "":
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        repo = repo_root(Path(repo_arg or "."))
+        active_path = state_dir(repo) / "active.json"
+        if clear:
+            active_path.unlink(missing_ok=True)
+            print("EVIDENCE: active delegation cleared")
+            return 0
+        if not active_path.exists():
+            print("EVIDENCE OK: no active delegation")
+            return 0
+        active = load_json(active_path)
+        paths = state_paths(repo, active["contract_id"])
+        contract = load_json(paths["contract"])
+        if not paths["evidence"].exists():
+            raise DelegationError(f"no evidence for active delegation {active['contract_id']}; run ~/.claude/bin/verify-delegation {paths['contract']}")
+        evidence = load_json(paths["evidence"])
+        current = changes_since(repo, contract["baseline"])
+        problems = []
+        if evidence.get("passed") is not True:
+            problems.append("evidence did not pass: " + "; ".join(evidence.get("violations") or ["unknown"]))
+        if evidence.get("head") != current["head"]:
+            problems.append(f"evidence HEAD {str(evidence.get('head'))[:12]} != current {current['head'][:12]}")
+        if evidence.get("diff_hash") != current["diff_hash"]:
+            problems.append("working tree changed after verification; re-run verify-delegation")
+        if problems:
+            raise DelegationError(f"{active['contract_id']}: " + " | ".join(problems))
+    except (DelegationError, KeyError) as exc:
+        print(f"EVIDENCE FAIL: {exc}", file=sys.stderr)
+        return 1
+    print(f"EVIDENCE OK: {active['contract_id']} verified at {evidence.get('verified_at')}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
