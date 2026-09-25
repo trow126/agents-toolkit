@@ -70,9 +70,11 @@ Only needed for older tool versions that don't support the new API tokens:
 2. Scroll to the **API** section
 3. Under **Legacy API Credentials**, click **Create Legacy API Key**
 4. A `kaggle.json` file downloads automatically containing:
+
    ```json
    {"username": "your_username", "key": "your_32_char_hex_key"}
    ```
+
 5. Ask the user for the `username` and `key` values from this file
 
 **Warning:** Creating a legacy key expires any existing legacy keys. It does

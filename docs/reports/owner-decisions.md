@@ -53,16 +53,26 @@
 | D9 | Claude の effort（OD-7 を置き換える） | xhigh 一律 / モデルごとの `modelSettings` | 後者。方針は、公式のベストプラクティスに従ってモデルの既定 effort を使うこと（Fable 5.1 は high、Opus 5.5 は medium）。値は Phase 5 の sweep で確定し、置き場所は D5 に従う。Phase 7 までは、repo の `effortLevel: xhigh` も live の値も変えない | Phase 5 で決め、Phase 7 で適用する | 未決定 |
 | D12 | 費用の上限 | 1回あたりの上限と、Phase ごとの上限（USD） | owner が指定する | Phase 4 の前 | 未決定 |
 
+## Phase 1 の実装判断
+
+2026-09-25 に owner が、Phase 1 計画に対する問いに回答した（この作業 session での選択）。
+
+| ID | 論点 | 決定 |
+|---|---|---|
+| P1-Q1 | pr-review を一本化するか | 案A。pr-review を両方の runtime から外し、`gh-pr --review-comment` に一本化する。PostToolUse の pr-review-hook は、`/code-review <PR>` によるレビューと、ユーザーの明示指示による `/gh-pr --review-comment` を案内するだけにする |
+| P1-Q2 | `bootstrap.sh` の `STALE_CLAUDE_SKILLS` への追加 | 承認。`plan-review` と `pr-review`（旧 source `shared/skills/claude-code/<name>`）を加え、live に残った link を `--check` で DRIFT として検出する |
+| P1-Q3 | Slack 通知の opt-out env の名前 | 承認。`AGENTS_TOOLKIT_SLACK_NOTIFY=off` |
+
 ## 反映状況
 
 | ID | 反映する Phase | 状態（2026-09-25） |
 |---|---|---|
-| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | 未反映 |
-| D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 未反映 |
+| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 branch で反映（live 未反映）。② の登録解除と ④ の gate は未反映 |
+| D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: Phase 1 branch で反映（live 未反映）。撤去と WARN は未反映 |
 | D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | 未反映 |
-| D6 | Phase 1 | 未反映 |
-| D10 | Phase 1 | 未反映 |
-| D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 未反映 |
+| D6 | Phase 1 | Phase 1 branch で反映（live 未反映。`~/.claude/skills/plan-review` の link 削除は owner） |
+| D10 | Phase 1 | Phase 1 branch で反映（live 未反映） |
+| D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 不使用を確認し、gh-codex-drive と gh-roadmap-drive に明記した（Phase 1 branch）。上流版への復帰は owner |
 | OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | 現行の記述のまま |
 | OD-5 | codex-rescue 禁止文の削除と managed deny: Phase 7 | 現行の記述のまま |
 | OD-7 | D9 で置き換える: Phase 7 | 現行の値のまま |

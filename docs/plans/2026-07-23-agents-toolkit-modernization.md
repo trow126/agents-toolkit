@@ -77,36 +77,36 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 3144
+claude_md_bytes: 3217
 claude_md_lines: 40
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
-claude_imported_shared_bytes: 1269 (1 files)
-claude_always_on_total: 4413
-codex_agents_md_bytes: 3334
-codex_agents_md_lines: 44
-combined_always_on_total: 7747
-custom_agents: 10
+claude_imported_shared_bytes: 1441 (1 files)
+claude_always_on_total: 4658
+codex_agents_md_bytes: 3507
+codex_agents_md_lines: 47
+combined_always_on_total: 8165
+custom_agents: 1
 codex_custom_agents: 4
-claude_skills: 20
-codex_skills: 20
-active_skill_entrypoints: 32
-active_skill_entrypoint_bytes: 77054
+claude_skills: 18
+codex_skills: 19
+active_skill_entrypoints: 29
+active_skill_entrypoint_bytes: 68819
 active_skill_entrypoint_max_lines: 121
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
-shared_rules_always_on_bytes: 1269
-shared_rules_on_demand_bytes: 10481
+shared_rules_always_on_bytes: 1441
+shared_rules_on_demand_bytes: 12004
 hook_scripts: 9
 hook_registrations: 11
 shared_rules: 10
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 162
-review_progress_retrospective_mechanisms: 10
+inventory_audited_elements: 166
+review_progress_retrospective_mechanisms: 6
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
-tier_aliases: 10
+tier_aliases: 1
 permissions_allow_count: 4
 permissions_ask_count: 0
 permissions_deny_count: 87
@@ -128,10 +128,10 @@ session_start_system_message_typical_bytes: 102
 session_start_system_message_max_bytes: 512
 post_compact_system_message_typical_bytes: 128
 post_compact_system_message_max_bytes: 512
-user_prompt_submit_injection_typical_bytes: 198
-user_prompt_submit_injection_max_bytes: 256
-claude_session_start_injection_typical_bytes: 4515
-claude_session_start_injection_max_bytes: 4925
+user_prompt_submit_injection_typical_bytes: 0
+user_prompt_submit_injection_max_bytes: 0
+claude_session_start_injection_typical_bytes: 4760
+claude_session_start_injection_max_bytes: 5170
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)

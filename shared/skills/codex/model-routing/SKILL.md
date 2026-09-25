@@ -7,6 +7,9 @@ description: Use when making a high-risk delegation decision（アーキテク�
 
 既定は「必要十分な単一 owner が完遂」であり、subagentはユーザーの明示依頼または適用skill・AGENTS.mdが要求する場合だけ使う。現行Codexはbuilt-in `default`・`worker`・`explorer`と、`~/.codex/agents/*.toml`またはprojectの`.codex/agents/*.toml`に置くnamed custom agentをサポートする。
 
+- 停止条件: named agentが見つからない、またはmodel割当の変更が必要な場合は、fallbackせずに報告して止まる
+- 完了条件: 実際に使われたmodel・effortをsession logの`turn_context`で確認して報告した時点
+
 ## Model割り当て
 
 - built-in `default`・`worker`: `[agents]`の`gpt-5.6-sol`/`high`
@@ -37,11 +40,11 @@ named custom agentをspawnする場合はfull-history forkを併用せず、必�
 
 ## 既存経路が優先
 
-- PR 作成直後のセルフレビュー → `pr-review` skill（Post-PR コメント型規約、`codex review` ベース）
+- PR へのレビューコメント投稿 → ユーザーの明示指示で `$gh-pr --review-comment`（`codex review` ベース）
 - PR 指摘への対応 → `$gh-review`
 - 計画レビュー → `$plan-review`（`plan_reviewer`による独立review）
 - generic code/security review → `reviewer`
-- ドメイン固有の高リスク判断（コントラクト監査・ML品質監査等）: `deep_reasoner`に該当分野の判断基準を明示するか、Claude側に該当specialistがある場合は`claude-second-opinion`経由で相談する
+- ドメイン固有の高リスク判断（コントラクト監査・ML品質監査等）: `deep_reasoner`に該当分野の判断基準を明示する
 
 generic `default`・`worker`への委任はこれらの代替ではない。
 

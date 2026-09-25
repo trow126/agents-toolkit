@@ -1,6 +1,6 @@
 ---
 name: gh-start
-description: Use when the user asks Claude Code to start or continue implementation for a GitHub Issue. Default mode edits and tests locally only; use explicit, separate --commit or --sync follow-up modes for those side effects. Do not use for PR creation or review feedback.
+description: Starts or continues implementing a GitHub Issue with local edits and tests; --commit and --sync are separate explicit modes. Use when the user asks to work on an Issue in this session. Not for gh-codex-drive, gh-finish, gh-pr, or gh-review.
 argument-hint: "<issue-number> [--commit|--sync]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: implementation-quality
-description: Use for code implementation, bug fixes, refactoring, or code review to load only the relevant test, error-handling, diagnosis, hygiene, and language-specific quality rules. Do not use for read-only factual lookup or generic Git operations.
+description: Loads only the relevant test, error-handling, diagnosis, hygiene, and language rules for a change. Use when implementing, fixing, refactoring, or reviewing code. Not for Python structure reports (python-refactor-analysis) or Git (git-operations).
 ---
 
 # Implementation Quality
@@ -12,7 +12,7 @@ Use the smallest relevant rule set:
 | Any code implementation, fix, refactor, or review | `~/.agents/rules/test-policy.md` |
 | The task creates files, tests, scripts, or build artifacts | `~/.agents/rules/workspace-hygiene.md` |
 | Diagnosing a failure or bug | `~/.agents/rules/failure-investigation.md` |
-| Python is in scope | `~/.codex/references/python-quality.md` in Codex; `~/.agents/rules/python-guidelines.md` in Claude Code |
+| Python is in scope | `~/.agents/rules/python-guidelines.md` |
 | Markdown is edited | `~/.agents/rules/markdown-rules.md` |
 | A recurring environment or CLI failure is directly relevant | `~/.agents/rules/learnings.md` |
 

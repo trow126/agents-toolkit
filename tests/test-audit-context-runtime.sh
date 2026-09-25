@@ -45,6 +45,7 @@ mkdir -p \
   "$FIXTURE_REPO/claude" \
   "$FIXTURE_REPO/shared/skills/claude-sample/references" \
   "$FIXTURE_REPO/shared/skills/codex-sample" \
+  "$FIXTURE_REPO/shared/skills/codex-manual/agents" \
   "$FIXTURE_HOME/.claude/skills" \
   "$FIXTURE_HOME/.agents/skills" \
   "$STUB_BIN"
@@ -54,6 +55,9 @@ printf '%s\n' '# Workflow fixture' > "$FIXTURE_REPO/shared/skills/claude-sample/
 printf '%s\n' '# Codex fixture' > "$FIXTURE_REPO/shared/skills/codex-sample/SKILL.md"
 printf 'link-dir\tshared/skills/claude-sample\t.claude/skills/claude-sample\n' > "$FIXTURE_REPO/install/manifest.tsv"
 printf 'link-dir\tshared/skills/codex-sample\t.agents/skills/codex-sample\n' >> "$FIXTURE_REPO/install/manifest.tsv"
+printf '%s\n' '# Codex manual-only fixture' > "$FIXTURE_REPO/shared/skills/codex-manual/SKILL.md"
+printf '%s\n' 'policy:' '  allow_implicit_invocation: false' > "$FIXTURE_REPO/shared/skills/codex-manual/agents/openai.yaml"
+printf 'link-dir\tshared/skills/codex-manual\t.agents/skills/codex-manual\n' >> "$FIXTURE_REPO/install/manifest.tsv"
 ln -s "$FIXTURE_REPO/shared/skills/claude-sample" "$FIXTURE_HOME/.claude/skills/claude-sample"
 ln -s "$FIXTURE_REPO/shared/skills/codex-sample" "$FIXTURE_HOME/.agents/skills/codex-sample"
 
@@ -89,7 +93,12 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "list" ]]; then
 elif [[ "${1:-}" == "features" && "${2:-}" == "list" ]]; then
   printf 'memories stable false\n'
 elif [[ "${1:-}" == "debug" && "${2:-}" == "prompt-input" ]]; then
-  printf '[{"text":"%s/shared/skills/codex-sample/SKILL.md"}]\n' "$FIXTURE_REPO"
+  # 0.157.0 lists skills by name with root-relative paths, never the repo source path
+  body='<skills_instructions>\n### Available skills\n'
+  for name in ${STUB_CODEX_LISTED-codex-sample}; do
+    body="${body}- ${name}: fixture (file: r0/${name}/SKILL.md)\n"
+  done
+  printf '[{"type":"message","role":"developer","content":[{"type":"input_text","text":"%s</skills_instructions>"}]}]\n' "$body"
 else
   echo "unexpected codex invocation: $*" >&2
   exit 2
@@ -111,6 +120,16 @@ out="$(run_audit 2>&1)" || rc=$?
 assert_exit_zero "準拠fixtureは成功する" "$rc"
 assert_contains "Claude memory offを確認する" "$out" "PASS: Claude native auto memory is disabled"
 assert_contains "Codex discoveryを確認する" "$out" "PASS: Codex prompt discovery contains all manifest skills"
+
+out=""; rc=0
+out="$(STUB_CODEX_LISTED="" run_audit 2>&1)" || rc=$?
+assert_exit_nonzero "Codex 一覧に toolkit skill が無ければ失敗する" "$rc"
+assert_contains "欠けた skill を名前で示す" "$out" "FAIL: Codex prompt discovery is missing toolkit skill: codex-sample"
+
+out=""; rc=0
+out="$(STUB_CODEX_LISTED="codex-sample codex-manual" run_audit 2>&1)" || rc=$?
+assert_exit_nonzero "manual-only skill が一覧に出たら失敗する" "$rc"
+assert_contains "manual-only 違反を示す" "$out" "FAIL: Codex lists manual-only skill (allow_implicit_invocation: false): codex-manual"
 
 out=""; rc=0
 out="$(STUB_CLAUDE_SUPERPOWERS=on run_audit 2>&1)" || rc=$?

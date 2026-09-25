@@ -318,12 +318,14 @@ Protocol: Streamable HTTP (MCP standard). Auth: API token via `Authorization: Be
 ### Client Configuration
 
 **Claude Code (CLI):**
+
 ```bash
 claude mcp add kaggle --transport http https://www.kaggle.com/mcp \
   --header "Authorization: Bearer <your_api_key>"
 ```
 
 **Generic MCP client (gemini-cli, Claude Desktop, Cursor, etc.):**
+
 ```json
 {
   "mcpServers": {

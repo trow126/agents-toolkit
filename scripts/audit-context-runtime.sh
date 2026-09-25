@@ -34,6 +34,7 @@ fi
 
 declare -a CLAUDE_SKILL_SOURCES=()
 declare -a CODEX_SKILL_SOURCES=()
+declare -a CODEX_SKILL_NAMES=()
 
 while IFS=$'\t' read -r mode source target; do
   [[ -z "$mode" || "$mode" == \#* ]] && continue
@@ -46,9 +47,14 @@ while IFS=$'\t' read -r mode source target; do
       ;;
     .agents/skills/*/SKILL.md)
       CODEX_SKILL_SOURCES+=("$REPO_DIR/$source")
+      name="${target#.agents/skills/}"
+      CODEX_SKILL_NAMES+=("${name%/SKILL.md}")
       ;;
     .agents/skills/*)
-      [[ "$mode" == "link-dir" ]] && CODEX_SKILL_SOURCES+=("$REPO_DIR/$source/SKILL.md")
+      if [[ "$mode" == "link-dir" ]]; then
+        CODEX_SKILL_SOURCES+=("$REPO_DIR/$source/SKILL.md")
+        CODEX_SKILL_NAMES+=("${target#.agents/skills/}")
+      fi
       ;;
   esac
 done < "$MANIFEST"
@@ -229,17 +235,49 @@ else
   pass "Claude runtime did not load superpowers"
 fi
 
+# Codex lists skills by name with paths relative to skill roots (`r0/<name>/SKILL.md`),
+# so discovery is matched by skill name. Skills whose agents/openai.yaml sets
+# policy.allow_implicit_invocation: false must stay out of the list (manual-only).
 codex_prompt="$(codex debug prompt-input "context-runtime-audit")"
-for skill_source in "${CODEX_SKILL_SOURCES[@]}"; do
+codex_listed=""
+if ! codex_listed="$(python3 -c '
+import json, re, sys
+texts = []
+def walk(node):
+    if isinstance(node, dict):
+        for value in node.values():
+            walk(value)
+    elif isinstance(node, list):
+        for value in node:
+            walk(value)
+    elif isinstance(node, str):
+        texts.append(node)
+walk(json.load(sys.stdin))
+names = set()
+for text in texts:
+    names.update(re.findall(r"^- ([a-z0-9][a-z0-9-]*):", text, re.M))
+print("\n".join(sorted(names)))
+' <<< "$codex_prompt")"; then
+  fail "Codex prompt-input output is not parseable JSON"
+fi
+codex_before="$FAILURES"
+for i in "${!CODEX_SKILL_SOURCES[@]}"; do
+  skill_source="${CODEX_SKILL_SOURCES[$i]}"
+  skill_name="${CODEX_SKILL_NAMES[$i]}"
+  policy_file="$(dirname "$skill_source")/agents/openai.yaml"
   if [[ ! -f "$skill_source" ]]; then
     fail "Codex manifest skill source is missing: $skill_source"
-  elif ! grep -F "$skill_source" <<< "$codex_prompt" >/dev/null; then
-    fail "Codex prompt discovery is missing toolkit skill: $skill_source"
+  elif [[ -f "$policy_file" ]] && grep -qE '^[[:space:]]*allow_implicit_invocation:[[:space:]]*false[[:space:]]*$' "$policy_file"; then
+    if grep -qxF "$skill_name" <<< "$codex_listed"; then
+      fail "Codex lists manual-only skill (allow_implicit_invocation: false): $skill_name"
+    fi
+  elif ! grep -qxF "$skill_name" <<< "$codex_listed"; then
+    fail "Codex prompt discovery is missing toolkit skill: $skill_name"
   fi
 done
 if grep -F "/plugins/plugins/superpowers/" <<< "$codex_prompt" >/dev/null; then
   fail "Codex prompt discovery still contains superpowers skills"
-else
+elif [[ "$FAILURES" -eq "$codex_before" ]]; then
   pass "Codex prompt discovery contains all manifest skills and no superpowers skills"
 fi
 

@@ -1,6 +1,6 @@
 ---
 name: gh-review
-description: Use when the user asks Claude Code to address actionable review feedback on an existing PR. Default mode applies local fixes and tests only; commit, push, and GitHub responses require separate explicit modes. Do not use for creating a PR.
+description: Applies actionable PR review feedback as local fixes and tests; commit, push, and replies are separate explicit modes. Use when the user asks to address PR review comments. Not for reviewing (/code-review) or posting reviews (gh-pr --review-comment).
 argument-hint: "<pr-number> [--commit|--push|--comment]"
 ---
 

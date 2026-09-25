@@ -84,11 +84,13 @@ KAGGLE_API_TOKEN=<your_token>
 ```
 
 **Important**: Add `.env` to your `.gitignore`:
+
 ```bash
 echo ".env" >> .gitignore
 ```
 
 Secure the file:
+
 ```bash
 chmod 600 .env
 ```
@@ -114,6 +116,7 @@ python3 modules/registration/scripts/check_registration.py
 ```
 
 Expected output when credentials are configured:
+
 ```
 [OK] KAGGLE_API_TOKEN: ****abcd (from access_token file)
 [OK] KAGGLE_USERNAME: your_username (from kaggle.json)

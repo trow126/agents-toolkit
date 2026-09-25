@@ -85,6 +85,7 @@ kagglehub.dataset_load(
 ```
 
 **Adapters:**
+
 | Adapter | Returns | Install Extra |
 |---------|---------|---------------|
 | `KaggleDatasetAdapter.PANDAS` | pandas DataFrame | `[pandas-datasets]` |

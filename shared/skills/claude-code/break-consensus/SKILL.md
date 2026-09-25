@@ -1,6 +1,7 @@
 ---
 name: break-consensus
-description: Manual-only innovation exploration. Use only when the user explicitly invokes /break-consensus or asks for non-consensus ideas, assumption-breaking, or alternatives outside standard practice. Do not use for ordinary implementation, debugging, refactoring, or fact lookup.
+description: Generates non-consensus candidates: freezes the consensus baseline, breaks assumptions, checks prior art, and stress-tests survivors into reversible experiments. Use when the user explicitly invokes /break-consensus. Not for ordinary implementation.
+disable-model-invocation: true
 ---
 
 # /break-consensus

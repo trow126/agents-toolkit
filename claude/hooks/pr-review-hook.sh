@@ -1,17 +1,27 @@
 #!/bin/bash
-# PostToolUse hook: detect gh pr create and trigger auto-review
-# Data is passed via stdin as JSON, not environment variables
+# PostToolUse hook (matcher: Bash): detect a successful `gh pr create` and tell Claude
+# how the PR can be reviewed. It never asks Claude to post anything on its own.
+# Data is passed via stdin as JSON, not environment variables.
+#
+# PostToolUse の plain stdout は Claude の context に入らない（debug log のみ）。
+# Claude に届けるため hookSpecificOutput.additionalContext の JSON で出力する。
+# https://code.claude.com/docs/en/hooks#add-context-for-claude
+# fail-open: 入力不正や jq 欠落では何も出力せず exit 0（gate ではない）。
 
-INPUT=$(cat)
+command -v jq >/dev/null 2>&1 || exit 0
 
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
-STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty')
+INPUT=$(cat) || exit 0
 
-# Check if the Bash command contained gh pr create
-if echo "$COMMAND" | grep -q "gh pr create"; then
-  # Check tool output for success (PR URL present)
-  if echo "$STDOUT" | grep -qE "https://github\.com/.+/pull/[0-9]+"; then
-    echo "PR作成を検出。Skill ツールで 'pr-review' スキルを起動し、Post-PR セルフレビュー規約に従うこと。"
-    echo "要点: Agent でレビュー生成 → gh pr comment で投稿 → 投稿後は修正・追加commit・追加pushをせず停止。"
-  fi
-fi
+COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null) || exit 0
+STDOUT=$(printf '%s' "$INPUT" | jq -r '.tool_response.stdout // empty' 2>/dev/null) || exit 0
+
+printf '%s' "$COMMAND" | grep -q "gh pr create" || exit 0
+PR_URL=$(printf '%s' "$STDOUT" | grep -oE "https://github\.com/[^[:space:]]+/pull/[0-9]+" | head -1)
+[[ -n "$PR_URL" ]] || exit 0
+PR_NUMBER="${PR_URL##*/}"
+
+CONTEXT="PR #${PR_NUMBER} の作成を検出した（${PR_URL}）。レビューは \`/code-review ${PR_NUMBER}\` で行える。PR へのレビューコメント投稿は、ユーザーの明示指示があるときだけ \`/gh-pr --review-comment\` で行う。"
+
+jq -n --arg ctx "$CONTEXT" \
+  '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
+exit 0

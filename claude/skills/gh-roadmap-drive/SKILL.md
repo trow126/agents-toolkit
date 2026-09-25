@@ -1,6 +1,7 @@
 ---
 name: gh-roadmap-drive
-description: Use when the user asks to advance a roadmap/tracking Issue by iterating its sub-Issues end-to-end with Codex as implementer（「Issue#Nに従って、Issue単位で/gh-codex-driveで実装して、実装が終わったら確認して/gh-finish --applyでクローズする流れを、出来るところまで繰り返して進めて」等）. Loops /gh-codex-drive → verify → /gh-finish --apply per sub-Issue and updates the tracking checklist, stopping at judgment gates, unmet dependencies, and failures. Do not use for a single Issue (use gh-codex-drive, gh-start, or gh-finish directly).
+description: Loops a tracking Issue's sub-Issues through /gh-codex-drive → verify → /gh-finish --apply, updating its checklist until a gate, unmet dependency, or failure. Use when the user asks to advance a roadmap Issue with Codex. Not for a single Issue.
+disable-model-invocation: true
 argument-hint: "<tracking-issue-number> [--status]"
 ---
 
@@ -25,7 +26,7 @@ Invoking default mode is the user's single explicit request covering, for each s
 
 1. Fetch the tracking Issue; parse the ordered checklist and any dependency notes. Select the next unchecked sub-Issue whose dependencies are met.
 2. If that sub-Issue is marked as a user decision（【判断ゲート】, 担当: ユーザー, ask-mode 等）, stop the loop and present the pending decisions instead of implementing.
-3. Run the `gh-codex-drive` workflow for the sub-Issue: feature branch, success criteria from the Issue body, Codex delegation via `codex-companion.mjs task` in the background, deterministic verification, owner diff review. Fix small findings per its review-fix boundary; re-delegate substantial gaps to Codex as fresh tasks.
+3. Run the `gh-codex-drive` workflow for the sub-Issue: feature branch, success criteria from the Issue body, Codex delegation via `codex-companion.mjs task` in the background with `--model` / `--effort` from `gh-codex-drive`'s `codex-route.env`, deterministic verification, owner diff review. Fix small findings per its review-fix boundary; re-delegate substantial gaps to Codex as fresh tasks.
 4. When the Issue's success criteria involve real data or runtime behavior, run the real smoke/backfill check before declaring the Issue done.
 5. Run the `gh-finish --apply` sequence, then check the sub-Issue's box in the tracking Issue body.
 6. Post a brief progress note in the session (sub-Issue, outcome, evidence) and continue with step 1.

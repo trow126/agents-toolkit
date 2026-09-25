@@ -1,6 +1,6 @@
 ---
 name: gh-finish
-description: Use when the user says an Issue's implementation is done and asks to finish it without a PR（「Issue#Nが完了したよ」「コミット、ローカルマージ、クローズをお願い」等）. Default mode verifies and previews only; --apply performs commit → local merge → Issue close in one explicit request. Do not use for PR-based completion (use gh-pr) or branch deletion (use branch-cleanup).
+description: Verifies a finished Issue; --apply commits, merges locally, and closes it in one explicit request. Use when the user says an Issue is done and asks to finish it without a PR（「Issue#Nが完了したよ」等）. Not for gh-pr, gh-start --commit, or branch-cleanup.
 argument-hint: "<issue-number> [--apply]"
 ---
 

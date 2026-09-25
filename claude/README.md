@@ -117,11 +117,11 @@ static test では owner 選択の managed bypass policy、project override、XD
 
 ## Skills
 
-GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/gh-index`, `/pr-review`, `/branch-cleanup`。local変更、commit、push、PR、commentは各skillのmodeで分離される。
+GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/gh-index`, `/branch-cleanup`。PR のレビューは bundled `/code-review`、PR へのレビューコメント投稿は `/gh-pr --review-comment` を使う。local変更、commit、push、PR、commentは各skillのmodeで分離される。
 
 品質・Git router: `/implementation-quality`, `/git-operations`。
 
-分析・utility: `/break-consensus`（manual only）, `/plan-review`, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。`config-audit`と`knowledge-audit`はdefault read-onlyで、書き込みには明示modeが必要。
+分析・utility: `/break-consensus`（manual only）, `/model-routing`, `/knowledge-audit`, `/config-audit`, `/python-refactor-analysis`。`config-audit`と`knowledge-audit`はdefault read-onlyで、書き込みには明示modeが必要。
 
 ## Secret scanning
 

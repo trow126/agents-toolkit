@@ -57,6 +57,9 @@ jobs:
       - name: Check shared rules sync
         run: ./shared/bin/sync-shared-rules.sh --check
 
+      - name: Lint distributed Markdown
+        run: ./scripts/lint-distributed-markdown.sh
+
       - name: Run test suite
         run: |
           set -euo pipefail
@@ -64,6 +67,9 @@ jobs:
             echo "== $t =="
             env -u XDG_CONFIG_HOME -u XDG_STATE_HOME -u XDG_DATA_HOME -u XDG_CACHE_HOME "$t"
           done
+
+      - name: Test claude-second-opinion
+        run: bash codex/skills/claude-second-opinion/tests/test-ask-claude.sh
 
       - name: Set up uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0

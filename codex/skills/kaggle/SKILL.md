@@ -1,6 +1,6 @@
 ---
 name: kaggle
-description: Use for Kaggle account setup, competitions, datasets, models, notebooks, hackathons, writeups, or badges. Route to the bundled module README and scripts. Downloads and reports are read-oriented; submission, publishing, notebook push, and badge actions require explicit account-write intent.
+description: Routes Kaggle setup, competitions, datasets, models, notebooks, hackathons, writeups, and badges to the bundled modules; account writes need explicit intent. Use when the user explicitly invokes $kaggle. Not for general ML work.
 license: MIT
 compatibility: "Python 3.11+, kagglehub, kaggle, requests, python-dotenv; optional host Playwright tools"
 homepage: https://github.com/shepsci/kaggle-skill

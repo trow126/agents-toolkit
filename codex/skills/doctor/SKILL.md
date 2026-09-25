@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Run a comprehensive, Claude Code-style Codex checkup and safely repair the local installation, configuration, applicable AGENTS.md rules, authentication, runtime, PATH, profiles, hooks, skills, plugins, MCP, sandbox, state, update, and connectivity health. Use when the user invokes $doctor, asks for a full or interactive Codex checkup, reports that Codex is unhealthy or misconfigured, or wants Codex Doctor findings explained and fixed with confirmation.
+description: Runs a full Codex checkup (install, config, AGENTS.md rules, auth, runtime, hooks, skills, plugins, MCP, sandbox, connectivity) and repairs only with confirmation. Use when the user invokes $doctor. Not for a read-only audit (config-audit).
 ---
 
 # Doctor

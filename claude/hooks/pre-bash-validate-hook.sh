@@ -5,7 +5,8 @@
 #   本 hook は raw command string に対する quote 正規化つき heuristic であり、
 #   「事故と平易な迂回の防止層」である。shell 評価後の argv は解析しない(できない)ため、
 #   security boundary としては扱わない。現行 owner policy は bypassPermissions かつ
-#   sandbox 無効のため、permission deny/ask や OS-level sandbox という下位境界はない。
+#   sandbox 無効である。bypassPermissions でも permission deny は有効だが、allow と
+#   ask は効かず、OS-level sandbox という下位境界はない。
 #   project-policy-gate と本 hook の literal 検査は事故防止として exit 2 で block するが、
 #   runtime 構築 path や未知の迂回を完全には遮断しない。
 #

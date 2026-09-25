@@ -10,7 +10,6 @@
 
 ## セッション初期化
 
-- SessionStart hookが`git status`と`git branch`を最大512 bytesのsystemMessageで注入する。
 - project固有の教訓は`claudedocs/learnings.md`を関連時だけ読む。汎用CLI教訓も`~/.agents/rules/learnings.md`を関連時だけ読む。
 - native auto memoryは、永続contextを明示的・決定的に管理するowner policyにより無効のまま維持する。
 
@@ -18,9 +17,10 @@
 
 - 通常taskは必要十分な単一ownerが探索・実装・検証まで完遂する。同じcontextを再利用できる場合はhandoffしない。
 - 決定論的script・静的解析を優先し、read-only大量探索や独立性が必要なreviewだけを隔離する。
-- Fableはlead/advisorとして使い、Agent Teamsの無指定teammateとdynamic workflowのanonymous workerはOpusを既定とする。dynamic workflow生成時は各anonymous `agent()`のmodel optionに`opus`を明示し、親modelを暗黙継承させない。
-- read-only codebase探索はHaiku固定の`Explore`を使う。named custom agentは各frontmatterのmodelを尊重し、built-in `general-purpose`は親modelを継承する。
-- 高リスク判断、Claude/Codex peer、model確認の詳細は`model-routing` skillを使う。
+- Fableはlead/advisorとして使い、dynamic workflowのanonymous workerはOpusを既定とする。dynamic workflow生成時は各anonymous `agent()`のmodel optionに`opus`を明示し、親modelを暗黙継承させない。
+- read-only codebase探索は`Explore`を使い、そのfrontmatterのmodelを尊重する。built-in `general-purpose`は親modelを継承する。
+- 計画reviewはCodex版`plan-review`（ユーザーがCodexで実行する）か`/code-review`を使う。
+- Codexへの委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。高リスク判断・model確認の詳細は`model-routing` skillを使う。
 
 # private routing
 

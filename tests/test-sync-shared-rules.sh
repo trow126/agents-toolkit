@@ -107,7 +107,9 @@ build_fixture() {
       printf 'baseline content for %s\nline two\n' "$name" > "$repo/shared/rules/$name.md"
     fi
     block="<!-- BEGIN shared:$name -->
+
 $(cat "$repo/shared/rules/$name.md")
+
 <!-- END shared:$name -->
 "
     target_content["$target"]="${target_content[$target]:-}$block"
@@ -202,7 +204,11 @@ out="$(run_sync "$REPO2" --check 2>&1)" || rc=$?
 assert_exit_zero "--write 後は --check が成功する" "$rc"
 assert_eq "--write 後にconsumerの内容が正本と一致する" \
   "$(cat "$REPO2/shared/rules/$CORRUPT_NAME.md")" \
-  "$(sed -n "/<!-- BEGIN shared:$CORRUPT_NAME -->/,/<!-- END shared:$CORRUPT_NAME -->/p" "$REPO2/$CORRUPT_TARGET" | sed '1d;$d')"
+  "$(sed -n "/<!-- BEGIN shared:$CORRUPT_NAME -->/,/<!-- END shared:$CORRUPT_NAME -->/p" "$REPO2/$CORRUPT_TARGET" | sed '1d;$d' | sed '1d;$d')"
+assert_eq "--write は BEGIN marker の直後に空行を置く（lint 適合）" "" \
+  "$(sed -n "/<!-- BEGIN shared:$CORRUPT_NAME -->/{n;p;}" "$REPO2/$CORRUPT_TARGET")"
+assert_eq "--write は END marker の直前に空行を置く（lint 適合）" "" \
+  "$(grep -B1 -F "<!-- END shared:$CORRUPT_NAME -->" "$REPO2/$CORRUPT_TARGET" | head -1)"
 
 # --- atomic書き込みの確認: --write 後にtarget隣接ディレクトリへ一時ファイルが残らない ---
 STRAY_COUNT=$(find "$REPO2/$(dirname "$CORRUPT_TARGET")" -maxdepth 1 -name "$(basename "$CORRUPT_TARGET").*" | wc -l)

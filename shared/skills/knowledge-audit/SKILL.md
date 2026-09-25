@@ -1,6 +1,7 @@
 ---
 name: knowledge-audit
-description: Use when the user asks to audit, deduplicate, or compress claudedocs/learnings.md or technical_debt.md. Default mode is report-only; --apply edits only the selected project files after showing the exact plan. Do not auto-promote shared rules or memory.
+description: Audits, deduplicates, or compresses claudedocs/learnings.md or technical_debt.md; report-only by default, --apply edits only the selected files after showing the plan. Use when the user explicitly asks for a knowledge audit. Not for memory.
+disable-model-invocation: true
 argument-hint: "[path] [--apply]"
 ---
 

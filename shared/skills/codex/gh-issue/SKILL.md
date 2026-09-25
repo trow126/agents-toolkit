@@ -1,6 +1,6 @@
 ---
 name: gh-issue
-description: Use when the user explicitly asks Codex to create or close a GitHub Issue, or to draft a retrospective. Each create/close is one GitHub write; retrospective application is a separate local-file action. Do not auto-delete brainstorms, checkpoints, or memory.
+description: Creates or closes one GitHub Issue per request, or drafts an Issue retrospective. Use when the user explicitly asks to create or close an Issue or to write a retrospective. Not for drafting or rewriting the Issue body (issue-writing).
 argument-hint: "create <body-file> | close <number> | retro <number> [--apply <path>]"
 ---
 

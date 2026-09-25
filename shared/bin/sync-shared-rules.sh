@@ -31,7 +31,6 @@ esac
 # 同期対応表: 1行 = NAME<TAB>repo相対target
 SYNC_MAP=$(cat <<'EOF'
 core-contract	codex/AGENTS.md
-python-guidelines	codex/references/python-quality.md
 python-guidelines	claude/rules/python.md
 markdown-rules	claude/rules/markdown.md
 EOF
@@ -91,13 +90,17 @@ sync_block() {
   validate_markers "$target" "$name"
 
   # 同一ディレクトリ内に一時ファイルを作り mv で atomic に置換する
+  # marker の内側に空行を置き、正本先頭の見出しと末尾の code block が
+  # Markdown lint（見出し・code block 前後の空行）に適合するようにする
   local tmp
   tmp="$(mktemp "$target.XXXXXX")"
   awk -v begin="$begin" -v end="$end" -v src="$src" '
     $0 == begin {
       print
+      print ""
       while ((getline line < src) > 0) print line
       close(src)
+      print ""
       skipping = 1
       next
     }

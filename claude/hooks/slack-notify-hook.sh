@@ -13,6 +13,12 @@
 
 set -euo pipefail
 
+# Opt-out (integration environments, tests): AGENTS_TOOLKIT_SLACK_NOTIFY=off exits before
+# touching the pending-notification PID file or scheduling any sender.
+if [[ "${AGENTS_TOOLKIT_SLACK_NOTIFY:-}" == "off" ]]; then
+    exit 0
+fi
+
 EVENT_TYPE="${1:-unknown}"
 DELAY_SECONDS=300
 PID_FILE="/tmp/claude-code-slack-notify.pid"

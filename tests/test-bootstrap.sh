@@ -520,6 +520,9 @@ STALE_NAMES=(
 for skill_name in "${STALE_NAMES[@]}"; do
   ln -s "$REPO13/claude/skills/$skill_name" "$HOME13/.claude/skills/$skill_name"
 done
+for skill_name in plan-review pr-review; do
+  ln -s "$REPO13/shared/skills/claude-code/$skill_name" "$HOME13/.claude/skills/$skill_name"
+done
 ln -s "$REPO13/claude/skills/unknown-archive" "$HOME13/.claude/skills/unknown-archive"
 ln -s "$SANDBOX/other-repo/claude/skills/deep-research-mode" "$HOME13/.claude/skills/other-repo"
 printf 'SENTINEL\n' > "$HOME13/.claude/skills/user-file"
@@ -529,6 +532,7 @@ out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --check 2>&1)" || rc=$?
 assert_exit_nonzero "旧 broken symlink があると --check は失敗する" "$rc"
 assert_contains "--check は既知のstale linkを列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.claude/skills/deep-research-mode"
 assert_not_contains "--check は未知のbroken linkをtoolkit対象とみなさない" "$out" "stale toolkit symlink: $HOME13/.claude/skills/unknown-archive"
+assert_contains "--check は旧 shared source の stale link を列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.claude/skills/plan-review"
 
 out=""; rc=0
 out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --dry-run 2>&1)" || rc=$?
@@ -542,6 +546,9 @@ assert_exit_zero "stale link cleanupの --apply は成功する" "$rc"
 assert_contains "--apply はunlinkを記録する" "$out" "unlinked stale toolkit symlink: $HOME13/.claude/skills/x-article-to-markdown"
 for skill_name in "${STALE_NAMES[@]}"; do
   assert_false "既知stale linkを除去する: $skill_name" test -L "$HOME13/.claude/skills/$skill_name"
+done
+for skill_name in plan-review pr-review; do
+  assert_false "旧 shared source の stale link を除去する: $skill_name" test -L "$HOME13/.claude/skills/$skill_name"
 done
 assert_true "未知のbroken linkは保持する" test -L "$HOME13/.claude/skills/unknown-archive"
 assert_true "別repoを指すbroken linkは保持する" test -L "$HOME13/.claude/skills/other-repo"

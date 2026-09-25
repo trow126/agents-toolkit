@@ -169,7 +169,7 @@ done < <(git ls-files)
 # 4. manifest外のtracked file(claude/・codex/・shared/ 配下)
 # =========================================================================
 echo "== 4. tracked files outside manifest coverage =="
-ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md" "claude/managed-settings.json")
+ALLOWLIST_EXACT=("claude/.gitignore" "claude/README.md" "claude/managed-settings.json" ".claude/settings.json")
 ALLOWLIST_PREFIX=(
   "claude/githooks/"
 )
@@ -393,7 +393,6 @@ for rule in sorted(declared - rule_names):
 search_roots = [
     root / "claude" / "CLAUDE.md",
     root / "codex" / "AGENTS.md",
-    root / "codex" / "references" / "python-quality.md",
     root / "codex" / "skills",
     root / "claude" / "rules",
     root / "shared" / "skills",
@@ -1071,11 +1070,15 @@ STALE_PATTERNS=(
   "rules/(scope-discipline|framework-respect|git-safety)\.md"
   "test-quality-hook|user-prompt-submit-hook"
   "claude-bypass|bypass-profile|srt-bypass|bypass-gate"
+  "agmsg"
+  "claude-code/(plan-review|pr-review)|codex/references/python-quality|gpt-5-4-prompting"
+  "(ai-engineer|blockchain-security-auditor|code-reviewer|data-engineer|deep-reasoner|model-qa-specialist|solidity-engineer|plan-reviewer)([^-_a-z]|$)"
 )
 while IFS= read -r f; do
   case "$f" in
-    # measure-metrics.sh は改名前 layout の計測のため旧 path を意図的に参照する
-    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh) continue ;;
+    # measure-metrics.sh は改名前 layout の計測のため、bootstrap.sh は stale link の
+    # cleanup 対象（STALE_CLAUDE_SKILLS）として、旧 path を意図的に参照する
+    docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | bootstrap.sh) continue ;;
   esac
   [[ -f "$f" ]] || continue
   for pat in "${STALE_PATTERNS[@]}"; do
@@ -1099,6 +1102,217 @@ if [[ -n "$NONEXEC" ]]; then
     fail "non-executable direct-execution script: $entry(git update-index --chmod=+x で 100755 にする — H-02)"
   done <<< "$NONEXEC"
 fi
+
+# =========================================================================
+# 14. instruction file の競合・skill description の長さと予算・context consumer の完全性
+#     (2026-09-25 近代化 Phase 1)
+#     - 上位directoryのinstruction file: WARN（Claude Codeがproject instructionとして読む）
+#     - instruction名を持つtracked配布元: repoの.claude/settings.jsonのclaudeMdExcludesで除外されていればPASS
+#       （~/.claude/CLAUDE.mdを除外するpatternはFAIL）
+#     - Codex globalのAGENTS.md配布元がproject AGENTS.mdとしても読まれるcwd: WARN（既知の制約）
+#     - description（+when_to_use）: 1024字超はFAIL（10.で検査）、250字超はWARN。
+#       runtimeごとの一覧に載るtoolkit skillの合計がDESC_BUDGET_*を超えたらFAIL
+#     - manifest配布sourceがshared ruleを参照するなら、context-consumers.tsvに宣言されていること
+# =========================================================================
+echo "== 14. instruction files, description budgets, context consumers =="
+DESC_BUDGET_CLAUDE=3700
+DESC_BUDGET_CODEX=3800
+if [[ "${AGENTS_TOOLKIT_TESTING:-0}" == "1" ]]; then
+  DESC_BUDGET_CLAUDE="${AGENTS_TOOLKIT_DESC_BUDGET_CLAUDE:-$DESC_BUDGET_CLAUDE}"
+  DESC_BUDGET_CODEX="${AGENTS_TOOLKIT_DESC_BUDGET_CODEX:-$DESC_BUDGET_CODEX}"
+fi
+INSTRUCTION_RESULTS="$(python3 - "$REPO_ROOT" "$MANIFEST" "$DESC_BUDGET_CLAUDE" "$DESC_BUDGET_CODEX" "${HOME:-}" <<'PYINSTR'
+import csv
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest = Path(sys.argv[2])
+budgets = {"claude": int(sys.argv[3]), "codex": int(sys.argv[4])}
+home = Path(sys.argv[5]) if sys.argv[5] else None
+out: list[str] = []
+INSTRUCTION_NAMES = {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "CLAUDE.local.md"}
+
+
+def glob_to_regex(pattern: str) -> re.Pattern[str]:
+    parts, i = [], 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            parts.append("(?:.*/)?")
+            i += 3
+        elif pattern.startswith("**", i):
+            parts.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            parts.append("[^/]*")
+            i += 1
+        elif pattern[i] == "?":
+            parts.append("[^/]")
+            i += 1
+        else:
+            parts.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("^" + "".join(parts) + "$")
+
+
+# --- upper-directory instruction files (Claude reads them as project instructions)
+for ancestor in root.parents:
+    for name in ("AGENTS.md", "CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/AGENTS.md"):
+        candidate = ancestor / name
+        if home is not None and ancestor == home and name == ".claude/CLAUDE.md":
+            continue  # user-level ~/.claude/CLAUDE.md is not a project instruction
+        if candidate.is_file():
+            out.append(f"WARN: upper-directory instruction file is loaded as project instructions: {candidate}")
+
+# --- tracked distribution sources named like instruction files
+settings_path = root / ".claude" / "settings.json"
+patterns: list[str] = []
+if settings_path.is_file():
+    try:
+        patterns = json.loads(settings_path.read_text(encoding="utf-8")).get("claudeMdExcludes") or []
+    except json.JSONDecodeError as exc:
+        out.append(f"FAIL: .claude/settings.json is not valid JSON: {exc}")
+regexes = [glob_to_regex(p) for p in patterns if isinstance(p, str)]
+tracked = subprocess.run(["git", "-C", str(root), "ls-files"], capture_output=True, text=True, check=True).stdout.splitlines()
+for rel in tracked:
+    if Path(rel).name not in INSTRUCTION_NAMES or rel.startswith(("docs/archive/", "tests/")):
+        continue
+    absolute = str(root / rel)
+    if any(rx.match(absolute) for rx in regexes):
+        continue
+    out.append(f"FAIL: instruction-named source is not excluded by .claude/settings.json claudeMdExcludes: {rel}")
+if home is not None:
+    user_claude_md = str(home / ".claude" / "CLAUDE.md")
+    for pattern, rx in zip(patterns, regexes):
+        if rx.match(user_claude_md):
+            out.append(f"FAIL: claudeMdExcludes pattern also excludes the user-level ~/.claude/CLAUDE.md: {pattern}")
+
+# --- manifest: Codex global AGENTS.md source that is also a project AGENTS.md
+entries = []
+with manifest.open(encoding="utf-8") as handle:
+    for raw in handle:
+        line = raw.rstrip("\n")
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) == 3:
+            entries.append(fields)
+for mode, source, target in entries:
+    if target in {".codex/AGENTS.md", ".codex/AGENTS.override.md"} and Path(source).name in {"AGENTS.md", "AGENTS.override.md"}:
+        out.append(f"WARN: {source} is the Codex global AGENTS.md and also a project AGENTS.md when cwd is {Path(source).parent}/ (known constraint: injected twice there)")
+
+# --- skill description length and per-runtime listing budget
+def frontmatter(path: Path) -> dict[str, str]:
+    text = path.read_text(encoding="utf-8")
+    match = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    fields: dict[str, str] = {}
+    current = None
+    for line in (match.group(1).split("\n") if match else []):
+        km = re.match(r"^([A-Za-z][A-Za-z0-9_-]*):(.*)$", line)
+        if km:
+            current = km.group(1)
+            fields[current] = km.group(2).strip()
+        elif current is not None and line.strip():
+            fields[current] = (fields[current] + " " + line.strip()).strip()
+    for key in ("description", "when_to_use"):
+        value = fields.get(key, "")
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            fields[key] = value[1:-1]
+    return fields
+
+
+def codex_implicit_disabled(package: Path) -> bool:
+    policy = package / "agents" / "openai.yaml"
+    if not policy.is_file():
+        return False
+    return re.search(r"^\s*allow_implicit_invocation:\s*false\s*$", policy.read_text(encoding="utf-8"), re.M) is not None
+
+
+totals = {"claude": 0, "codex": 0}
+seen: set[tuple[str, str]] = set()
+skill_links: list[tuple[str, str, Path]] = []
+for mode, source, target in entries:
+    whole = re.fullmatch(r"\.(claude|agents)/skills", target)
+    if whole is not None and (root / source).is_dir():
+        for skill_path in sorted((root / source).glob("*/SKILL.md")):
+            skill_links.append((whole.group(1), skill_path.parent.name, skill_path.parent))
+        continue
+    match = re.fullmatch(r"\.(claude|agents)/skills/([^/]+)", target)
+    if match is not None:
+        skill_links.append((match.group(1), match.group(2), root / source))
+for scope, skill_name, package in skill_links:
+    runtime = "claude" if scope == "claude" else "codex"
+    skill = package / "SKILL.md"
+    if not skill.is_file() or (runtime, skill_name) in seen:
+        continue
+    seen.add((runtime, skill_name))
+    fields = frontmatter(skill)
+    listed_text = " ".join(v for v in (fields.get("description", ""), fields.get("when_to_use", "")) if v)
+    if len(listed_text) > 250:
+        out.append(f"WARN: {runtime} skill {skill_name} description is {len(listed_text)} chars (> 250)")
+    if runtime == "claude" and fields.get("disable-model-invocation", "").lower() == "true":
+        continue
+    if runtime == "codex" and codex_implicit_disabled(package):
+        continue
+    totals[runtime] += len(listed_text)
+for runtime, total in totals.items():
+    if total > budgets[runtime]:
+        out.append(f"FAIL: {runtime} listed toolkit skill descriptions total {total} chars > budget {budgets[runtime]}")
+    else:
+        out.append(f"INFO: {runtime} listed toolkit skill descriptions total {total}/{budgets[runtime]} chars")
+
+# --- context consumer completeness (manifest-distributed sources only)
+rules = {path.stem for path in (root / "shared" / "rules").glob("*.md")}
+declared: dict[str, set[str]] = {}
+consumers_path = root / "docs" / "contracts" / "context-consumers.tsv"
+if consumers_path.is_file():
+    with consumers_path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            declared.setdefault((row.get("rule") or "").strip(), set()).update(
+                item.strip() for item in (row.get("consumer") or "").split("|") if item.strip()
+            )
+EXCLUDED_DIRS = {"docs", "tests", "scripts"}
+TEXT_SUFFIXES = {".md", ".sh", ".py", ".toml", ".yaml", ".yml", ".json", ".env", ""}
+for mode, source, target in entries:
+    source_path = root / source
+    skill_match = re.fullmatch(r"\.(claude|agents)/skills/([^/]+)", target)
+    files = [source_path] if source_path.is_file() else sorted(p for p in source_path.rglob("*") if p.is_file())
+    for path in files:
+        inner = path.relative_to(source_path).parts if source_path.is_dir() else ()
+        if any(part in EXCLUDED_DIRS for part in inner[:-1]):
+            continue
+        if path.name.lower().startswith("readme") or path.name == ".gitignore" or path.suffix not in TEXT_SUFFIXES:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        rel = path.relative_to(root).as_posix()
+        if skill_match:
+            consumer = f"skill:{skill_match.group(2)}"
+        elif rel.startswith("shared/rules/"):
+            consumer = f"rule:{path.stem}"
+        else:
+            consumer = rel
+        for rule in sorted(rules):
+            if consumer == f"rule:{rule}":
+                continue
+            if re.search(rf"(?:shared:|rules/){re.escape(rule)}(?:\.md)?\b", text) and consumer not in declared.get(rule, set()):
+                out.append(f"FAIL: context consumer undeclared: {rel} references {rule} but {consumer} is not in docs/contracts/context-consumers.tsv")
+print("\n".join(dict.fromkeys(out)))
+PYINSTR
+)"
+while IFS= read -r line; do
+  case "$line" in
+    FAIL:\ *) fail "${line#FAIL: }" ;;
+    WARN:\ *) warn "${line#WARN: }" ;;
+    INFO:\ *) echo "${line#INFO: }" ;;
+  esac
+done <<< "$INSTRUCTION_RESULTS"
 
 echo
 if [[ "$violations" -eq 0 ]]; then

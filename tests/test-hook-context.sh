@@ -39,18 +39,17 @@ metrics="$(python3 "$REPO_ROOT/scripts/measure-hook-injection.py" "$REPO_ROOT")"
 for expected in \
   'session_start_system_message_max_bytes: 512' \
   'post_compact_system_message_max_bytes: 512' \
-  'user_prompt_submit_injection_max_bytes: 256'; do
+  'user_prompt_submit_injection_max_bytes: 0'; do
   if grep -qxF "$expected" <<< "$metrics"; then ok "metrics reports $expected"; else ng "missing metric $expected"; fi
 done
 for key in \
   session_start_system_message_typical_bytes \
-  post_compact_system_message_typical_bytes \
-  user_prompt_submit_injection_typical_bytes; do
+  post_compact_system_message_typical_bytes; do
   value="$(awk -F': ' -v k="$key" '$1==k{print $2}' <<< "$metrics")"
-  max=512
-  [[ "$key" == user_prompt_submit_injection_typical_bytes ]] && max=256
-  if [[ "$value" =~ ^[1-9][0-9]*$ && "$value" -le "$max" ]]; then ok "$key is numeric and bounded ($value)"; else ng "$key invalid ($value)"; fi
+  if [[ "$value" =~ ^[1-9][0-9]*$ && "$value" -le 512 ]]; then ok "$key is numeric and bounded ($value)"; else ng "$key invalid ($value)"; fi
 done
+value="$(awk -F': ' '$1=="user_prompt_submit_injection_typical_bytes"{print $2}' <<< "$metrics")"
+if [[ "$value" == "0" ]]; then ok "user_prompt_submit_injection_typical_bytes is 0 (silenced by D3②)"; else ng "user_prompt_submit_injection_typical_bytes invalid ($value)"; fi
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then echo "PASS: all assertions succeeded"; exit 0; fi

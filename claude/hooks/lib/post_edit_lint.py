@@ -248,9 +248,12 @@ def settings_violations(path: Path) -> list[Violation]:
                 )
             elif (
                 array_name == "allow"
+                and entry.startswith("Bash(")
                 and NO_SPACE_WILDCARD_RE.fullmatch(entry)
                 and not entry.endswith(":*)")
             ):
+                # prefix matching (word boundary) applies to Bash rules only;
+                # file-tool rules such as Edit(**) / Read(**) are path globs
                 violations.append(
                     Violation(
                         entry_lines.get((array_name, index), 1),

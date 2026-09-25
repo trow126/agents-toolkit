@@ -1,6 +1,6 @@
 ---
 name: python-refactor-analysis
-description: Analyze a Python repository before refactoring. Use when planning code cleanup, dependency-impact analysis, dead-code review, structure-first refactor work, or before editing an unfamiliar Python project. Generates eleven structure/import/complexity/check reports under `.analysis/`.
+description: Generates eleven structure, import, complexity, and check reports under `.analysis/` for a Python repository. Use before a refactor, dead-code review, or dependency-impact analysis. Not for making the change itself (implementation-quality).
 ---
 
 # Python Refactor Analysis

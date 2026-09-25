@@ -52,6 +52,33 @@ guessing what "complete" means.
    - If the missing requirement was predictable, treat it as an initial issue
      quality failure rather than as justification for issue splitting.
 
+## Minimum Sections By Issue Type
+
+Use the exact headings of the matching template in the target repository's
+`.github/ISSUE_TEMPLATE/`, then in `$HOME/.github/ISSUE_TEMPLATE/`. When no
+template matches, use these exact headings (they match the
+`$HOME/.github/ISSUE_TEMPLATE/manual/` skeletons):
+
+- implementation and bug/fix: `Purpose / 目的`, `Exact target / 対象`,
+  `Remaining problem / 残っている問題`, `Required changes / 必要な変更`,
+  `Non-goals / 非目標`, `Acceptance criteria / 受け入れ条件`,
+  `Verification commands / 検証コマンド`. A bug/fix also includes
+  `Reproduction / 再現手順`, `Expected behavior / 期待される挙動`, and
+  `Environment / 環境`.
+- investigation, review, or validation: `Purpose / 目的`,
+  `Exact target / 対象`, `Question or hypothesis / 問いまたは仮説`,
+  `Expected output / 期待する成果物`, `Non-goals / 非目標`,
+  `Completion criteria / 完了条件`,
+  `Verification or reproduction details / 検証または再現方法`.
+- retrospective: `Time window / 対象期間`, `Scope / スコープ`,
+  `Facts and evidence / 事実と根拠`, `Interpretation / 解釈`,
+  `Follow-up actions / フォローアップ`, `Non-goals / 非目標`,
+  `Close conditions / クローズ条件`.
+- backlog or umbrella: `Purpose / 目的`, `Exact scope / 対象範囲`,
+  `Child work items / 子Issue`, `Non-goals / 非目標`,
+  `Close conditions / クローズ条件`,
+  `Tracking or verification notes / 追跡または検証メモ`.
+
 ## Quality Gate
 
 Before posting or closing issue design work, ask:

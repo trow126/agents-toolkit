@@ -5,6 +5,7 @@ paths:
 
 <!-- 正本: ~/.agents/rules/python-guidelines.md（編集は正本側で行い、~/.agents/bin/sync-shared-rules.sh で同期する） -->
 <!-- BEGIN shared:python-guidelines -->
+
 ## Python ガイドライン
 
 ### 実行環境
@@ -35,6 +36,7 @@ uv run ruff check src/ --fix
 uv run ruff format src/
 uv run mypy src/
 ```
+
 <!-- END shared:python-guidelines -->
 
 ## Claude Code 固有

@@ -1,6 +1,6 @@
 ---
 name: gh-review
-description: Use when the user asks Codex to address actionable review feedback on an existing PR. Default mode applies local fixes and tests only; commit, push, and GitHub responses require separate explicit modes. Do not use for creating a PR.
+description: Applies actionable review feedback on an existing PR as local fixes and tests; commit, push, and replies are separate explicit modes. Use when the user asks to address PR review comments. Not for posting a review (gh-pr --review-comment).
 argument-hint: "<pr-number> [--commit|--push|--comment]"
 ---
 

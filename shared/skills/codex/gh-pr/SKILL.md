@@ -1,6 +1,6 @@
 ---
 name: gh-pr
-description: Use when the user asks Codex to prepare, push, create, or review-comment on a pull request. Default mode is read-only preparation; each external write requires a separate explicit mode. Do not implement fixes or create commits.
+description: Prepares, pushes, or creates a PR, or posts one review comment, each write in its own explicit mode. Use when the user asks to open a PR or post a PR review comment. Not for applying review feedback (gh-review).
 argument-hint: "[base-branch] [--push|--create|--review-comment]"
 ---
 

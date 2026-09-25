@@ -45,9 +45,10 @@ declare -a ENTRY_SRC=()
 declare -a ENTRY_TARGET=()
 declare -A SEEN_TARGETS=()
 
-# 2026-07-23 の archive 前に配布され、source removal 後も user skill
-# directory に残った toolkit-owned symlink。cleanup は broken link・既知名・
-# current repo の旧 source target が完全一致する場合だけに限定する。
+# source removal 後も user skill directory に残った toolkit-owned symlink。
+# cleanup は broken link・既知名・current repo の旧 source target が完全一致する
+# 場合だけに限定する。要素は "name"（旧 source は claude/skills/<name>。2026-07-23
+# の archive 前の配布）または "name|旧 source の repo 相対 path"。
 STALE_CLAUDE_SKILLS=(
   "deep-research-mode"
   "gh:coderabbit"
@@ -63,6 +64,8 @@ STALE_CLAUDE_SKILLS=(
   "progress-tracker"
   "token-efficiency"
   "x-article-to-markdown"
+  "plan-review|shared/skills/claude-code/plan-review"
+  "pr-review|shared/skills/claude-code/pr-review"
 )
 
 # manifest 1ファイルを読み込み、検証しつつ ENTRY_* 配列へ追加する(fail-fast)
@@ -234,18 +237,21 @@ is_legacy_shared_skill_dir() {
 # archive 済み Claude skill の旧 generated symlink かを厳密に判定する。
 # 実体が復元済みの link、別 repo、相対 target、通常 file/directory は対象外。
 is_stale_claude_skill_link() {
-  local target_abs="$1" skill_name="$2"
+  local target_abs="$1" old_source_rel="$2"
   [[ -L "$target_abs" && ! -e "$target_abs" ]] || return 1
-  [[ "$(readlink "$target_abs")" == "$REPO_DIR/claude/skills/$skill_name" ]]
+  [[ "$(readlink "$target_abs")" == "$REPO_DIR/$old_source_rel" ]]
 }
 
 handle_stale_claude_skill_links() {
   local action="$1"
-  local skill_name target_abs count=0
+  local entry skill_name old_source_rel target_abs count=0
 
-  for skill_name in "${STALE_CLAUDE_SKILLS[@]}"; do
+  for entry in "${STALE_CLAUDE_SKILLS[@]}"; do
+    skill_name="${entry%%|*}"
+    old_source_rel="claude/skills/$skill_name"
+    [[ "$entry" == *"|"* ]] && old_source_rel="${entry#*|}"
     target_abs="$HOME/.claude/skills/$skill_name"
-    is_stale_claude_skill_link "$target_abs" "$skill_name" || continue
+    is_stale_claude_skill_link "$target_abs" "$old_source_rel" || continue
     count=$((count + 1))
     case "$action" in
       check)

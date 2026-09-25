@@ -6,23 +6,26 @@
 - 日本語の濁点・半濁点・拗音・促音を正確に記述する。
 
 <!-- BEGIN shared:core-contract -->
+
 ## Core Contract
 
 - 事実の正確さと安全性を速度より優先し、不確実な高影響事項は実ファイル・実設定・公式仕様で確認する。
 - 依頼が複数に解釈でき、設計・データ・公開API・外部状態に波及する場合は、前提と判断理由を実装前に示す。
 - 依頼scopeに限定し、既存の構造・規約・surrounding codeに適合する完成した変更を行う。
+- 既存のバグや範囲外の問題は修正せず、follow-up として報告する。テストの規模は、タスクと既存の慣習に見合うものにする。
 - 変更前に成功条件を具体化し、変更後はリスクに応じたtest・lint・実runtime確認を行う。未検証項目は理由と次の検証手段を報告する。
 - commit、merge、push、PR、外部サービスへの書き込み、memory・共有rule・学習fileの更新は、それぞれ対応するユーザーの明示依頼なしに行わない。
 - 破壊操作は対象を事前にread-onlyで特定してから行い、片付けは自分が作成した安全な一時物に限定する。
 - エラーや欠落をsilent fallbackで隠さない。必須条件はfail loudlyとし、許容するgraceful degradationはoptional機能に限定して理由を明示する。
 - 重要判断と完了判定は、直前の説明ではなく一次情報、diff、test結果に照らして自己監査する。
+
 <!-- END shared:core-contract -->
 
 ## Task別規約
 
 - コード実装・修正・reviewでは`implementation-quality` skillを使い、必要なruleだけを読む。
 - 汎用Git操作では`git-operations` skillを使う。`gh-*`または`branch-cleanup`が該当する場合は専用skillを優先する。
-- Pythonでは`~/.codex/references/python-quality.md`、Markdownでは`~/.agents/rules/markdown-rules.md`を該当時だけ読む。
+- Pythonでは`~/.agents/rules/python-guidelines.md`、Markdownでは`~/.agents/rules/markdown-rules.md`を該当時だけ読む。
 - 環境・CLIの再発障害に限り`~/.agents/rules/learnings.md`を読む。記録は提案に留め、明示依頼なしに更新しない。
 
 ## Ownerとrouting

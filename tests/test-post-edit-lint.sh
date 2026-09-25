@@ -198,6 +198,19 @@ cat > "$SANDBOX/project/.claude/managed-settings.json" <<'JSON'
 JSON
 expect_pass "legacy-equivalent と canonical wildcard" Edit "$SANDBOX/project/.claude/managed-settings.json"
 
+cat > "$SANDBOX/project/.claude/managed-settings.json" <<'JSON'
+{
+  "permissions": {
+    "allow": [
+      "Edit(**)",
+      "Read(**)",
+      "Read(src/**)"
+    ]
+  }
+}
+JSON
+expect_pass "file tool の path glob（Edit(**)・Read(**)）は no-space wildcard とみなさない" Edit "$SANDBOX/project/.claude/managed-settings.json"
+
 # ---- routing と fail-open internal errors ----
 printf 'not linted\n' > "$SANDBOX/notes.txt"
 expect_pass "対象外 extension" Edit "$SANDBOX/notes.txt"

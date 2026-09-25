@@ -315,6 +315,8 @@ expect_block "~ path の task --help も block" 'node ~/.claude/plugins/cache/op
 expect_allow "subcommand なしの --help は許可" "node \"$COMPANION\" --help"
 expect_allow "subcommand なしの help は許可" "node \"$COMPANION\" help"
 expect_allow "task --write --prompt-file は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/prompt.md"
+expect_allow "codex-route.env の --model / --effort を付けた task は許可" \
+  "node \"$COMPANION\" task --write --model \"\$CODEX_MODEL\" --effort \"\$CODEX_EFFORT\" --prompt-file /tmp/prompt.md"
 expect_allow "task --write \"prompt\" は許可" "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow "status / result は許可" "node \"$COMPANION\" status; node \"$COMPANION\" result task-123"
 expect_allow "別 segment の -h は本規則の対象外" "node \"$COMPANION\" status; grep -h foo bar"

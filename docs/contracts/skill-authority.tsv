@@ -44,6 +44,5 @@ issue-writing	default	deny	deny	deny	deny	deny	deny	drafting does not authorize 
 kaggle	default	deny	allow	deny	deny	deny	deny	read-only listing reports and downloads may write requested local download state
 kaggle	account-write	deny	allow	deny	deny	deny	deny	explicit Kaggle account writes; credential-file creation is local state and external writes are outside these columns
 model-routing	default	deny	deny	deny	deny	deny	deny	advisory owner routing escalation and model verification rules only
-plan-review	default	allow	deny	deny	deny	deny	deny	launch one read-only reviewer and save its result under claudedocs/reviews
-pr-review	default	deny	deny	deny	deny	allow	deny	post one PR review comment; fixes commits and pushes are forbidden
+plan-review	default	allow	deny	deny	deny	deny	deny	Codex only; launch one read-only plan_reviewer and save its result under claudedocs/reviews
 python-refactor-analysis	default	allow	deny	deny	deny	deny	deny	write analysis reports under the target repository .analysis directory

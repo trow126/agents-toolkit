@@ -108,6 +108,7 @@ the bundled MCP server.
 ## Task Workflows
 
 ### Download Dataset
+
 ```python
 import kagglehub
 path = kagglehub.dataset_download("owner/dataset-name")
@@ -117,11 +118,13 @@ kaggle datasets download owner/dataset-name --path ./data --unzip
 ```
 
 ### Download Model
+
 ```python
 path = kagglehub.model_download("owner/model/framework/variation")
 ```
 
 ### Execute Notebook on KKB
+
 ```bash
 kaggle kernels push -p ./notebook-dir
 kaggle kernels status username/kernel-slug
@@ -131,6 +134,7 @@ kaggle kernels output username/kernel-slug --path ./output
 See `modules/kllm/scripts/cli_execute.sh` for a complete push-poll-download workflow.
 
 ### Competition Submit
+
 ```bash
 kaggle competitions submit -c competition-name -f submission.csv -m "description"
 ```

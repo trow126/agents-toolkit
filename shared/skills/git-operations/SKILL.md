@@ -1,6 +1,6 @@
 ---
 name: git-operations
-description: Use for generic requests to inspect, stage, commit, branch, merge, or push Git state. Do not use when gh-start, gh-pr, gh-review, branch-cleanup, or another dedicated workflow skill applies.
+description: Inspects, stages, commits, branches, merges, or pushes Git state. Use for a generic Git request that no dedicated workflow covers. Not for gh-start --commit, gh-finish, gh-pr, gh-review, or branch-cleanup.
 ---
 
 # Git Operations

@@ -118,10 +118,12 @@ Status legend:
 - 🔬 BAD_PROBE (test infra issue, tool may still work)
 
 ### Auth
+
 - ✅ `authorize` — Check whether the client can authorize with Kaggle
 - ✅ `get_user_profile` — Fetch a public user profile
 
 ### Competition
+
 - ✅ `get_competition` — Backend bug for classic competitions (titanic, playground-series-s6e2) was fixed between 2026-04-22 and 2026-05-04
 - ✅ `search_competitions`
 - ✅ `get_competition_data_files_summary`
@@ -139,6 +141,7 @@ Status legend:
 - 🔒 `create_code_competition_submission` — kernel→competition; permission-gated
 
 ### Dataset
+
 - ✅ `search_datasets`
 - ✅ `get_dataset_info`
 - ✅ `get_dataset_metadata`
@@ -151,6 +154,7 @@ Status legend:
 - ✅ `upload_dataset_file`
 
 ### Notebook
+
 - ✅ `search_notebooks`
 - ✅ `get_notebook_info`
 - ✅ `get_notebook_session_status`
@@ -163,6 +167,7 @@ Status legend:
 - ✅ `save_notebook`
 
 ### Model
+
 - ✅ `list_models`
 - ✅ `get_model`
 - ✅ `create_model`
@@ -175,12 +180,14 @@ Status legend:
 - ✅ `download_model_variation_version`
 
 ### Forum
+
 - ✅ `list_forums`
 - ✅ `list_forum_topics`
 - ✅ `get_forum`
 - ✅ `get_forum_topic`
 
 ### Hackathon (newer surface — see `modules/kllm/hackathon/`)
+
 - ✅ `get_hackathon_overview` — rules, eligibility, rubric, prizes
 - ✅ `list_hackathon_write_ups` — submission roster (paginated)
 - ✅ `list_hackathon_tracks` — resolve track id → title
@@ -188,46 +195,55 @@ Status legend:
 - ⚠️  `download_hackathon_write_ups` — host-only; may return CSV header only
 
 ### Writeup
+
 - ✅ `get_writeup` — preferred full-body fetch (use over `get_hackathon_write_up`)
 - ✅ `get_writeup_by_slug`
 - ✅ `get_writeup_by_topic`
 - ⚠️  `get_resolved_writeup_links` — host context returns `{}`; participants get role-gated denial
 
 ### Benchmark
+
 - ✅ `create_benchmark_task_from_prompt`
 - ✅ `get_benchmark_leaderboard` — permission gate lifted between 2026-04-22 and 2026-05-04 (now responds to ordinary KGAT tokens)
 
 ### Episode (simulation/agent evaluation)
+
 - 🔬 `get_episode_agent_logs`
 - 🔬 `get_episode_replay`
 - ✅ `list_submission_episodes`
 
 ### Search
+
 - ✅ `search_content` — generic content search
 
 ## Usage Patterns
 
 ### Search and Download
+
 ```
 Search datasets matching "titanic" → select best match → download it
 ```
 
 ### Competition Workflow
+
 ```
 List competitions → join → download data → submit predictions → check leaderboard
 ```
 
 ### Publish Resources
+
 ```
 Create private dataset with title and license → upload files → verify
 ```
 
 ### Execute Notebook
+
 ```
 Push notebook code → poll status → retrieve output when complete
 ```
 
 ### Hackathon Writeup Retrieval
+
 ```
 get_hackathon_overview (rules/rubric) → list_hackathon_tracks (id→title) →
 list_hackathon_write_ups (roster) → get_writeup per submission →

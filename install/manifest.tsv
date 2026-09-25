@@ -41,10 +41,7 @@ link-dir	shared/skills/knowledge-audit	.claude/skills/knowledge-audit
 link-dir	shared/skills/knowledge-audit	.agents/skills/knowledge-audit
 link-dir	shared/skills/claude-code/model-routing	.claude/skills/model-routing
 link-dir	shared/skills/codex/model-routing	.agents/skills/model-routing
-link-dir	shared/skills/claude-code/plan-review	.claude/skills/plan-review
 link-dir	shared/skills/codex/plan-review	.agents/skills/plan-review
-link-dir	shared/skills/claude-code/pr-review	.claude/skills/pr-review
-link-dir	shared/skills/codex/pr-review	.agents/skills/pr-review
 link-dir	shared/skills/python-refactor-analysis	.claude/skills/python-refactor-analysis
 link-dir	shared/skills/python-refactor-analysis	.agents/skills/python-refactor-analysis
 link-dir	claude/output-styles	.claude/output-styles
@@ -60,4 +57,3 @@ link-dir	codex/skills/claude-second-opinion	.agents/skills/claude-second-opinion
 link-dir	codex/skills/doctor	.agents/skills/doctor
 link-dir	codex/skills/issue-writing	.agents/skills/issue-writing
 link-dir	codex/skills/kaggle	.agents/skills/kaggle
-link-file	codex/references/python-quality.md	.codex/references/python-quality.md

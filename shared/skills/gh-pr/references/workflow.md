@@ -20,6 +20,35 @@
 
 `--review-comment` requires an existing PR. Review the complete PR diff in an independent context, format actionable findings, and post one comment. Do not edit files or create follow-up commits in this mode.
 
+1. Resolve the PR number and read the complete diff.
+2. Produce findings in an independent context: Claude Code uses `/code-review <PR番号>`; Codex uses `codex review --base <base-branch>`. Review for bugs, security, performance, readability, and missing tests; read the project's `claudedocs/learnings.md` when present. Use the review output only as comment text, never as a repair plan.
+3. Post exactly one comment with the template below.
+4. Report that unresolved findings remain when they do, then stop until `gh-review` or another explicit user request.
+
+Comment template (title is fixed to `Automated Code Review`):
+
+```markdown
+## Automated Code Review
+
+### 概要
+（変更内容の客観的な要約。1-2文）
+
+### 要修正
+| Severity | 箇所 | 問題 | 推奨対応 |
+|----------|------|------|----------|
+（バグ、セキュリティ、データ破損リスクなど。なければ「なし」）
+
+### 改善提案
+| 箇所 | 提案 | 理由 |
+|------|------|------|
+（パフォーマンス、可読性、保守性の改善。任意採用）
+
+### 確認事項
+- （レビュアーだけでは判断できない設計意図やビジネスロジックの確認）
+```
+
+The comment lists only unresolved findings, has no praise section, and does not pre-empt the author's replies about rejected findings.
+
 ## Stop conditions
 
 - Dirty tree, detached HEAD, `main`/`master`, zero commits, missing base/remote, or ambiguous target.

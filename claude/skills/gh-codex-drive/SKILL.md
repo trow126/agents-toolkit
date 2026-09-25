@@ -1,6 +1,6 @@
 ---
 name: gh-codex-drive
-description: Use when the user asks to drive a GitHub Issue with Codex as the implementer while Claude stays manager/reviewer（「Issue #N を進めて。実装はcodex、claudeは管理と確認・レビューに徹して」等）. Default mode delegates implementation to codex-companion and supervises; --status only reports progress. Do not use when Claude itself should implement (use gh-start).
+description: Drives one GitHub Issue with Codex as implementer while Claude scopes, supervises, verifies, and reviews; --status reports only. Use when the user explicitly delegates the implementation to Codex（「実装はcodex」等）. Not for Claude's own work (gh-start).
 argument-hint: "<issue-number> [--status]"
 ---
 

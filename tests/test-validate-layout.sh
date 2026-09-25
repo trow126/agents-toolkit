@@ -140,6 +140,9 @@ with out.open("w",encoding="utf-8",newline="") as fh:
     w=csv.DictWriter(fh,fieldnames=fields,delimiter="\t",lineterminator="\n"); w.writeheader(); w.writerows(rows)
 PYINV
 
+  mkdir -p "$repo/.claude"
+  cp "$REPO_ROOT/.claude/settings.json" "$repo/.claude/settings.json"
+
   git -C "$repo" init -q
   git -C "$repo" add -A
 }
@@ -167,6 +170,22 @@ run_case() {
 }
 
 run_case valid ':' PASS
+run_case instruction-source-not-excluded \
+  'git -C "$repo" rm --cached -q .claude/settings.json; rm "$repo/.claude/settings.json"' \
+  'instruction-named source is not excluded by .claude/settings.json claudeMdExcludes: claude/CLAUDE.md'
+run_case instruction-exclude-hits-user-claude-md \
+  'printf "%s\n" "{\"claudeMdExcludes\": [\"**/CLAUDE.md\", \"**/codex/AGENTS.md\"]}" > "$repo/.claude/settings.json"' \
+  'claudeMdExcludes pattern also excludes the user-level ~/.claude/CLAUDE.md: **/CLAUDE.md'
+run_case description-budget-exceeded \
+  'export AGENTS_TOOLKIT_TESTING=1 AGENTS_TOOLKIT_DESC_BUDGET_CLAUDE=5' \
+  'claude listed toolkit skill descriptions total'
+unset AGENTS_TOOLKIT_TESTING AGENTS_TOOLKIT_DESC_BUDGET_CLAUDE
+run_case context-consumer-undeclared \
+  'printf "%s\n" "# fixture" "" "See rules/rule-b.md." > "$repo/claude/rules/sample.md"' \
+  'context consumer undeclared: claude/rules/sample.md references rule-b'
+run_case stale-agmsg-reference \
+  'printf "%s\n" "# fixture" "" "Use agmsg." > "$repo/claude/rules/sample.md"' \
+  'stale reference in claude/rules/sample.md'
 run_case accepted-exception-hash-mismatch \
   'printf " \n" >> "$repo/claude/managed-settings.json"' \
   'artifact hash mismatch: claude/managed-settings.json'

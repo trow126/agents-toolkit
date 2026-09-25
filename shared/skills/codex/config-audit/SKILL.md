@@ -1,6 +1,6 @@
 ---
 name: config-audit
-description: Use when the user asks to audit Codex configuration, AGENTS rules, hooks, skills, plugins, MCP, profiles, or current best-practice alignment. Default mode is read-only; --record only appends the confirmed summary to XDG history. Do not repair settings.
+description: Audits Codex configuration, AGENTS rules, hooks, skills, plugins, MCP, and profiles against best practice; read-only, --record appends to XDG history. Use when the user explicitly invokes $config-audit. Not for repairs (doctor).
 argument-hint: "[--record]"
 ---
 
