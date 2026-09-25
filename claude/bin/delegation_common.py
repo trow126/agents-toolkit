@@ -1,9 +1,10 @@
 """Shared helpers for Codex delegation: contract/report schemas, git baseline, scope checks, state files.
 
 Used by codex-delegate, codex-delegate-preflight, verify-delegation, and delegation-evidence-check
-(agents-toolkit, owner decision D8). Contracts, prompts, results, evidence, and the active-delegation
-state live in $(git rev-parse --git-dir)/agents-toolkit/, which the Codex workspace-write sandbox
-cannot write.
+(agents-toolkit, owner decision D8). Contracts, prompts, results, evidence, the launch history
+(attempts-<id>.json, which enforces D3④: one delegation and at most one re-delegation per contract),
+and the active-delegation state live in $(git rev-parse --git-dir)/agents-toolkit/, which the Codex
+workspace-write sandbox cannot write.
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ REPORT_SCHEMA = REFERENCES / "report.schema.json"
 PROMPT_TEMPLATE = REFERENCES / "contract.md"
 POST_EDIT_LINT = TOOLKIT_ROOT / "claude/hooks/lib/post_edit_lint.py"
 PROFILE = "toolkit-implementer"
+MAX_ATTEMPTS = 2  # D3④: the delegation and at most one re-delegation with the same contract
+ATTEMPT_FILES = ("prompt", "result", "jsonl", "stderr", "evidence")
 
 ALWAYS_PROTECTED = [
     "**/AGENTS.md", "**/AGENTS.override.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
@@ -138,6 +141,7 @@ def state_paths(repo: Path, contract_id: str) -> dict[str, Path]:
         "jsonl": base / f"exec-{contract_id}.jsonl",
         "stderr": base / f"exec-{contract_id}.stderr",
         "evidence": base / f"evidence-{contract_id}.json",
+        "attempts": base / f"attempts-{contract_id}.json",
         "active": base / "active.json",
     }
 
@@ -164,6 +168,36 @@ def active_problem(active: dict, paths: dict) -> str:
                 "(for example, the Claude session ended; claude -p ends with the turn). Inspect the worktree and "
                 f"{paths['result']}, then clear it with ~/.claude/bin/delegation-evidence-check --clear")
     return f"another delegation is active ({contract_id}" + (f", launcher pid {pid} is running" if pid else "") + ")"
+
+
+def load_attempts(paths: dict) -> list[dict]:
+    """Launch history of a contract (attempts-<id>.json). delegation-evidence-check --clear never
+    removes it: D3④ binds the limit to the contract id, and a new id is the user's decision."""
+    if not paths["attempts"].exists():
+        return []
+    attempts = load_json(paths["attempts"]).get("attempts")
+    if not isinstance(attempts, list) or not all(isinstance(a, dict) for a in attempts):
+        raise DelegationError(f"{paths['attempts']}: attempts must be a list of objects")
+    return attempts
+
+
+def attempt_limit_problem(paths: dict, contract_id: str) -> str | None:
+    launched = len(load_attempts(paths))
+    if launched < MAX_ATTEMPTS:
+        return None
+    return (f"contract {contract_id} was already launched {launched} times (limit {MAX_ATTEMPTS}: the delegation "
+            "and one re-delegation, D3④); changing or re-issuing the contract is the user's decision")
+
+
+def attempt_file(path: Path, attempt: int) -> Path:
+    return path.with_name(f"{path.stem}.attempt{attempt}{path.suffix}")
+
+
+def archive_attempt(paths: dict, attempt: int) -> None:
+    """Keep the prompt, result, exec logs, and evidence of a finished attempt under .attempt<n> names."""
+    for key in ATTEMPT_FILES:
+        if paths[key].exists():
+            os.replace(paths[key], attempt_file(paths[key], attempt))
 
 
 def sha256_file(path: Path) -> str:
@@ -319,9 +353,12 @@ def preflight_errors(contract_path: Path, repo: Path) -> list[str]:
     errors = [f"contract {e}" for e in schema_errors(contract, load_json(CONTRACT_SCHEMA))]
     if errors:
         return errors
-    expected = state_paths(repo, contract["id"])["contract"]
-    if contract_path.resolve() != expected.resolve():
-        errors.append(f"contract must live at {expected} (got {contract_path})")
+    paths = state_paths(repo, contract["id"])
+    if contract_path.resolve() != paths["contract"].resolve():
+        errors.append(f"contract must live at {paths['contract']} (got {contract_path})")
+    limit = attempt_limit_problem(paths, contract["id"])
+    if limit:
+        errors.append(limit)
     route = contract["route"]
     if route["effort"] == "ultra":
         errors.append("route effort ultra is not allowed (it auto-delegates to subagents)")

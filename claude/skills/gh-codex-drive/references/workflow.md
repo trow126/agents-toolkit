@@ -23,16 +23,16 @@ Write `$(git rev-parse --git-dir)/agents-toolkit/contract-<N>.json` (the Codex s
 - `allowed_dependency_changes`, `non_goals`, `invariants`, `protected_paths_extra`: arrays, empty when none
 - `route`: `{model, effort}` from [`codex-route.env`](codex-route.env) (`CODEX_MODEL`, `CODEX_EFFORT`). Use a different route only when the user explicitly asks for it in this run, and report the route used.
 
-`codex-delegate` records `baseline` (HEAD, a snapshot of the working tree as a git tree, status, untracked hashes) and `route.cli_version`, renders the prompt, writes `active.json`, and runs `codex exec -p toolkit-implementer -s workspace-write --output-schema report.schema.json`. The profile `toolkit-implementer` disables subagents, bundled and GitHub-workflow skills, and memories.
+`codex-delegate` records `baseline` (HEAD, a snapshot of the working tree as a git tree, status, untracked hashes) and `route.cli_version`, renders the prompt, appends the launch to `attempts-<N>.json`, writes `active.json`, and runs `codex exec -p toolkit-implementer -s workspace-write --output-schema report.schema.json`. The profile `toolkit-implementer` disables subagents, bundled and GitHub-workflow skills, and memories. A contract id may be launched twice at most (the delegation and one re-delegation, D3④): preflight and the launcher refuse a third launch, `--clear` does not reset the count, and the previous attempt's prompt, result, exec logs, and evidence are kept as `*.attempt<n>.*`.
 
 ## Status mode
 
-`--status` reads `$(git rev-parse --git-dir)/agents-toolkit/`: `active.json`, the contract, `exec-<N>.jsonl` progress, `result-<N>.json`, and `evidence-<N>.json`, plus `git status` and `git diff --stat`. It never launches, edits, or posts.
+`--status` reads `$(git rev-parse --git-dir)/agents-toolkit/`: `active.json`, the contract, `attempts-<N>.json`, `exec-<N>.jsonl` progress, `result-<N>.json`, and `evidence-<N>.json`, plus `git status` and `git diff --stat`. It never launches, edits, or posts.
 
 ## Outcomes
 
 - Gate passes: review, report, and hand off to `/gh-finish`.
-- Gate fails or Codex returns `stopped` (`out_of_scope_path`, `dependency_change`, `public_api_change`, `diff_budget_exceeded`): re-delegate once with the same contract when the failure is fixable within it; otherwise, and after a second failure, present the options and a recommendation. Changing the contract (scope, budget, dependencies) is the user's decision.
+- Gate fails or Codex returns `stopped` (`out_of_scope_path`, `dependency_change`, `public_api_change`, `diff_budget_exceeded`): re-delegate once with the same contract when the failure is fixable within it (`--clear` the finished attempt first; the launcher refuses a third launch of the same contract id); otherwise, and after a second failure, present the options and a recommendation. Changing or re-issuing the contract (scope, budget, dependencies, a new id) is the user's decision.
 - The user abandons the delegation: `~/.claude/bin/delegation-evidence-check --clear` after reporting the state.
 
 ## Review-fix boundary

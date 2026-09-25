@@ -4,11 +4,14 @@
 usage: codex-delegate <contract.json> [--repo DIR] [--dry-run]
 
 Run from the Claude main session with Bash(run_in_background=true). Steps:
-  1. preflight (schema, catalog route, no ultra, profile present)
+  1. preflight (schema, catalog route, no ultra, profile present, launch count below the limit)
   2. record the baseline (HEAD, the working tree as a git tree, status, untracked hashes) and the Codex CLI
      version in the contract; the gate diffs the working tree against that tree, so edits that predate
      the delegation are not counted as Codex changes, and deleting or reverting them is
-  3. render the prompt and write the active-delegation state (active.json)
+  3. render the prompt, append the launch to attempts-<id>.json, and write the active-delegation state
+     (active.json). A contract may be launched twice at most: the delegation and one re-delegation
+     (D3④). The history survives delegation-evidence-check --clear; a new contract id is the user's
+     decision. The previous attempt's prompt, result, exec logs, and evidence are kept as *.attempt<n>.*
   4. codex exec -C <repo> -p toolkit-implementer -s workspace-write -m <model>
      -c model_reasoning_effort=<effort> --json --output-schema report.schema.json
      -o <git-dir>/agents-toolkit/result-<id>.json - < prompt
@@ -25,9 +28,13 @@ from pathlib import Path
 sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from delegation_common import (  # noqa: E402
-    PROFILE, REPORT_SCHEMA, DelegationError, active_problem, load_json, preflight_errors, record_baseline,
-    render_prompt, repo_root, state_paths, write_json,
+    MAX_ATTEMPTS, PROFILE, REPORT_SCHEMA, DelegationError, active_problem, archive_attempt, load_attempts,
+    load_json, preflight_errors, record_baseline, render_prompt, repo_root, state_paths, write_json,
 )
+
+
+def now() -> str:
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
 
 def main(argv: list[str]) -> int:
@@ -61,29 +68,41 @@ def main(argv: list[str]) -> int:
             return 0
         if paths["active"].exists():
             raise DelegationError(active_problem(load_json(paths["active"]), paths))
+        attempts = load_attempts(paths)
+        attempt = len(attempts) + 1  # preflight already rejected attempt > MAX_ATTEMPTS
+        if attempts:
+            archive_attempt(paths, attempt - 1)
         version = subprocess.run(["codex", "--version"], capture_output=True, text=True, check=False).stdout.strip()
         contract["route"]["cli_version"] = version
         if "baseline" not in contract:
             contract["baseline"] = record_baseline(repo)
         write_json(contract_path, contract)
         paths["prompt"].write_text(render_prompt(contract), encoding="utf-8")
-        for stale in (paths["result"], paths["evidence"]):
-            stale.unlink(missing_ok=True)
+        launch = {
+            "attempt": attempt, "started_at": now(), "route": contract["route"],
+            "baseline_head": contract["baseline"]["head"], "pid": os.getpid(),
+        }
+        write_json(paths["attempts"], {"contract_id": contract["id"], "limit": MAX_ATTEMPTS, "attempts": attempts + [launch]})
         write_json(paths["active"], {
-            "contract_id": contract["id"], "contract": str(contract_path),
-            "started_at": dt.datetime.now(dt.UTC).isoformat(timespec="seconds"),
-            "route": contract["route"], "baseline_head": contract["baseline"]["head"],
-            "pid": os.getpid(),
+            "contract_id": contract["id"], "contract": str(contract_path), "attempt": attempt, **launch,
         })
     except DelegationError as exc:
         print(f"DELEGATE FAIL: {exc}", file=sys.stderr)
         return 1
-    print(f"[codex-delegate] {contract['id']}: {route['model']}/{route['effort']} ({version}); result -> {paths['result']}", file=sys.stderr)
+    print(f"[codex-delegate] {contract['id']} attempt {attempt}/{MAX_ATTEMPTS}: {route['model']}/{route['effort']} ({version}); "
+          f"result -> {paths['result']}", file=sys.stderr)
     with paths["prompt"].open("rb") as stdin, paths["jsonl"].open("wb") as stdout, paths["stderr"].open("wb") as stderr:
         rc = subprocess.run(cmd, stdin=stdin, stdout=stdout, stderr=stderr, check=False).returncode
+    finished = {"exit_code": rc, "finished_at": now()}
+    try:
+        history = load_json(paths["attempts"])
+        history["attempts"][attempt - 1].update(finished)
+        write_json(paths["attempts"], history)
+    except (DelegationError, IndexError, KeyError, TypeError) as exc:
+        print(f"[codex-delegate] warning: could not record the exit in {paths['attempts']}: {exc}", file=sys.stderr)
     try:
         active = load_json(paths["active"])
-        active.update(exit_code=rc, finished_at=dt.datetime.now(dt.UTC).isoformat(timespec="seconds"))
+        active.update(finished)
         write_json(paths["active"], active)
     except DelegationError:
         pass  # cleared while Codex ran

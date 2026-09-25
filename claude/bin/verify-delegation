@@ -21,7 +21,7 @@ sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from delegation_common import (  # noqa: E402
     CONTRACT_SCHEMA, LOCKFILES, POST_EDIT_LINT, REPORT_SCHEMA, DelegationError, changes_since,
-    load_json, matches_any, protected_patterns, repo_root, schema_errors, state_paths, write_json,
+    load_attempts, load_json, matches_any, protected_patterns, repo_root, schema_errors, state_paths, write_json,
 )
 
 
@@ -48,6 +48,7 @@ def main(argv: list[str]) -> int:
         if "baseline" not in contract:
             raise DelegationError("contract has no baseline; launch through ~/.claude/bin/codex-delegate")
         paths = state_paths(repo, contract["id"])
+        attempts = load_attempts(paths)
         changes = changes_since(repo, contract["baseline"])
     except DelegationError as exc:
         print(f"GATE FAIL: {exc}", file=sys.stderr)
@@ -107,7 +108,8 @@ def main(argv: list[str]) -> int:
 
     passed = not violations
     evidence = {
-        "contract_id": contract["id"], "repo": str(repo), "verified_at": now(),
+        "contract_id": contract["id"], "attempt": attempts[-1].get("attempt") if attempts else None,
+        "repo": str(repo), "verified_at": now(),
         "verifier": str(Path(__file__).resolve()), "head": changes["head"], "diff_hash": changes["diff_hash"],
         "changed_files": changes["files"], "changed_lines": changes["lines"], "checks": checks, "lint": lint,
         "report_status": report_status, "route": contract["route"], "violations": violations, "passed": passed,

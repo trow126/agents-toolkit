@@ -96,7 +96,7 @@ skillOverrides（2026-09-26）: owner の指示で、live の `~/.claude/setting
 
 | ID | 反映する Phase | 状態（2026-09-25） |
 |---|---|---|
-| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 で反映。④ の gate は Phase 4 branch。② の登録解除は Phase 7 branch で準備（script と test も削除。managed の適用待ち） |
+| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 で反映。④ は Phase 4 では skill の指示（gh-codex-drive）だけで、script では未強制だった。2026-09-26 に `codex-delegate` と preflight が契約 id ごとの起動回数（`attempts-<id>.json`）を記録し、同じ契約の3回目の起動を拒否するようにした（`delegation-evidence-check --clear` では消えない。新しい契約 id はユーザーの判断）。② の登録解除は Phase 7 branch で準備（script と test も削除。managed の適用待ち） |
 | D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: 反映済み。撤去: 2026-09-25 に実施（`~/.local/state/agents-toolkit/backup/` へ退避）。WARN: Phase 3 の discovery で実装 |
 | D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | routing 表: Phase 2 で作成。env pin: Phase 7 branch で managed に4つ入れ、routing 表に claude-alias-* の4行を加えた（managed の適用待ち） |
 | D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | Phase 7 branch で `claude/settings.json` を削除し、manifest の link を外した（P7-Q2）。discovery は live の symlink を旧構成として WARN し、`autoMemoryEnabled` は managed を優先して FAIL で監視する。effort は D9 に従い owner が live の `modelSettings` で設定する |

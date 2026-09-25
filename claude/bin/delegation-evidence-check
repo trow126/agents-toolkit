@@ -6,7 +6,8 @@ usage: delegation-evidence-check [--repo DIR] [--clear]
 With no active delegation (<git-dir>/agents-toolkit/active.json absent) it passes. Otherwise it
 passes only when evidence-<id>.json exists, passed, and its HEAD and diff hash equal the current
 working tree (any later edit, including review fixes, requires re-running verify-delegation).
---clear removes active.json after gh-finish completes or the user abandons the delegation.
+--clear removes active.json after gh-finish completes or the user abandons the delegation. It keeps
+attempts-<id>.json, so the re-delegation limit (D3④: two launches per contract) survives a clear.
 """
 import sys
 from pathlib import Path
@@ -35,7 +36,7 @@ def main(argv: list[str]) -> int:
         active_path = state_dir(repo) / "active.json"
         if clear:
             active_path.unlink(missing_ok=True)
-            print("EVIDENCE: active delegation cleared")
+            print("EVIDENCE: active delegation cleared (the launch history in attempts-<id>.json is kept)")
             return 0
         if not active_path.exists():
             print("EVIDENCE OK: no active delegation")

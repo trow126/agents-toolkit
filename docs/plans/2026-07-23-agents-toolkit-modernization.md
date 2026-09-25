@@ -77,6 +77,7 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
+== metrics: . ==
 claude_md_bytes: 3103
 claude_md_lines: 41
 claude_always_rules_bytes: 0
@@ -91,7 +92,7 @@ codex_custom_agents: 2
 claude_skills: 18
 codex_skills: 19
 active_skill_entrypoints: 25
-active_skill_entrypoint_bytes: 65976
+active_skill_entrypoint_bytes: 66051
 active_skill_entrypoint_max_lines: 122
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0

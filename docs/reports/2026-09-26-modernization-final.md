@@ -19,7 +19,7 @@
 |---|---|---|
 | D1 | Claude の main は Opus 5.5（Phase 5 の eval で fable/high と同じ成功率、費用は約1/2.9、時間は約1/1.8） | `claude/CLAUDE.md` の lead の行と routing 表の claude-main。live の `model` は `opus` |
 | D2 | alias は managed の env pin で明示的に昇格させる | managed に4つ（fable、opus、sonnet、haiku）の pin。routing 表に claude-alias-* の4行 |
-| D3 | 委任はユーザーの明示指示だけ（①）、毎 prompt の注入の削除（②）、subagent の起動条件の文の維持（③）、再委任は1回まで（④） | ① Phase 1。② 出力を Phase 1 で止め、登録と script を Phase 7 で削除。③ 維持。④ Phase 4 の gate |
+| D3 | 委任はユーザーの明示指示だけ（①）、毎 prompt の注入の削除（②）、subagent の起動条件の文の維持（③）、再委任は1回まで（④） | ① Phase 1。② 出力を Phase 1 で止め、登録と script を Phase 7 で削除。③ 維持。④ 報告の時点では skill の指示だけで、launcher と gate は回数を数えていなかった（`--clear` すれば同じ契約を何度でも再実行できた）。2026-09-26 の修正で `codex-delegate` と preflight が `attempts-<id>.json` の起動回数で3回目を拒否する |
 | D4 | `~/AGENTS.md`（`$HOME` 直下の AGENTS.md） を issue-writing と `shared/rules/issue-completeness.md` に統合 | Phase 1 で統合。ファイルは owner が 2026-09-25 に撤去。既定以外の mode は discovery が WARN |
 | D5 | live の設定を正本にする | Phase 7 で `claude/settings.json` と manifest の link を削除。validator は追跡と link を拒否する |
 | D6 | 使われていない custom agent 9本と Claude 版の plan-review を削除 | Phase 1 |
