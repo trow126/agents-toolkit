@@ -20,7 +20,7 @@
 | D1 | Claude の main は Opus 5.5（Phase 5 の eval で fable/high と同じ成功率、費用は約1/2.9、時間は約1/1.8） | `claude/CLAUDE.md` の lead の行と routing 表の claude-main。live の `model` は `opus` |
 | D2 | alias は managed の env pin で明示的に昇格させる | managed に4つ（fable、opus、sonnet、haiku）の pin。routing 表に claude-alias-* の4行 |
 | D3 | 委任はユーザーの明示指示だけ（①）、毎 prompt の注入の削除（②）、subagent の起動条件の文の維持（③）、再委任は1回まで（④） | ① Phase 1。② 出力を Phase 1 で止め、登録と script を Phase 7 で削除。③ 維持。④ Phase 4 の gate |
-| D4 | `/home/trow126/AGENTS.md` を issue-writing と `shared/rules/issue-completeness.md` に統合 | Phase 1 で統合。ファイルは owner が 2026-09-25 に撤去。既定以外の mode は discovery が WARN |
+| D4 | `~/AGENTS.md`（`$HOME` 直下の AGENTS.md） を issue-writing と `shared/rules/issue-completeness.md` に統合 | Phase 1 で統合。ファイルは owner が 2026-09-25 に撤去。既定以外の mode は discovery が WARN |
 | D5 | live の設定を正本にする | Phase 7 で `claude/settings.json` と manifest の link を削除。validator は追跡と link を拒否する |
 | D6 | 使われていない custom agent 9本と Claude 版の plan-review を削除 | Phase 1 |
 | D7 | break-consensus の `--cross` を承認 | Phase 6。付録 C.5 の7項目が integration で PASS |
@@ -80,7 +80,7 @@ discovery の snapshot は追跡しない。
 | `shared/skills/{claude-code,codex}/pr-review/` | 削除。`gh-pr --review-comment` に一本化 | P1-Q1 |
 | `shared/skills/claude-code/plan-review/` | 削除（Codex 版は残す） | D6 |
 | `claude/agents/` の9本（ai-engineer、blockchain-security-auditor、code-reviewer、data-engineer、deep-reasoner、model-qa-specialist、plan-reviewer、solidity-engineer、sre） | 削除（explore.md だけ残す） | D6 |
-| `/home/trow126/AGENTS.md` | `codex/skills/issue-writing/`、`shared/rules/issue-completeness.md` | D4 |
+| `~/AGENTS.md`（`$HOME` 直下の AGENTS.md） | `codex/skills/issue-writing/`、`shared/rules/issue-completeness.md` | D4 |
 | `codex/references/python-quality.md` | `shared/rules/python-guidelines.md` | 重複した品質規則を1本にする |
 | `claude/settings.json` | 削除（live の `~/.claude/settings.json` が正本） | D5、P7-Q2 |
 | `claude/hooks/{session-init,post-compact,prompt-submit}-hook.sh`、`claude/hooks/lib/emit_system_message.py` | 削除 | P7-Q1、D3② |
