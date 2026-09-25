@@ -29,7 +29,7 @@
 
 ## 決定済みの論点（D）
 
-指示書 §5.1 の表を、本文ごと転記した。決定日はすべて 2026-09-25、出典はすべて指示書 §5.1 である。`scripts/validate-layout.sh` の絶対 home path 検査に合わせ、指示書の `$HOME` 直下の AGENTS.md の絶対 path は `~/AGENTS.md` と表記した。
+指示書 §5.1 の表を、本文ごと転記した。決定日はすべて 2026-09-25、出典は指示書 §5.1 である（D2 だけは、§5.2 の未決定の論点に対する owner の回答）。`scripts/validate-layout.sh` の絶対 home path 検査に合わせ、指示書の `$HOME` 直下の AGENTS.md の絶対 path は `~/AGENTS.md` と表記した。
 
 | ID | 論点 | 決定 |
 |---|---|---|
@@ -39,6 +39,7 @@
 | D6 | 使われていない agent | Explore 以外の custom agent 9本（ai-engineer、blockchain-security-auditor、code-reviewer、data-engineer、deep-reasoner、model-qa-specialist、plan-reviewer、solidity-engineer、sre）と、Claude 版の plan-review skill の配布をやめる（Phase 1）。これらはどの環境でも使われていない。計画のレビューには、Codex 版の plan-review か `/code-review` を使う |
 | D10 | core-contract への追加 | 次の1行を加える:「既存のバグや範囲外の問題は修正せず、follow-up として報告する。テストの規模は、タスクと既存の慣習に見合うものにする」（Fable 5.1 の公式 guidance に基づく） |
 | D11 | codex-plugin-cc のローカル変更 | 上流版の 1.0.6 に戻す（ローカル変更は破棄する。作業は owner が行う）。session ID は明示しない。gh-codex-drive は `--resume-last` を使わない。status に他の session の job が混ざることは許容する |
+| D2 | alias の方針 | managed の env pin（`ANTHROPIC_DEFAULT_{OPUS,FABLE,SONNET,HAIKU}_MODEL`）で alias の解決先を固定し、明示的に昇格させる。agent の frontmatter は alias のままにし、OD-4 と両立させる。env pin は managed の変更なので、routing 表の該当行とあわせて Phase 7 で入れる（2026-09-25、この作業 session で owner が推奨案を選択） |
 
 ## 未決定の論点（D）
 
@@ -47,7 +48,6 @@
 | ID | 論点 | 選択肢 | 推奨 | 決める時期 | 状態 |
 |---|---|---|---|---|---|
 | D1 | Claude の main モデル | Fable 5.1 を維持する / Opus 5.5 を main にし、Fable を advisor か昇格先にする（advisor は experimental で、Anthropic API でしか使えない。同意と feature flag が無いと、何も表示されずに無効になる） | Phase 5 の eval で決める | Phase 5 | 未決定 |
-| D2 | alias の方針 | managed の env pin で明示的に昇格させる / alias の追随を許し、解決先の変化を検出して審査する | env pin。agent の frontmatter は alias のままにし、OD-4 と両立させる | Phase 2 の前 | 未決定 |
 | D7 | break-consensus を cross-provider にするか | 承認する（`requirements-transcription-260722.md` の「実装マッピング（非規範）」節を更新する） / 見送る | owner が判断する | Phase 6 の前 | 未決定 |
 | D8 | Codex の launcher | companion を継続する / `codex exec` を使う薄い launcher にする | 指示書 付録 B.6 の比較で決め、選んだ方だけを実装する。K11 と K17 は Phase 4 の integration で確認し、そのうえで再評価する | Phase 4 の前 | 未決定 |
 | D9 | Claude の effort（OD-7 を置き換える） | xhigh 一律 / モデルごとの `modelSettings` | 後者。方針は、公式のベストプラクティスに従ってモデルの既定 effort を使うこと（Fable 5.1 は high、Opus 5.5 は medium）。値は Phase 5 の sweep で確定し、置き場所は D5 に従う。Phase 7 までは、repo の `effortLevel: xhigh` も live の値も変えない | Phase 5 で決め、Phase 7 で適用する | 未決定 |
@@ -69,6 +69,7 @@
 |---|---|---|
 | D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 branch で反映（live 未反映）。② の登録解除と ④ の gate は未反映 |
 | D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: Phase 1 branch で反映（live 未反映）。撤去と WARN は未反映 |
+| D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | 未反映 |
 | D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | 未反映 |
 | D6 | Phase 1 | Phase 1 branch で反映（live 未反映。`~/.claude/skills/plan-review` の link 削除は owner） |
 | D10 | Phase 1 | Phase 1 branch で反映（live 未反映） |
