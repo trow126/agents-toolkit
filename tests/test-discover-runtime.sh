@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # discover-runtime: FAIL / WARN conditions on fixture HOME + stub CLIs (no live settings, no model calls),
 # including the §2.4-1 upper-directory AGENTS.md and the §2.4-4 settings drift, snapshot rotation,
-# and change detection against the previous snapshot.
+# change detection against the previous snapshot, and the optional Phase 8 items (brokers from a
+# fixture /proc, Codex hook trust, features, skill listing size, prompt-input).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,7 +24,8 @@ build_fixture() {
   local base="$1"
   local repo="$base/repo" home="$base/home"
   mkdir -p "$repo/install" "$repo/claude" "$repo/docs/contracts" "$home/.claude/projects/p" "$home/.codex" \
-    "$base/managed" "$base/win" "$base/bin" "$base/state"
+    "$base/managed" "$base/win" "$base/bin" "$base/state" "$base/proc" "$base/stub"
+  printf '100000.00 1.00\n' > "$base/proc/uptime"
   printf 'link-file\tclaude/CLAUDE.md\t.claude/CLAUDE.md\n' > "$repo/install/manifest.tsv"
   printf '# fixture\n' > "$repo/claude/CLAUDE.md"
   # D5: the live user settings are a regular file written by Claude Code
@@ -49,7 +51,15 @@ JSON
   printf 'model = "gpt-6-astra"\nmodel_reasoning_effort = "medium"\n[agents]\ndefault_subagent_model = "gpt-5.6-sol"\ndefault_subagent_reasoning_effort = "high"\n' > "$home/.codex/config.toml"
   printf '{}\n' > "$base/win/managed-settings.json"
   printf '#!/usr/bin/env bash\necho "2.1.282 (Claude Code)"\n' > "$base/bin/claude"
-  printf '#!/usr/bin/env bash\necho "codex-cli ${STUB_CODEX_VERSION:-0.157.0}"\n' > "$base/bin/codex"
+  cat > "$base/bin/codex" <<'STUB'
+#!/usr/bin/env bash
+stub="$(cd "$(dirname "$0")/../stub" && pwd)"
+case "${1:-} ${2:-}" in
+  "features list") [[ -f "$stub/features.txt" ]] && cat "$stub/features.txt" || exit 1 ;;
+  "debug prompt-input") [[ -f "$stub/prompt.json" ]] && cat "$stub/prompt.json" || exit 1 ;;
+  *) echo "codex-cli ${STUB_CODEX_VERSION:-0.157.0}" ;;
+esac
+STUB
   chmod +x "$base/bin/claude" "$base/bin/codex"
 }
 
@@ -61,7 +71,7 @@ discover() {
   RC=0
   OUT="$(env -u AGENTS_TOOLKIT_SLACK_NOTIFY PATH="$base/bin:$PATH" HOME="$base/home" XDG_STATE_HOME="$base/state" \
     AGENTS_TOOLKIT_REPO="$base/repo" AGENTS_TOOLKIT_MANAGED_DIR="$base/managed" \
-    AGENTS_TOOLKIT_WINDOWS_MANAGED_DIR="$base/win" AGENTS_TOOLKIT_TODAY=2026-09-25 \
+    AGENTS_TOOLKIT_WINDOWS_MANAGED_DIR="$base/win" AGENTS_TOOLKIT_TODAY=2026-09-25 AGENTS_TOOLKIT_PROC_DIR="$base/proc" \
     "$DISCOVER" "$@" 2>&1)" || RC=$?
 }
 
@@ -195,6 +205,76 @@ new_case routing-missing
 rm "$CASE/repo/docs/contracts/model-routing.tsv"
 discover "$CASE"
 expect "routing 表が無ければ FAIL" nonzero "FAIL: routing table missing or empty"
+
+# ---------------- optional items (Phase 8) ----------------
+optional_fixture() {
+  local base="$1"
+  printf '%s\n' 'apps                 stable             true' 'code_mode            under development  false' > "$base/stub/features.txt"
+  printf '[{"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "## Core Contract\\n- 事実の正確さと安全性を速度より優先し、..."}, {"type": "input_text", "text": "<skills_instructions>\\n- a: b\\n</skills_instructions>"}]}]\n' > "$base/stub/prompt.json"
+  printf '{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "true"}]}]}}\n' > "$base/home/.codex/hooks.json"
+  printf '\n[hooks.state."%s/home/.codex/hooks.json:session_start:0:0"]\ntrusted_hash = "sha256:abc"\n' "$base" >> "$base/home/.codex/config.toml"
+}
+
+new_case optional-clean
+optional_fixture "$CASE"
+discover "$CASE"
+expect "prompt-input: core contract が1回なら OK" zero "OK: Codex prompt-input carries the core contract once"
+expect "hook: 定義と trust を数える" zero "INFO: Codex hooks: 1 defined, 1 trusted"
+expect "features: 件数を表示する" zero "INFO: codex features: 2 (1 enabled)"
+expect "broker: fixture の proc に無ければ0件" zero "INFO: codex-plugin-cc brokers: 0; Codex app-server daemon processes: 0"
+if [[ "$OUT" != *"WARN: Codex hook"* && "$OUT" != *"features changed"* ]]; then ok "optional: 変化が無ければ WARN しない"; else ng "optional: unexpected WARN: $OUT"; fi
+
+new_case hook-untrusted
+optional_fixture "$CASE"
+sed -i '/hooks.state/,$d' "$CASE/home/.codex/config.toml"
+discover "$CASE"
+expect "hook: trust の無い hook は WARN（FAIL にしない）" zero "WARN: Codex hook has no trust entry, so it does not run: $CASE/home/.codex/hooks.json:session_start:0:0"
+
+new_case hook-changed
+optional_fixture "$CASE"
+discover "$CASE"
+sed -i 's/"command": "true"/"command": "false"/' "$CASE/home/.codex/hooks.json"
+discover "$CASE"
+expect "hook: 定義が変わり trust が同じなら WARN" zero "WARN: Codex hook definition changed but its trust did not: $CASE/home/.codex/hooks.json:session_start:0:0"
+
+new_case features-changed
+optional_fixture "$CASE"
+discover "$CASE"
+printf '%s\n' 'apps                 stable             true' 'code_mode            stable             true' 'new_flag             experimental       false' > "$CASE/stub/features.txt"
+discover "$CASE"
+expect "features: 前回との差分は WARN" zero "WARN: codex features changed: added [new_flag], removed [], stage or enabled changed [code_mode]"
+
+new_case prompt-duplicated
+optional_fixture "$CASE"
+sed -i 's/優先し、\.\.\./優先し、... 事実の正確さと安全性を速度より優先し/' "$CASE/stub/prompt.json"
+discover "$CASE"
+expect "prompt-input: core contract の重複は WARN" zero "WARN: Codex prompt-input carries the core contract 2 times (expected 1; appendix C.2)"
+
+new_case listing-growth
+mkdir -p "$CASE/home/.claude/skills/a" "$CASE/home/.claude/skills/b" "$CASE/home/.claude/skills/manual"
+printf '%s\n' '---' 'name: a' 'description: Short one.' '---' > "$CASE/home/.claude/skills/a/SKILL.md"
+printf '%s\n' '---' 'name: manual' 'description: Manual only, not listed to the model at all.' 'disable-model-invocation: true' '---' > "$CASE/home/.claude/skills/manual/SKILL.md"
+discover "$CASE"
+expect "listing: manual-only を数えない" zero "skill listing: Claude 1 skills / 10 chars"
+printf '%s\n' '---' 'name: b' 'description: A much longer description that grows the listing.' '---' > "$CASE/home/.claude/skills/b/SKILL.md"
+discover "$CASE"
+expect "listing: 前回から20%を超えて増えたら WARN" zero "WARN: claude_listing_chars grew 10 -> 59"
+
+new_case brokers
+mkdir -p "$CASE/proc/100" "$CASE/proc/200" "$CASE/proc/300" "$CASE/proc/1"
+printf '1 (init) S 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n' > "$CASE/proc/1/stat"
+printf '/init\0' > "$CASE/proc/1/cmdline"
+printf '100 (node) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 9000000 0 0\n' > "$CASE/proc/100/stat"
+printf 'node\0/x/scripts/app-server-broker.mjs\0' > "$CASE/proc/100/cmdline"
+printf '200 (codex) S 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n' > "$CASE/proc/200/stat"
+printf '/x/bin/codex\0app-server\0--listen\0unix://\0--managed-daemon\0' > "$CASE/proc/200/cmdline"
+printf '300 (node) S 999 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n' > "$CASE/proc/300/stat"
+printf 'node\0/x/scripts/app-server-broker.mjs\0' > "$CASE/proc/300/cmdline"
+discover "$CASE"
+expect "broker: 親が init の broker は孤児として WARN" zero "WARN: orphaned codex-plugin-cc broker pid 100"
+expect "broker: 24時間を超えた broker は WARN" zero "WARN: codex-plugin-cc broker pid 300 is 27 h old"
+expect "broker: Codex の managed daemon は数えるだけ" zero "INFO: codex-plugin-cc brokers: 2; Codex app-server daemon processes: 1"
+if [[ "$OUT" != *"pid 200"* ]]; then ok "broker: managed daemon は孤児にしない"; else ng "broker: managed daemon warned: $OUT"; fi
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then

@@ -25,7 +25,7 @@ Codex CLI の更新は owner が行う。更新すると catalog、既定の eff
 
 ## 3. 更新の後に
 
-1. discovery を実行する。前回の snapshot と比べて、version、catalog、`config.toml` の既定の変化が WARN として出る。
+1. discovery を実行する。前回の snapshot と比べて、version、catalog、`config.toml` の既定、`codex features list`、hook の定義と trust、skill 一覧のサイズの変化が WARN として出る。live の `codex debug prompt-input` で core-contract が1回だけ入っているかも確かめる（モデルは呼ばない）。
 
    ```bash
    ~/agents-toolkit/scripts/discover-runtime.sh

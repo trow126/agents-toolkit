@@ -17,6 +17,10 @@ test 用の上書き（env）:
   AGENTS_TOOLKIT_MANAGED_DIR          managed settings の directory（既定: /etc/claude-code）
   AGENTS_TOOLKIT_WINDOWS_MANAGED_DIR  Windows host の managed settings（既定: /mnt/c/Program Files/ClaudeCode）
   AGENTS_TOOLKIT_TODAY                retires_at の判定に使う日付（YYYY-MM-DD）
+  AGENTS_TOOLKIT_PROC_DIR             broker を探す proc の directory（既定: /proc）
+
+任意の項目（Phase 8、FAIL にはしない）: broker の年齢と孤児、Codex の hook の trust、
+`codex features list` の差分、skill 一覧のサイズ、`codex debug prompt-input` の監査（モデルは呼ばない）。
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import tomllib
 import urllib.request
 from pathlib import Path
@@ -39,6 +44,10 @@ INSTRUCTION_MODES = ("claude-md", "claude-md-or-agents-md", "claude-md-and-agent
 DEFAULT_MODE = "claude-md-or-agents-md"
 ENV_PIN = re.compile(r"^ANTHROPIC_DEFAULT_(OPUS|FABLE|SONNET|HAIKU)_MODEL$")
 FAMILY = re.compile(r"^claude-(opus|sonnet|haiku|fable)-")
+# shared/rules/core-contract.md の最初の規則。Codex の prompt に1回だけ入っているはず（付録 C.2）
+CORE_CONTRACT_MARKER = "事実の正確さと安全性を速度より優先し"
+BROKER_MAX_AGE = 24 * 3600
+LISTING_GROWTH = 1.2
 OFFICIAL_PAGES = (
     "https://platform.claude.com/docs/en/about-claude/models/overview.md",
     "https://platform.claude.com/docs/en/about-claude/model-deprecations.md",
@@ -223,6 +232,199 @@ def check_retirement(report: Report, row: dict, today: dt.date) -> None:
         report.add("FAIL", f"routing {row['role']}: {row['model']} retires on {retires} ({days} days left)", level=1)
     else:
         report.add("INFO", f"routing {row['role']}: {row['model']} retires on {retires} ({days} days left)")
+
+
+def process_table(proc: Path) -> list[dict]:
+    """pid、ppid、経過秒数、argv（/proc を読む。取れなければ空）"""
+    try:
+        uptime = float((proc / "uptime").read_text().split()[0])
+        hz = os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return []
+    table = []
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            stat = (entry / "stat").read_text()
+            argv = [a.decode("utf-8", "replace") for a in (entry / "cmdline").read_bytes().split(b"\0") if a]
+            fields = stat[stat.rindex(")") + 2:].split()
+            table.append({"pid": int(entry.name), "ppid": int(fields[1]),
+                          "age": max(0, int(uptime - int(fields[19]) / hz)), "args": " ".join(argv)})
+        except (OSError, ValueError, IndexError):
+            continue
+    return table
+
+
+def check_brokers(report: Report, snap: dict, proc: Path) -> None:
+    """codex-plugin-cc の broker（app-server-broker.mjs と、それが起動した codex app-server）の年齢と孤児。
+    Codex 自身の app-server daemon（--managed-daemon）は常駐が正常なので、年齢の表示だけにする。"""
+    table = process_table(proc)
+    by_pid = {p["pid"]: p for p in table}
+    daemons, brokers = [], []
+    for p in table:
+        args = p["args"]
+        if "app-server" not in args:
+            continue
+        if "--managed-daemon" in args or "app-server daemon" in args:
+            daemons.append(p)
+        elif "app-server-broker" in args or re.search(r"(^|/)codex\S* app-server\b", args):
+            parent = by_pid.get(p["ppid"], {}).get("args", "")
+            p["orphan"] = p["ppid"] <= 1 or Path(parent.split(" ")[0]).name in ("init", "systemd")
+            brokers.append(p)
+    snap["brokers"] = [{k: p[k] for k in ("pid", "ppid", "age", "orphan")} for p in brokers]
+    snap["codex_daemons"] = [{k: p[k] for k in ("pid", "age")} for p in daemons]
+    report.add("INFO", f"codex-plugin-cc brokers: {len(brokers)}; Codex app-server daemon processes: {len(daemons)}"
+               + (f" (oldest {max(p['age'] for p in daemons) // 3600} h)" if daemons else ""))
+    for p in brokers:
+        if p["orphan"]:
+            report.add("WARN", f"orphaned codex-plugin-cc broker pid {p['pid']} (age {p['age'] // 60} min, parent is init); stop it if no session uses it")
+        elif p["age"] > BROKER_MAX_AGE:
+            report.add("WARN", f"codex-plugin-cc broker pid {p['pid']} is {p['age'] // 3600} h old")
+
+
+def snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+def codex_hook_definitions(home: Path) -> dict[str, str]:
+    """Codex の hooks.state と同じ key（"<file>:<event>:<group>:<hook>"）で、hook の定義の sha256。
+    対象は ~/.codex/hooks.json と ~/.codex/*.toml（config.toml と profile の inline hook）。"""
+    sources = []
+    hooks_json = home / ".codex/hooks.json"
+    data = read_json(hooks_json)
+    if data:
+        sources.append((hooks_json, data.get("hooks") or {}))
+    for toml_path in sorted((home / ".codex").glob("*.toml")):
+        try:
+            data = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        sources.append((toml_path, {k: v for k, v in (data.get("hooks") or {}).items() if isinstance(v, list)}))
+    definitions = {}
+    for path, events in sources:
+        for event, groups in events.items():
+            for i, group in enumerate(groups or []):
+                if not isinstance(group, dict):
+                    continue
+                for j, hook in enumerate(group.get("hooks") or []):
+                    body = json.dumps([group.get("matcher"), hook], sort_keys=True, ensure_ascii=False)
+                    definitions[f"{path}:{snake(event)}:{i}:{j}"] = hashlib.sha256(body.encode()).hexdigest()[:16]
+    return definitions
+
+
+def check_hook_trust(report: Report, snap: dict, previous: dict, home: Path, config: dict) -> None:
+    definitions = codex_hook_definitions(home)
+    state = (config.get("hooks") or {}).get("state") or {}
+    trusted = {k: str((v or {}).get("trusted_hash", ""))[:16] for k, v in state.items() if isinstance(v, dict)}
+    snap["codex_hooks"] = {"definitions": definitions, "trusted": trusted}
+    untrusted = sorted(set(definitions) - set(trusted))
+    for key in untrusted:
+        report.add("WARN", f"Codex hook has no trust entry, so it does not run: {key} (trust it in /hooks; for a toolkit profile, then run scripts/codex-profile-trust.py)")
+    prev = previous.get("codex_hooks") or {}
+    for key, digest in definitions.items():
+        before = (prev.get("definitions") or {}).get(key)
+        if before and before != digest and key in trusted and (prev.get("trusted") or {}).get(key) == trusted[key]:
+            report.add("WARN", f"Codex hook definition changed but its trust did not: {key} (re-trust it in /hooks)", level=2)
+    stale = sorted(set(trusted) - set(definitions))
+    report.add("INFO", f"Codex hooks: {len(definitions)} defined, {len(definitions) - len(untrusted)} trusted"
+               + (f", {len(stale)} trust entries without a hook" if stale else ""))
+
+
+def check_features(report: Report, snap: dict, previous: dict) -> None:
+    out = run(["codex", "features", "list"])
+    features = {}
+    for line in (out or "").splitlines():
+        m = re.match(r"^(\S+)\s+(.+?)\s+(true|false)\s*$", line)
+        if m:
+            features[m.group(1)] = [m.group(2), m.group(3) == "true"]
+    if not features:
+        report.add("INFO", "codex features list: unavailable")
+        return
+    snap["codex_features"] = features
+    report.add("INFO", f"codex features: {len(features)} ({sum(1 for f in features.values() if f[1])} enabled)")
+    prev = previous.get("codex_features") or {}
+    if prev:
+        added = sorted(set(features) - set(prev))
+        removed = sorted(set(prev) - set(features))
+        changed = sorted(k for k in set(features) & set(prev) if features[k] != prev[k])
+        if added or removed or changed:
+            def names(items: list[str]) -> str:
+                return ", ".join(items[:8]) + (" ..." if len(items) > 8 else "")
+            report.add("WARN", f"codex features changed: added [{names(added)}], removed [{names(removed)}], stage or enabled changed [{names(changed)}]", level=2)
+
+
+def listed_skills(skills_dir: Path, runtime: str) -> tuple[int, int]:
+    """model に一覧される skill の数と、description + when_to_use の字数（manual-only を除く）"""
+    count = chars = 0
+    for skill in sorted(skills_dir.glob("*/SKILL.md")):
+        try:
+            text = skill.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+        front = m.group(1) if m else ""
+        if runtime == "claude" and re.search(r"^disable-model-invocation:\s*true\s*$", front, re.M):
+            continue
+        policy = skill.parent / "agents/openai.yaml"
+        if runtime == "codex" and policy.is_file() and re.search(r"^\s*allow_implicit_invocation:\s*false\s*$", policy.read_text(encoding="utf-8"), re.M):
+            continue
+        values = [v.strip().strip("\"'") for k, v in re.findall(r"^(description|when_to_use):(.*)$", front, re.M)]
+        count += 1
+        chars += len(" ".join(v for v in values if v))
+    return count, chars
+
+
+def codex_prompt_texts() -> list[str] | None:
+    """`codex debug prompt-input` を空の一時 directory で実行する（project の AGENTS.md を混ぜない。モデルは呼ばない）"""
+    with tempfile.TemporaryDirectory() as cwd:
+        try:
+            result = subprocess.run(["codex", "debug", "prompt-input", "agents-toolkit-discovery"],
+                                    capture_output=True, text=True, timeout=60, cwd=cwd)
+            data = json.loads(result.stdout) if result.returncode == 0 else None
+        except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+            return None
+    texts: list[str] = []
+
+    def walk(node) -> None:
+        if isinstance(node, dict):
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+        elif isinstance(node, str):
+            texts.append(node)
+    walk(data)
+    return texts or None
+
+
+def check_listing_and_prompt(report: Report, snap: dict, previous: dict, home: Path) -> None:
+    sizes = {}
+    for runtime, skills_dir in (("claude", home / ".claude/skills"), ("codex", home / ".agents/skills")):
+        count, chars = listed_skills(skills_dir, runtime)
+        sizes[f"{runtime}_listed_skills"] = count
+        sizes[f"{runtime}_listing_chars"] = chars
+    texts = codex_prompt_texts()
+    if texts is None:
+        report.add("INFO", "codex debug prompt-input: unavailable")
+    else:
+        sizes["codex_prompt_chars"] = sum(len(t) for t in texts)
+        sizes["codex_skills_block_chars"] = sum(len(t) for t in texts if "<skills_instructions>" in t)
+        core = sum(t.count(CORE_CONTRACT_MARKER) for t in texts)
+        sizes["codex_core_contract_copies"] = core
+        if core != 1:
+            report.add("WARN", f"Codex prompt-input carries the core contract {core} times (expected 1; appendix C.2)", level=2)
+        else:
+            report.add("OK", "Codex prompt-input carries the core contract once")
+    snap["listing_sizes"] = sizes
+    report.add("INFO", "skill listing: Claude {claude_listed_skills} skills / {claude_listing_chars} chars, Codex {codex_listed_skills} skills / {codex_listing_chars} chars".format(**sizes)
+               + (f"; Codex prompt-input {sizes['codex_prompt_chars']} chars (skills block {sizes['codex_skills_block_chars']})" if "codex_prompt_chars" in sizes else ""))
+    prev = previous.get("listing_sizes") or {}
+    for key in ("claude_listing_chars", "codex_listing_chars", "codex_skills_block_chars", "codex_prompt_chars"):
+        before, now = prev.get(key), sizes.get(key)
+        if before and now and now > before * LISTING_GROWTH:
+            report.add("WARN", f"{key} grew {before} -> {now} (more than {int((LISTING_GROWTH - 1) * 100)}% since the last snapshot)", level=2)
 
 
 def main(argv: list[str]) -> int:
@@ -411,6 +613,12 @@ def main(argv: list[str]) -> int:
     slack = os.environ.get("AGENTS_TOOLKIT_SLACK_NOTIFY")
     snap["slack_notify_env"] = slack
     report.add("INFO", f"AGENTS_TOOLKIT_SLACK_NOTIFY: {slack or 'unset (notifications on)'}")
+
+    # ---------------- optional (Phase 8; WARN at most) ----------------
+    check_brokers(report, snap, Path(os.environ.get("AGENTS_TOOLKIT_PROC_DIR", "/proc")))
+    check_hook_trust(report, snap, previous, home, config)
+    check_features(report, snap, previous)
+    check_listing_and_prompt(report, snap, previous, home)
 
     # ---------------- online ----------------
     if "--online" in args:

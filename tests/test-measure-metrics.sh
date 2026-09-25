@@ -97,7 +97,7 @@ assert_metric "実 repo: active skill entrypoint は8192 bytes以内" "$out" "ac
 assert_metric "実 repo: shared rule always-onはcoreのみ" "$out" "shared_rules_always_on_bytes" "1441"
 assert_metric "実 repo: hook script は6件" "$out" "hook_scripts" "6"
 assert_metric "実 repo: managed hook registration は8件" "$out" "hook_registrations" "8"
-assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "184"
+assert_metric "実 repo: 要素別 inventory 行数" "$out" "inventory_audited_elements" "185"
 assert_metric "実 repo: review/progress/retrospective active unique path" "$out" "review_progress_retrospective_mechanisms" "6"
 assert_metric "実 repo: built-in agent overlap 0" "$out" "custom_builtin_agent_overlaps" "0"
 assert_metric "実 repo: managed policy present" "$out" "managed_policy_present" "yes"

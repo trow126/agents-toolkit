@@ -94,7 +94,7 @@ fi
 # =========================================================================
 # 4. 静的契約: 旧パーサー/checkpointなし・default local only・副作用mode分離
 # =========================================================================
-GH_START_SKILL="$REPO_ROOT/shared/skills/claude-code/gh-start/SKILL.md"
+GH_START_SKILL="$REPO_ROOT/shared/skills/gh-start/SKILL.md"
 if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" "$GH_START_SKILL"; then
   ok "旧 issue-parser パス参照が残っていない"
 else

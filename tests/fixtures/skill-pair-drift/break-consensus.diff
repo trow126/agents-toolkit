@@ -1,0 +1,7 @@
+--- claude-code
++++ codex
+@@
+-disable-model-invocation: true
+@@
+-- `--cross <problem>`: first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider; use this mode only when the user asks for it.
++- `--cross`: available only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `<invoke>break-consensus --cross` in Claude Code, and stop.

@@ -1,0 +1,12 @@
+--- claude-code
++++ codex
+@@
+-description: Audits Claude Code settings, hooks, skills, plugins, and MCP against current best practice; read-only, --record appends the confirmed summary to XDG history. Use when the user explicitly invokes <invoke>config-audit. Not for repairing settings.
+-disable-model-invocation: true
++description: Audits Codex configuration, AGENTS rules, hooks, skills, plugins, MCP, and profiles against best practice; read-only, --record appends to XDG history. Use when the user explicitly invokes <invoke>config-audit. Not for repairs (doctor).
+@@
+-- `--record`: perform the same audit, then append one validated JSONL record to `${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/config-audit/audit-history.jsonl`.
++- `--record`: perform the same audit, then append one validated JSONL record to `${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/config-audit/audit-history-codex.jsonl`.
+@@
+-For Claude Code, inspect effective user/managed settings, hooks, agents, skills, plugins, MCP, runtime version, and actual load paths. Separate static findings from live confirmation and give one evidence-backed verdict with confidence and reversal conditions.
++For Codex, inspect effective config, profiles, AGENTS load chain, hooks, skills, plugins, MCP, sandbox, runtime version, and actual discovery. Separate static findings from live confirmation and give one evidence-backed verdict with confidence and reversal conditions.

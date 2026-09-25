@@ -4,7 +4,11 @@ description: Creates or closes one GitHub Issue per request, or drafts an Issue 
 argument-hint: "create <body-file> | close <number> | retro <number> [--apply <path>]"
 ---
 
-# /gh-issue
+# gh-issue
+
+Invoked as `/gh-issue` in Claude Code and `$gh-issue` in Codex.
+
+**Stop** before any GitHub write other than the one the mode names. **Done** when that write is confirmed, or when the retrospective is returned (or written to the `--apply` path).
 
 Read [`references/workflow.md`](references/workflow.md). For create or body updates, also use the installed `issue-writing` skill.
 

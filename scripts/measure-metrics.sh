@@ -285,7 +285,8 @@ measure_tree() {
   for f in \
     "$root/claude/skills/gh:start/SKILL.md" \
     "$root/claude/skills/gh-start/SKILL.md" \
-    "$root/shared/skills/claude-code/gh-start/SKILL.md"; do
+    "$root/shared/skills/claude-code/gh-start/SKILL.md" \
+    "$root/shared/skills/gh-start/SKILL.md"; do
     [[ -f "$f" ]] || continue
     uncond=$((uncond + $(grep -c 'subagent_type: "general-purpose"' "$f" || true)))
   done

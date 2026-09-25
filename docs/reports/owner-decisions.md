@@ -68,6 +68,8 @@
 | P7-Q2 | manifest の link を外した後の `claude/settings.json` | repo から削除する。live の `~/.claude/settings.json` を正本とし、validator は repo での追跡と manifest の link を拒否する（2026-09-25） |
 | P7-Q3 | D2 の env pin の対象 | fable、opus、sonnet、haiku の4つすべて。sonnet は CLI 2.1.282 の内蔵 model 一覧の `claude-sonnet-5`（2026-09-25） |
 | P4-IT | Phase 4 の integration 環境 | host `mini` 本体を使う（使い捨ての distro の代わり）。設定を退避し、候補の managed を machine 全体に入れ、live と同じ settings、Codex の既定値、plugin に揃える。結果は `docs/reports/2026-09-25-integration-phase4.md`（2026-09-25） |
+| P8-Q1 | 統合した gh-start の description | Claude 専用の skill（gh-codex-drive、gh-finish）を「Not for」から外し、`Not for gh-pr or gh-review.` にする（2026-09-26） |
+| P8-Q2 | Phase 8 の受入の環境 | mini を再構築して受入を行い、終わったら再び片づける。モデルを呼ぶ試験は Phase 4 と Phase 6 の結果を使う（2026-09-26） |
 | P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
 ## live への反映（2026-09-26）
@@ -97,5 +99,5 @@
 | OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch。managed の deny `Agent(codex:codex-rescue)` と `claude/CLAUDE.md` の禁止文の削除は Phase 7 branch で準備（K3 は integration で確認） |
 | D7 | Phase 6 | Phase 6 branch で静的な部分を実装（live 未反映。phase-4 の上に作ったので、phase-4 の後に取り込む）。route は divergent-claude が opus、divergent-codex が gpt-6-astra/medium、`skill-authority.tsv` の egress 列は別の model provider への送信を表す（いずれも 2026-09-25、この作業 session で owner が選択）。K18 は静的には使える（2.1.282 に `agent()` の `opts.disallowedTools` が実装されている。model 向けの API 説明には載っていない）。integration（mini、2026-09-25）で C.5 の7項目と K18 の実行時の確認が PASS した（`docs/reports/2026-09-25-integration-phase4.md`） |
 | D8 | Phase 4 | Phase 4 branch で実装し、integration で検証した（委任1件、`stopped`、K11）。K17 により companion は profile 相当を渡せないので、exec の launcher を維持する（2026-09-25）。live はまだ companion のまま |
-| D12 | Phase 4 と Phase 5 の integration での試験 | Phase 4: Claude 約 1.7 USD（上限 15 USD）、Codex 5回。Phase 6: K18 約 0.08 USD、C.5 約 3.18 USD（owner がこの1回に限り 3 USD まで許可、推定で超過）、Codex 1回。Phase 5 は未実施 |
+| D12 | Phase 4 と Phase 5 の integration での試験 | Phase 4: Claude 約 1.7 USD（上限 15 USD）、Codex 5回。Phase 6: K18 約 0.08 USD、C.5 約 3.18 USD（owner がこの1回に限り 3 USD まで許可、推定で超過）、Codex 1回。Phase 5: Claude 約 37.3 USD（上限 60 USD。owner が1回の上限を 4 USD に引き上げた）、Codex は実装担当 22回と explorer 6回（`docs/reports/2026-09-26-routing-eval.md`）。Phase 8: K15 の確認に Codex 2回（Claude は使っていない） |
 | OD-7 | D9 で置き換える: Phase 7 | repo の `effortLevel: xhigh` は `claude/settings.json` とともに削除（P7-Q2）。D9（2026-09-26）により、owner が live の `modelSettings` をモデルの既定値（Opus 5.5 は medium）に設定する |
