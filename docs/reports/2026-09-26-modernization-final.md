@@ -139,9 +139,10 @@ discovery の snapshot は追跡しない。
 - **K3（部分確認）**: managed の deny `Agent(codex:codex-rescue)` を置くと、その type が Agent tool の説明から消えることは確認した。実際の呼び出しは PreToolUse の hook が先に拒否するので、bypass の下で deny だけで拒否されるかは切り分けていない。
 - **Codex の reviewer、plan_reviewer、deep_reasoner**: 報告の後に owner が決めた（P8-Q3）。reviewer と deep_reasoner は配布をやめ、plan_reviewer は gpt-6-sol/high に上げた。gpt-6-sol は、plan_reviewer の役割では評価していない（Phase 5 では実装担当として 6/6）。組み込みの default と worker も、live の `[agents]` を gpt-6-sol/high に揃えた（P8-Q4）。
 - **Codex で cwd を `codex/` にした場合の二重注入**: 既知の制約として残す（validate-layout が WARN を出す）。
-- **任意の項目で行わなかったもの**: K10（`codex/AGENTS.md` の symlink 化。core-contract の変更が要る）、K8（`claude plugin eval`）、managed の Stop hook（evidence の無い完了報告は観測されていないので、追加の条件を満たしていない）。
+- **任意の項目で行わなかったもの**: K10（`codex/AGENTS.md` の symlink 化。確認して採らないことにした。P8-Q5）、K8（`claude plugin eval`）、managed の Stop hook（evidence の無い完了報告は観測されていないので、追加の条件を満たしていない）。
 - **discovery の hook の trust**: 比べているのは、toolkit が計算した hook の定義の hash である。Codex の `trusted_hash` の計算方法は再現していない。定義が変わったのに trust が変わっていないことは検出できる。
 - **Phase 8 の受入でモデルを呼ぶ試験**: 委任、`stopped`、C.5 は、Phase 8 で変えていない経路なので、Phase 4 と Phase 6 の結果を使った。
+- **skill の description**: 報告の後に、250字を超えていた article-style と claude-second-opinion を書き直し、description の WARN は0件になった（2026-09-26、owner の依頼）。
 - **GitHub の CI**: push していないので、まだ走っていない。live の master と `modernize/phase-4`〜`phase-8` の branch は未 push である。
 - **integration の記録**: mini の `~/.local/state/agents-toolkit-it-backup/2025092{5,6}/cleanup/` には、private repo の Issue の本文と clone（Phase 5）が入っている。削除するかどうかは owner が決める。
 - **§6.5 の空ディレクトリ18個**: live には残っていない（あるのは Claude Code が実行時に作る `.cc-writes` の2つだけ）。

@@ -1,6 +1,6 @@
 ---
 name: claude-second-opinion
-description: Use when the user explicitly asks for a second opinion from Claude Code, or when Codex itself has low confidence (uncertain trade-off, multi-file impact, ambiguous spec, long-context reading) and an independent opinion from Claude Code would materially reduce risk. Invoke scripts/ask-claude.sh with the user's question on stdin. Do not use for short factual questions, syntax lookups, or tasks where Codex is already confident.
+description: Asks Claude Code for an independent second opinion via scripts/ask-claude.sh. Use when the user wants Claude's view, or Codex has low confidence on a trade-off, multi-file impact, ambiguous spec, or long-context reading. Not for quick facts.
 ---
 
 # Claude Second Opinion

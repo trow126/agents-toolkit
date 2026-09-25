@@ -72,6 +72,7 @@
 | P8-Q2 | Phase 8 の受入の環境 | mini を再構築して受入を行い、終わったら再び片づける。モデルを呼ぶ試験は Phase 4 と Phase 6 の結果を使う（2026-09-26） |
 | P8-Q3 | Codex の reviewer、plan_reviewer、deep_reasoner（gpt-5.6-sol、役割付きの spawn は1回だけ） | reviewer と deep_reasoner の配布をやめる。独立 review は組み込みの `codex review`、高 risk の判断は owner が行い、独立した意見は claude-second-opinion で得る（deep_reasoner は main より前の世代で、escalate が逆転していた。§2.4-7）。plan_reviewer は plan-review skill が起動するので残し、同じ系列の後継の gpt-6-sol/high に上げる（§12 の Level 1）（2026-09-26） |
 | P8-Q4 | Codex の組み込みの default と worker（live の `[agents]`） | gpt-5.6-sol/high から、同じ系列の後継の gpt-6-sol/high に揃える（§12 の Level 1。P8-Q3 の plan_reviewer と同じ）。live の `~/.codex/config.toml` は owner の指示で変更し、変更前の file は `~/.local/state/agents-toolkit/backup/` に退避した（2026-09-26） |
+| P8-Q5 | K10（`codex/AGENTS.md` を core-contract への symlink にするか） | 採らない。Codex 0.157.0 が常時読む instruction は `~/.codex/AGENTS.md` の1つだけで、`@path` や include を展開しない（一時 CODEX_HOME の `codex debug prompt-input` で確認）。symlink にするには Codex 固有の約16行（言語、Task 別規約、routing、GitHub、Runtime）を別の常時読込先に移す必要があるが、core-contract に移すと Claude の常時注入に Codex の routing が入り、live の `config.toml` の `developer_instructions` に移すと repo の管理と validator の検査から外れ、skill に移すと常時の指示ではなくなる。marker の区間の sync を維持する（2026-09-26） |
 | P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
 ## live への反映（2026-09-26）

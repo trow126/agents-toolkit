@@ -1,6 +1,6 @@
 ---
 name: article-style
-description: Use whenever writing, rewriting, or reviewing any public-facing prose — blog articles (Zenn/Qiita/dev.to/note), README for external audiences, outreach messages, release notes, documentation intended for readers outside the project. Load BEFORE drafting the first paragraph. Removes AI-smell from Japanese and English text.
+description: Removes AI-smell from public-facing Japanese and English prose. Use when writing or reviewing articles (Zenn/Qiita/dev.to/note), external READMEs, outreach, or release notes, before the first draft. Not for code comments or internal docs.
 ---
 
 # article-style — 公開文章から AI 臭を消す
