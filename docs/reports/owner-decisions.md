@@ -16,7 +16,7 @@
 |---|---|---|
 | EX-003 | managed policy で bypassPermissions を既定にし、sandbox を無効にする。`claude/managed-settings.json` の SHA-256 に拘束する | `docs/reports/accepted-exceptions.md` |
 | EX-004 | native memory を無効にする。`claude/settings.json` の SHA-256 に拘束する | 同上 |
-| OD-1 | Claude の main は Fable（lead / advisor）。dynamic workflow の worker には opus を明示する | `claude/CLAUDE.md:21`（2026-09-25 時点） |
+| OD-1 | Claude の main は Fable（lead / advisor）。dynamic workflow の worker には opus を明示する（main は D1 で Opus 5.5 に置き換えた。2026-09-26） | `claude/CLAUDE.md:21`（2026-09-25 時点） |
 | OD-2 | 単一 owner の原則。無条件の handoff は廃止する | 要件書 `260722_2151_001.pdf` p.8-11。PDF は repo の外にあり、転写は `docs/requirements/requirements-transcription-260722.md` |
 | OD-3 | 常設 agent を新たに追加しない。新しい skill は1つだけにする | 同上 |
 | OD-4 | Claude の agent は tier alias を使う。full pin は waiver が無ければ FAIL にする | `scripts/validate-layout.sh` |
@@ -43,15 +43,17 @@
 | D8 | Codex の launcher | `codex exec` の薄い launcher にする。profile（`-p toolkit-implementer`）、`--output-schema`、catalog の全 effort を使う。そのために pre-bash-validate-hook と OD-5 を更新し、inline hook の trust は owner が integration 環境と live の両方で付与する。K11 と K17 は Phase 4 の integration で確認し、結果によって再評価する（2026-09-25、この作業 session で owner が選択。実装者の推奨は companion の継続だった） |
 | D12 | 費用の上限 | モデルを呼ぶ試験は、1回あたり 2 USD、Phase 4 で合計 15 USD、Phase 5 で合計 60 USD までとする。Claude は `--max-budget-usd` で上限をかける。`codex exec` には USD の上限が無いので、実行回数で管理する（2026-09-25、この作業 session で owner が選択） |
 | D2 | alias の方針 | managed の env pin（`ANTHROPIC_DEFAULT_{OPUS,FABLE,SONNET,HAIKU}_MODEL`）で alias の解決先を固定し、明示的に昇格させる。agent の frontmatter は alias のままにし、OD-4 と両立させる。env pin は managed の変更なので、routing 表の該当行とあわせて Phase 7 で入れる（2026-09-25、この作業 session で owner が推奨案を選択） |
+| D1 | Claude の main モデル | Opus 5.5 を main にする。Phase 5 の replay eval（6題材）で fable/high と同じ成功率で、費用は約1/2.9、時間は約1/1.8。opus での互換性（hook、deny、完了通知）も確認した。`claude/CLAUDE.md` の lead の行と routing 表の claude-main を変え、live のモデルは owner が `/model` で選ぶ（D5）。OD-1 の「main は Fable」を置き換える（2026-09-26、この作業 session で owner が選択） |
+| D9 | Claude の effort（OD-7 を置き換える） | モデルの既定値を使う（Fable 5.1 は high、Opus 5.5 は medium）。xhigh は Phase 5 の eval で high より遅く高く、良くもならなかった。値は owner が live の `modelSettings` に設定する（D5）（2026-09-26、この作業 session で owner が選択） |
+| P5-Q1 | Codex の実装担当の route | gpt-6-astra/medium を維持する（low、sol/medium との差は出なかった）（2026-09-26） |
+| P5-Q2 | Codex の explorer | gpt-5.6-terra から gpt-6-luna（medium）に変える（2026-09-26） |
+| P5-Q3 | `--cross` の Claude worker | main が opus になったので、fable に変える（2026-09-26） |
 
 ## 未決定の論点（D）
 
 指示書 §5.2 の表を転記した。実装者が「決める時期」までに推奨を提示し、owner が「承認」か「変更」を返す。決定したら「決定済みの論点」へ移し、決定日と出典を書く。
 
-| ID | 論点 | 選択肢 | 推奨 | 決める時期 | 状態 |
-|---|---|---|---|---|---|
-| D1 | Claude の main モデル | Fable 5.1 を維持する / Opus 5.5 を main にし、Fable を advisor か昇格先にする（advisor は experimental で、Anthropic API でしか使えない。同意と feature flag が無いと、何も表示されずに無効になる） | Phase 5 の eval で決める | Phase 5 | 未決定 |
-| D9 | Claude の effort（OD-7 を置き換える） | xhigh 一律 / モデルごとの `modelSettings` | 後者。方針は、公式のベストプラクティスに従ってモデルの既定 effort を使うこと（Fable 5.1 は high、Opus 5.5 は medium）。値は Phase 5 の sweep で確定し、置き場所は D5 に従う。Phase 7 までは、repo の `effortLevel: xhigh` も live の値も変えない | Phase 5 で決め、Phase 7 で適用する | 未決定 |
+2026-09-26 時点で未決定の論点は無い（D1 と D9 は Phase 5 の eval の後に決定した）。
 
 ## Phase 1 の実装判断
 
@@ -84,4 +86,4 @@
 | D7 | Phase 6 | Phase 6 branch で静的な部分を実装（live 未反映。phase-4 の上に作ったので、phase-4 の後に取り込む）。route は divergent-claude が opus、divergent-codex が gpt-6-astra/medium、`skill-authority.tsv` の egress 列は別の model provider への送信を表す（いずれも 2026-09-25、この作業 session で owner が選択）。K18 は静的には使える（2.1.282 に `agent()` の `opts.disallowedTools` が実装されている。model 向けの API 説明には載っていない）。integration（mini、2026-09-25）で C.5 の7項目と K18 の実行時の確認が PASS した（`docs/reports/2026-09-25-integration-phase4.md`） |
 | D8 | Phase 4 | Phase 4 branch で実装し、integration で検証した（委任1件、`stopped`、K11）。K17 により companion は profile 相当を渡せないので、exec の launcher を維持する（2026-09-25）。live はまだ companion のまま |
 | D12 | Phase 4 と Phase 5 の integration での試験 | Phase 4: Claude 約 1.7 USD（上限 15 USD）、Codex 5回。Phase 6: K18 約 0.08 USD、C.5 約 3.18 USD（owner がこの1回に限り 3 USD まで許可、推定で超過）、Codex 1回。Phase 5 は未実施 |
-| OD-7 | D9 で置き換える: Phase 7 | repo の `effortLevel: xhigh` は `claude/settings.json` とともに削除（P7-Q2）。live の値は D9（Phase 5）の決定後に owner が設定する |
+| OD-7 | D9 で置き換える: Phase 7 | repo の `effortLevel: xhigh` は `claude/settings.json` とともに削除（P7-Q2）。D9（2026-09-26）により、owner が live の `modelSettings` をモデルの既定値（Opus 5.5 は medium）に設定する |

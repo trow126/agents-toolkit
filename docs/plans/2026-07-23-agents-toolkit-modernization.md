@@ -77,15 +77,15 @@ baseline `a2ef695`に対するlive-tree計測:
 
 <!-- BEGIN metrics:after -->
 ```
-claude_md_bytes: 3104
+claude_md_bytes: 3103
 claude_md_lines: 41
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1441 (1 files)
-claude_always_on_total: 4545
-codex_agents_md_bytes: 3513
+claude_always_on_total: 4544
+codex_agents_md_bytes: 3510
 codex_agents_md_lines: 48
-combined_always_on_total: 8058
+combined_always_on_total: 8054
 custom_agents: 1
 codex_custom_agents: 4
 claude_skills: 18
@@ -132,8 +132,8 @@ post_compact_system_message_typical_bytes: 0
 post_compact_system_message_max_bytes: 0
 user_prompt_submit_injection_typical_bytes: 0
 user_prompt_submit_injection_max_bytes: 0
-claude_session_start_injection_typical_bytes: 4545
-claude_session_start_injection_max_bytes: 4545
+claude_session_start_injection_typical_bytes: 4544
+claude_session_start_injection_max_bytes: 4544
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)
