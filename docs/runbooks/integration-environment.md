@@ -60,7 +60,20 @@
   - 実装へ自動で移らない。
 - `scripts/audit-context-runtime.sh` で、divergent profile の検査が PASS する。
 
-## 5. 破棄する
+## 5. skill の起動精度（K8）
+
+skill の description、Claude Code の version、live の `skillOverrides` が変わったときに行う。managed も bootstrap も要らない。live の `~/.claude/settings.json` を `--settings` に渡して、モデルに一覧される skill を live と揃える。
+
+```bash
+./scripts/build-skill-trigger-eval.py /tmp/skill-trigger/atk --settings <live の settings.json の copy>
+cd /tmp/skill-trigger && claude plugin eval ./atk --runs 3 -j 2 --model opus --ablation none --no-publish --max-cost-usd 4 --trust-plugin --json result.json
+```
+
+- `--no-publish` を必ず付ける（既定では HTML の報告を claude.ai に公開する）。
+- 費用は12件を3回ずつで約 2.5 USD（2026-09-26）。上限は D12 に従い、owner が決める。
+- 結果は `docs/reports/` に記録する（2026-09-26 の結果は `2026-09-26-k3-k8.md`）。
+
+## 6. 破棄する
 
 ```powershell
 wsl --unregister agents-toolkit-it

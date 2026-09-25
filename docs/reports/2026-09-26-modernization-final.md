@@ -10,7 +10,7 @@
   - `bootstrap.sh --check` の DRIFT は0件。
   - discovery の FAIL は0件で、WARN は haiku の退役予定（not-before 2026-10-15）の2件だけ。
   - managed の hash は `39a2490925354d094b55fe95dda7dc9ef74bb29639e1137b0c25ec0e63483d38` で、EX-003 と EX-004 の再承認の記録と一致している。
-- モデルを呼ぶ試験（委任、`--cross`、replay eval、K15）は、integration 環境（host mini）でだけ行った。Claude の費用は合計で約 42.3 USD（Phase 4 約 1.7、Phase 6 約 3.3、Phase 5 約 37.3、Phase 8 は0）。
+- モデルを呼ぶ試験（委任、`--cross`、replay eval、K15）は、integration 環境（host mini）でだけ行った。Claude の費用は合計で約 45.0 USD（Phase 4 約 1.7、Phase 6 約 3.3、Phase 5 約 37.3、Phase 8 は0、報告の後の K8 約 2.5 と K3 約 0.15）。
 - GitHub の CI は、push していないのでまだ走っていない。同じ手順をローカルで実行し、すべて PASS した。
 
 ## owner 決定と反映状況（D1〜D12、EX の再承認、外部への送信）
@@ -101,6 +101,8 @@ discovery の snapshot は追跡しない。
 | Case 11、13、9: `claude -p "/context" --max-budget-usd 0.000001` | mini | どれも num_turns 0、費用 0。Memory files は `~/.claude/CLAUDE.md` と core-contract の各1回（repo の外、clone の中、`claude/` の中） |
 | 委任1件、`stopped`、K6、K7、K11、K17、K18、C.2 | mini（Phase 4） | PASS（`2026-09-25-integration-phase4.md`） |
 | 付録 C.5（`--cross`） | mini（Phase 6） | 7項目が PASS |
+| K3: hook を無効にして `Agent(codex:codex-rescue)` を呼ばせる | mini（報告の後） | managed の deny が単独で拒否した |
+| K8: `claude plugin eval`（12件 × 3回、opus、`--no-publish`） | mini（報告の後） | 36/36 で期待どおりの skill が起動した |
 | replay eval（6題材 T1〜T6、条件ごと） | mini（Phase 5） | どの条件も 6/6。explorer は terra 8/8、luna 7/8（`2026-09-26-routing-eval.md`） |
 | live: fast-forward の後に `bootstrap.sh --check`、validate-layout、`sync --check`、discovery | live | DRIFT 0件、PASS、OK、FAIL 0件（WARN は haiku の2件）。Codex の hook は2つとも trust 済み |
 
@@ -136,13 +138,14 @@ discovery の snapshot は追跡しない。
 
 ## 未対応事項と未検証事項
 
-- **K3（部分確認）**: managed の deny `Agent(codex:codex-rescue)` を置くと、その type が Agent tool の説明から消えることは確認した。実際の呼び出しは PreToolUse の hook が先に拒否するので、bypass の下で deny だけで拒否されるかは切り分けていない。
+- **K3**: 報告の後に確認した（P8-Q6）。hook の分岐を integration の clone でだけ無効にして呼ばせると、`Agent type 'codex:codex-rescue' has been denied by permission rule ... from policySettings.` で拒否された。bypassPermissions の下でも deny だけで効く（`2026-09-26-k3-k8.md`）。
 - **Codex の reviewer、plan_reviewer、deep_reasoner**: 報告の後に owner が決めた（P8-Q3）。reviewer と deep_reasoner は配布をやめ、plan_reviewer は gpt-6-sol/high に上げた。gpt-6-sol は、plan_reviewer の役割では評価していない（Phase 5 では実装担当として 6/6）。組み込みの default と worker も、live の `[agents]` を gpt-6-sol/high に揃えた（P8-Q4）。
 - **Codex で cwd を `codex/` にした場合の二重注入**: 既知の制約として残す（validate-layout が WARN を出す）。
-- **任意の項目で行わなかったもの**: K10（`codex/AGENTS.md` の symlink 化。確認して採らないことにした。P8-Q5）、K8（`claude plugin eval`）、managed の Stop hook（evidence の無い完了報告は観測されていないので、追加の条件を満たしていない）。
+- **任意の項目で行わなかったもの**: K10（`codex/AGENTS.md` の symlink 化。確認して採らないことにした。P8-Q5）、managed の Stop hook（evidence の無い完了報告は観測されていないので、追加の条件を満たしていない）。
 - **discovery の hook の trust**: 比べているのは、toolkit が計算した hook の定義の hash である。Codex の `trusted_hash` の計算方法は再現していない。定義が変わったのに trust が変わっていないことは検出できる。
 - **Phase 8 の受入でモデルを呼ぶ試験**: 委任、`stopped`、C.5 は、Phase 8 で変えていない経路なので、Phase 4 と Phase 6 の結果を使った。
 - **skill の description**: 報告の後に、250字を超えていた article-style と claude-second-opinion を書き直し、description の WARN は0件になった（2026-09-26、owner の依頼）。
+- **K8**: 報告の後に確認した（P8-Q6）。`claude plugin eval` は使える（`--no-publish` が必須）。モデルが起動できる10個の skill について、12件を3回ずつ実行し、36回すべてで期待どおりの skill が起動した（`2026-09-26-k3-k8.md`）。suite は `scripts/build-skill-trigger-eval.py` で作り直せる。
 - **GitHub の CI**: push していないので、まだ走っていない。live の master と `modernize/phase-4`〜`phase-8` の branch は未 push である。
 - **integration の記録**: mini の `~/.local/state/agents-toolkit-it-backup/2025092{5,6}/cleanup/` には、private repo の Issue の本文と clone（Phase 5）が入っている。削除するかどうかは owner が決める。
 - **§6.5 の空ディレクトリ18個**: live には残っていない（あるのは Claude Code が実行時に作る `.cc-writes` の2つだけ）。
