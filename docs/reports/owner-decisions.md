@@ -20,7 +20,7 @@
 | OD-2 | 単一 owner の原則。無条件の handoff は廃止する | 要件書 `260722_2151_001.pdf` p.8-11。PDF は repo の外にあり、転写は `docs/requirements/requirements-transcription-260722.md` |
 | OD-3 | 常設 agent を新たに追加しない。新しい skill は1つだけにする | 同上 |
 | OD-4 | Claude の agent は tier alias を使う。full pin は waiver が無ければ FAIL にする | `scripts/validate-layout.sh` |
-| OD-5 | Codex への委任は、main session から `codex-companion.mjs task` を Bash(run_in_background=true) で起動する。codex-rescue は hook で拒否する | `claude/CLAUDE.md:40`（2026-09-25 時点）、`claude/hooks/pre-bash-validate-hook.sh` |
+| OD-5 | Codex への委任は、main session から `codex-companion.mjs task` を Bash(run_in_background=true) で起動する。codex-rescue は hook で拒否する。**2026-09-25 に D8 で更新**: 起動するものを `~/.claude/bin/codex-delegate`（`codex exec` の薄い launcher）に替える。main session から Bash(run_in_background=true) で起動することと、codex-rescue の拒否は変えない | `claude/CLAUDE.md:40`（2026-09-25 時点）、`claude/hooks/pre-bash-validate-hook.sh`、D8 |
 | OD-6 | break-consensus は manual-only とする | `docs/requirements/requirements-transcription-260722.md`（p.12–15「手動起動型」、§4.2 起動条件） |
 | OD-7 | Claude の effort は、top-level の `effortLevel: xhigh` とする（D9 で置き換える予定） | `docs/reports/accepted-exceptions.md:25` |
 
@@ -29,7 +29,7 @@
 
 ## 決定済みの論点（D）
 
-指示書 §5.1 の表を、本文ごと転記した。決定日はすべて 2026-09-25、出典は指示書 §5.1 である（D2 だけは、§5.2 の未決定の論点に対する owner の回答）。`scripts/validate-layout.sh` の絶対 home path 検査に合わせ、指示書の `$HOME` 直下の AGENTS.md の絶対 path は `~/AGENTS.md` と表記した。
+指示書 §5.1 の表を、本文ごと転記した。決定日はすべて 2026-09-25、出典は指示書 §5.1 である（D2、D7、D8、D12 は、§5.2 の未決定の論点に対する owner の回答）。`scripts/validate-layout.sh` の絶対 home path 検査に合わせ、指示書の `$HOME` 直下の AGENTS.md の絶対 path は `~/AGENTS.md` と表記した。
 
 | ID | 論点 | 決定 |
 |---|---|---|
@@ -39,6 +39,9 @@
 | D6 | 使われていない agent | Explore 以外の custom agent 9本（ai-engineer、blockchain-security-auditor、code-reviewer、data-engineer、deep-reasoner、model-qa-specialist、plan-reviewer、solidity-engineer、sre）と、Claude 版の plan-review skill の配布をやめる（Phase 1）。これらはどの環境でも使われていない。計画のレビューには、Codex 版の plan-review か `/code-review` を使う |
 | D10 | core-contract への追加 | 次の1行を加える:「既存のバグや範囲外の問題は修正せず、follow-up として報告する。テストの規模は、タスクと既存の慣習に見合うものにする」（Fable 5.1 の公式 guidance に基づく） |
 | D11 | codex-plugin-cc のローカル変更 | 上流版の 1.0.6 に戻す（ローカル変更は破棄する。作業は owner が行う）。session ID は明示しない。gh-codex-drive は `--resume-last` を使わない。status に他の session の job が混ざることは許容する |
+| D7 | break-consensus を cross-provider にするか | 承認する。Phase 6 で `/break-consensus --cross` を opt-in の read-only モードとして実装し、`docs/requirements/requirements-transcription-260722.md` の「実装マッピング（非規範）」節を更新する（2026-09-25、この作業 session で owner が選択） |
+| D8 | Codex の launcher | `codex exec` の薄い launcher にする。profile（`-p toolkit-implementer`）、`--output-schema`、catalog の全 effort を使う。そのために pre-bash-validate-hook と OD-5 を更新し、inline hook の trust は owner が integration 環境と live の両方で付与する。K11 と K17 は Phase 4 の integration で確認し、結果によって再評価する（2026-09-25、この作業 session で owner が選択。実装者の推奨は companion の継続だった） |
+| D12 | 費用の上限 | モデルを呼ぶ試験は、1回あたり 2 USD、Phase 4 で合計 15 USD、Phase 5 で合計 60 USD までとする。Claude は `--max-budget-usd` で上限をかける。`codex exec` には USD の上限が無いので、実行回数で管理する（2026-09-25、この作業 session で owner が選択） |
 | D2 | alias の方針 | managed の env pin（`ANTHROPIC_DEFAULT_{OPUS,FABLE,SONNET,HAIKU}_MODEL`）で alias の解決先を固定し、明示的に昇格させる。agent の frontmatter は alias のままにし、OD-4 と両立させる。env pin は managed の変更なので、routing 表の該当行とあわせて Phase 7 で入れる（2026-09-25、この作業 session で owner が推奨案を選択） |
 
 ## 未決定の論点（D）
@@ -48,10 +51,7 @@
 | ID | 論点 | 選択肢 | 推奨 | 決める時期 | 状態 |
 |---|---|---|---|---|---|
 | D1 | Claude の main モデル | Fable 5.1 を維持する / Opus 5.5 を main にし、Fable を advisor か昇格先にする（advisor は experimental で、Anthropic API でしか使えない。同意と feature flag が無いと、何も表示されずに無効になる） | Phase 5 の eval で決める | Phase 5 | 未決定 |
-| D7 | break-consensus を cross-provider にするか | 承認する（`requirements-transcription-260722.md` の「実装マッピング（非規範）」節を更新する） / 見送る | owner が判断する | Phase 6 の前 | 未決定 |
-| D8 | Codex の launcher | companion を継続する / `codex exec` を使う薄い launcher にする | 指示書 付録 B.6 の比較で決め、選んだ方だけを実装する。K11 と K17 は Phase 4 の integration で確認し、そのうえで再評価する | Phase 4 の前 | 未決定 |
 | D9 | Claude の effort（OD-7 を置き換える） | xhigh 一律 / モデルごとの `modelSettings` | 後者。方針は、公式のベストプラクティスに従ってモデルの既定 effort を使うこと（Fable 5.1 は high、Opus 5.5 は medium）。値は Phase 5 の sweep で確定し、置き場所は D5 に従う。Phase 7 までは、repo の `effortLevel: xhigh` も live の値も変えない | Phase 5 で決め、Phase 7 で適用する | 未決定 |
-| D12 | 費用の上限 | 1回あたりの上限と、Phase ごとの上限（USD） | owner が指定する | Phase 4 の前 | 未決定 |
 
 ## Phase 1 の実装判断
 
@@ -75,5 +75,8 @@
 | D10 | Phase 1 | Phase 1 branch で反映（live 未反映） |
 | D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 不使用を確認し、gh-codex-drive と gh-roadmap-drive に明記した（Phase 1 branch）。上流版への復帰は owner |
 | OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | Phase 2 branch で反映。`claude/CLAUDE.md` の lead の行と worker の行を分け、それぞれを routing 表の target にした（決定の内容は変えていない） |
-| OD-5 | codex-rescue 禁止文の削除と managed deny: Phase 7 | 現行の記述のまま |
+| OD-5 | launcher の変更（D8）: Phase 4 / codex-rescue 禁止文の削除と managed deny: Phase 7 | launcher の変更は Phase 4 branch で実装する（integration で検証が通るまで live には取り込まない）。codex-rescue の部分は現行のまま |
+| D7 | Phase 6 | 未反映 |
+| D8 | Phase 4 | Phase 4 branch で実装する（live は、integration で検証が通るまで companion のまま） |
+| D12 | Phase 4 と Phase 5 の integration での試験 | 未適用（integration 環境の準備待ち） |
 | OD-7 | D9 で置き換える: Phase 7 | 現行の値のまま |
