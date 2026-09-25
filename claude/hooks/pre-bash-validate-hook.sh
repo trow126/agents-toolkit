@@ -191,7 +191,18 @@ fi
 # 事故防止層: literal(quote 分割含む)の .env 読み取りを block する。
 # runtime 構築 path は本 hook の対象外であり、sandbox 無効時は別の下位境界もない。
 # path-aware: 先頭・区切り文字・"/" の直後の .env を対象にする(nested `config/.env` を含む — H-014)
-if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9._-])\.env([.-][A-Za-z0-9_.-]+)?([^A-Za-z0-9._-]|$)'; then
+# 偽陽性除外(2026-09-26 transcript 集計で .env block 12 件中 11 件が非読み取り):
+#   - 慣習的な secret なし template `.env.{example,sample,template,dist}` の token を除去する
+#   - jq の括弧内 accessor `(.env|keys)` `(.env // {})` を除去する。extglob `@(.env)` 等と
+#     `$(` `<(` は file 参照になり得るため、`(` の直前が英数字・空白・`:,{|` の場合に限る
+# 除去後も別の .env token が残れば従来どおり検査する(`cat .env.example .env` は block)。
+ENV_SCAN=$(printf '%s' "$NORM" | sed -E \
+    -e ':a' \
+    -e 's/(^|[^A-Za-z0-9._-])\.env\.(example|sample|template|dist)([^A-Za-z0-9._-]|$)/\1\3/' \
+    -e 'ta' \
+    -e 's/(^|[A-Za-z0-9_[:space:]:,{|])\(\.env/\1(/g') ||
+    block "failed to normalize command for .env check (fail-closed)"
+if printf '%s' "$ENV_SCAN" | grep -qE '(^|[^A-Za-z0-9._-])\.env([.-][A-Za-z0-9_.-]+)?([^A-Za-z0-9._-]|$)'; then
     # Dangerous readers: anything that emits file contents or sources them.
     # NOTE: dot builtin(source)をここに `\.` で入れると `\b\.\b` が
     # settings.json 等の word.word の任意 dot に一致し偽陽性を量産するため、
@@ -205,11 +216,11 @@ if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9._-])\.env([.-][A-Za-z0-9_.-]+)
         block "command appears to source .env via the dot builtin"
     fi
     # Redirection reading from .env: `cmd < .env`, `while read < config/.env`
-    if printf '%s' "$NORM" | grep -qE '<\s*[^ ;|&]*\.env([.-][A-Za-z0-9_.-]+)?(\s|$)'; then
+    if printf '%s' "$ENV_SCAN" | grep -qE '<\s*[^ ;|&]*\.env([.-][A-Za-z0-9_.-]+)?(\s|$)'; then
         block "input redirection from .env detected"
     fi
     # Command substitution or process substitution targeting .env
-    if printf '%s' "$NORM" | grep -qE '(\$\(|<\(|`)[^)]*\.env'; then
+    if printf '%s' "$ENV_SCAN" | grep -qE '(\$\(|<\(|`)[^)]*\.env'; then
         block "command/process substitution targeting .env detected"
     fi
 fi

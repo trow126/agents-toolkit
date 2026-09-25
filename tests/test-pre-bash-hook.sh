@@ -277,6 +277,18 @@ expect_allow "無関係な command は許可" 'echo hello'
 # 実 reader なしのコマンドを block していた。
 expect_allow "偽陽性回帰: jq の .env accessor + dotted filename は許可" 'jq -r ".env | keys" settings.json'
 expect_allow "偽陽性回帰: ls .env.local(existence check)は許可" 'ls .env.local'
+# 偽陽性回帰(2026-09-26): 12 件中 11 件が template と jq accessor の非読み取りだった。
+expect_allow "偽陽性回帰: cat .env.example は許可" 'cat .env.example'
+expect_allow "偽陽性回帰: nested template(config/.env.sample)は許可" 'head config/.env.sample'
+expect_allow "偽陽性回帰: < .env.template は許可" 'wc -l < .env.template'
+expect_allow "偽陽性回帰: jq の括弧内 .env accessor + reader は許可" "jq '{envKeys:(.env|keys)}' settings.json | head"
+expect_allow "偽陽性回帰: jq の (.env // {}) と dotted key は許可" "cat x.json; jq '(.env // {}), (.env.DISABLE_UPDATES != null)' s.json"
+expect_block "template と実 .env の併記は block" 'cat .env.example .env'
+expect_block "template 以外の suffix(.env.local)の読み取りは block" 'cat .env.local'
+expect_block "template 風だが別 suffix(.env.example.bak)は block" 'cat .env.example.bak'
+expect_block "extglob @(.env) は block" 'cat @(.env)'
+expect_block "subshell 内の .env 読み取りは block" '(cat .env)'
+expect_block "process substitution の .env は block" 'diff <(cat .env) x'
 
 # hook 層の対象外(literal が現れない runtime 構築)を明示する scope テスト。
 # 現行 owner policy は sandbox 無効のため別の下位境界もなく、hook は
