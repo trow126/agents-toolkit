@@ -1,6 +1,6 @@
 name = "plan_reviewer"
 description = "Read-only implementation-plan reviewer covering feasibility, completeness, scope, and risk."
-model = "gpt-5.6-sol"
+model = "gpt-6-sol"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """

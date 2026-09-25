@@ -83,15 +83,15 @@ claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1441 (1 files)
 claude_always_on_total: 4544
-codex_agents_md_bytes: 3510
+codex_agents_md_bytes: 3528
 codex_agents_md_lines: 48
-combined_always_on_total: 8054
+combined_always_on_total: 8072
 custom_agents: 1
-codex_custom_agents: 4
+codex_custom_agents: 2
 claude_skills: 18
 codex_skills: 19
 active_skill_entrypoints: 25
-active_skill_entrypoint_bytes: 66510
+active_skill_entrypoint_bytes: 66250
 active_skill_entrypoint_max_lines: 122
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
@@ -103,11 +103,11 @@ shared_rules: 10
 claude_rules: 3
 output_styles: 4
 inventory_audited_elements: 185
-review_progress_retrospective_mechanisms: 6
+review_progress_retrospective_mechanisms: 5
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
 tier_aliases: 1
-routing_rows: 16
+routing_rows: 14
 model_name_mentions_outside_targets: 0
 permissions_allow_count: 4
 permissions_ask_count: 0

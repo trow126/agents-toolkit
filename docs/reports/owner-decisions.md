@@ -70,6 +70,7 @@
 | P4-IT | Phase 4 の integration 環境 | host `mini` 本体を使う（使い捨ての distro の代わり）。設定を退避し、候補の managed を machine 全体に入れ、live と同じ settings、Codex の既定値、plugin に揃える。結果は `docs/reports/2026-09-25-integration-phase4.md`（2026-09-25） |
 | P8-Q1 | 統合した gh-start の description | Claude 専用の skill（gh-codex-drive、gh-finish）を「Not for」から外し、`Not for gh-pr or gh-review.` にする（2026-09-26） |
 | P8-Q2 | Phase 8 の受入の環境 | mini を再構築して受入を行い、終わったら再び片づける。モデルを呼ぶ試験は Phase 4 と Phase 6 の結果を使う（2026-09-26） |
+| P8-Q3 | Codex の reviewer、plan_reviewer、deep_reasoner（gpt-5.6-sol、役割付きの spawn は1回だけ） | reviewer と deep_reasoner の配布をやめる。独立 review は組み込みの `codex review`、高 risk の判断は owner が行い、独立した意見は claude-second-opinion で得る（deep_reasoner は main より前の世代で、escalate が逆転していた。§2.4-7）。plan_reviewer は plan-review skill が起動するので残し、同じ系列の後継の gpt-6-sol/high に上げる（§12 の Level 1）（2026-09-26） |
 | P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
 ## live への反映（2026-09-26）

@@ -33,7 +33,7 @@
 - 通常taskは必要十分な単一ownerが探索・実装・検証まで完遂し、subagentはユーザーの明示依頼または適用skill・AGENTS.mdが要求する場合だけ使う。
 - `default`・`worker`は`gpt-5.6-sol`/`high`を既定とする。
 - read-only探索は`gpt-6-luna`/`medium`固定の`explorer`へ委任する。
-- 独立reviewは`reviewer`、計画reviewは`plan_reviewer`、高risk判断は`deep_reasoner`を使い、agent fileのmodel指定を尊重する。
+- 独立reviewは組み込みの`codex review`、計画reviewは`plan_reviewer`を使い、agent fileのmodel指定を尊重する。高risk判断はownerが行う。
 - routing異常や実model確認の詳細は`model-routing` skillを使う。
 
 ## GitHub

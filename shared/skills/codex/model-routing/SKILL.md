@@ -1,6 +1,6 @@
 ---
 name: model-routing
-description: Use when making a high-risk delegation decision（アーキテクチャ・データ破壊・公開 API に関わる判断）, when parallel advisory opinions are needed (独立コンテキストの subagent + Claude), when running or monitoring a Claude peer session, or when verifying which model a subagent actually used. Codex側の owner 選択とルーティングの詳細運用規則。
+description: Use when making a high-risk decision（アーキテクチャ・データ破壊・公開 API に関わる判断）, when a Claude opinion is needed, when running or monitoring a Claude peer session, or when verifying which model a subagent actually used. Codex側の owner 選択とルーティングの詳細運用規則。
 ---
 
 # Model Routing 運用規則（詳細）
@@ -14,29 +14,23 @@ description: Use when making a high-risk delegation decision（アーキテク�
 
 - built-in `default`・`worker`: `[agents]`の既定model・effort（AGENTS.mdに記載）
 - `explorer`: read-only探索
-- `reviewer`: read-only code/security review
-- `plan_reviewer`: read-only計画review
-- `deep_reasoner`: read-only高risk判断
+- `plan_reviewer`: read-only計画review（`$plan-review`が起動する）
 - named agentのmodel・effortは各agent file（`~/.codex/agents/*.toml`）に従う。値の正本はtoolkitのrouting表である
 
 custom agent fileの`model`・`model_reasoning_effort`を最優先し、次にspawn時の明示値、`[agents]` default、親設定の順で解決する。custom agent利用時にper-spawn modelを重ねず、agent fileの指定を尊重する。
 named custom agentをspawnする場合はfull-history forkを併用せず、必要なcontextをpromptへ明示する。現行runtimeはcustom `agent_type`とfull-history forkの同時指定をrejectする。
 
-## エスカレーション経路
+## 高リスク判断
 
-- 標準モデルのownerで着手し、失敗が反復する・根本原因が不明・競合する複数仮説がある場合のみ`deep_reasoner`へ判断を委任する（判断のみ。実装はownerに戻す）
+- 失敗が反復する・根本原因が不明・競合する複数仮説がある場合も、判断はownerが行う。判断を別のagentへ委任しない
+- 独立した意見が必要な場合だけ、`claude-second-opinion` skill経由でClaudeに相談する。ownerの暫定結論は見せず、問題とcontextだけを渡す
+- ownerが自分の結論とClaudeの回答を統合する（相違点と採否理由を明示）
 - 高リスク変更（アーキテクチャ・データ破壊・公開 API）は、実装後に `codex review`（独立コンテキストの検査）+ deterministic CI で判定する
-
-## 高リスク判断の並列諮問
-
-- `deep_reasoner`と、`claude-second-opinion` skill経由のClaudeへの相談を並行発行する
-- **互いの回答を見せず** main が統合する（相違点と採否理由を明示）
-- 並列化は独立仮説の比較が必要な場合だけ使う（金額削減ではなく wall-clock 短縮・独立性確保の手段）
 
 ## Claude 運用
 
 - `claude-second-opinion` skill（`~/.agents/skills/claude-second-opinion/`）を使い、Claude Code へ相談する
-- 妥当な待機で結果が得られなければ`deep_reasoner`の回答のみで統合し、結論に「peer opinion欠落」と明記する
+- 妥当な待機で結果が得られなければownerの判断だけで結論を出し、「peer opinion欠落」と明記する
 - Claude の役割は peer engineer（実装の下請けでもレビュアーでもない）
 
 ## 既存経路が優先
@@ -44,8 +38,8 @@ named custom agentをspawnする場合はfull-history forkを併用せず、必�
 - PR へのレビューコメント投稿 → ユーザーの明示指示で `$gh-pr --review-comment`（`codex review` ベース）
 - PR 指摘への対応 → `$gh-review`
 - 計画レビュー → `$plan-review`（`plan_reviewer`による独立review）
-- generic code/security review → `reviewer`
-- ドメイン固有の高リスク判断（コントラクト監査・ML品質監査等）: `deep_reasoner`に該当分野の判断基準を明示する
+- generic code/security review → 組み込みの`codex review`（TUIでは`/review`）
+- ドメイン固有の高リスク判断（コントラクト監査・ML品質監査等）: ownerが該当分野の判断基準を明示して判断する
 
 generic `default`・`worker`への委任はこれらの代替ではない。
 
