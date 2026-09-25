@@ -70,6 +70,18 @@
 | P4-IT | Phase 4 の integration 環境 | host `mini` 本体を使う（使い捨ての distro の代わり）。設定を退避し、候補の managed を machine 全体に入れ、live と同じ settings、Codex の既定値、plugin に揃える。結果は `docs/reports/2026-09-25-integration-phase4.md`（2026-09-25） |
 | P7-Q4 | EX-004 が拘束する artifact | `autoMemoryEnabled: false` を managed に移し、policy で強制する。artifact は `claude/managed-settings.json` の hash で、EX-003 と同時に再承認する。discovery は実効値（managed が優先）を FAIL で監視する（2026-09-25） |
 
+## live への反映（2026-09-26）
+
+`modernize/phase-4`、`phase-6`、`phase-7`（Phase 5 の決定を含む）を、`docs/runbooks/governance-apply.md` の手順で live に反映した（live の master は `505246f` から `6b4c714` へ fast-forward）。
+
+- managed: owner が sudo で導入した（hash `39a249092535…`、EX-003 と EX-004 は 2026-09-25 に再承認済み）。
+- link: `~/.codex/toolkit-implementer.config.toml` と `~/.codex/toolkit-divergent.config.toml` を手で作った。`bootstrap.sh --check` の DRIFT は0件（Phase 1 から残っていた `~/.claude/settings.json` の DRIFT も、manifest から外したので解消した）。
+- Codex の hook の trust: owner が付与し、`scripts/codex-profile-trust.py` で `~/.codex/config.toml` に移した（TUI の trust は live の checkout の profile を書き換えるため）。
+- live の `settings.json`（D5、D1、D9）: `model` を `opus` にし、top-level の `effortLevel: xhigh` を削除した。`modelSettings` は Opus 5.5 が medium、Fable 5.1 が high（owner が `/model` で設定）。変更前の file は `~/.local/state/agents-toolkit/backup/` に退避した。
+- discovery: FAIL 0。WARN は haiku の退役予定（not-before 2026-10-15、Level 1 の候補）の2件だけ。
+
+下の表の「live 未反映」の記述は、上の反映で解消した（表は各 Phase の実装時点の記録として残す）。
+
 ## 反映状況
 
 | ID | 反映する Phase | 状態（2026-09-25） |

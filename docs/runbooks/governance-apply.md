@@ -12,15 +12,17 @@
 
 1. Claude Code と Codex の session をすべて終了する。
 2. live の `~/.claude/settings.json` に security のキーが無いことを確かめる（`install-managed-policy.sh` が検査する）。
-3. 新しい managed を先に入れる。旧 managed は削除済みの hook（session-init、post-compact、prompt-submit）を登録しているので、取り込みを先にすると、次の session でその hook が失敗する。
+3. 新しい managed を先に入れる。旧 managed は削除済みの hook（session-init、post-compact、prompt-submit）を登録しているので、取り込みを先にすると、次の session でその hook が失敗する。script は、自分がある checkout の `claude/managed-settings.json` を導入するので、live の checkout ではなく候補の worktree から実行する（live から実行すると旧い policy が入る）。
 
    ```bash
-   sudo ./scripts/install-managed-policy.sh --apply
+   sudo ~/agents-toolkit-phase7/scripts/install-managed-policy.sh --apply
    ```
 
 4. live checkout に branch を fast-forward で取り込む（`git -C ~/agents-toolkit merge --ff-only modernize/phase-7`）。
-5. `~/.claude/settings.json` は通常ファイルのまま残す（manifest から外れたので bootstrap は触らない）。
-6. 確認する。
+5. `~/.claude/settings.json` は通常ファイルのまま残す（manifest から外れたので bootstrap は触らない）。新しい manifest の link（`~/.codex/toolkit-implementer.config.toml` と `~/.codex/toolkit-divergent.config.toml`）は手で作る（live の HOME では `bootstrap.sh --apply` を使わない）。
+6. Codex の `codex -p toolkit-implementer` の `/hooks` で inline hook を trust し、`./scripts/codex-profile-trust.py` で trust を `~/.codex/config.toml` に移す（K11）。
+7. owner が live の `settings.json` を D1 と D9 に合わせる（`model` を `opus`、top-level の `effortLevel` を削除、`modelSettings` の effort はモデルの既定値）。
+8. 確認する。
 
    ```bash
    ./scripts/install-managed-policy.sh --check
