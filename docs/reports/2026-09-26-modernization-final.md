@@ -131,13 +131,13 @@ discovery の snapshot は追跡しない。
 - 値は `model: opus`、`modelSettings` が Opus 5.5 は medium、Fable 5.1 は high。top-level の `effortLevel` は無い。
 - 変更前の file は `~/.local/state/agents-toolkit/backup/` に退避してある。
 - `skillOverrides`: agmsg は削除済み。5つの skill（gh-pr、gh-review、config-audit、gh-index、python-refactor-analysis）は、すべて user-invocable-only である（§6.5）。gh-review、gh-index、python-refactor-analysis は off だったので、2026-09-26 に owner の指示で変えた。変更前の file は `~/.local/state/agents-toolkit/backup/` に退避してある。
-- Codex: `~/.codex/config.toml` の既定と `[agents]` は routing 表と一致している。profile の hook の trust は `config.toml` にある。trust を移す前の file は `~/.local/state/agents-toolkit/backup/codex-config.toml.before-trust-move` に退避してある。
+- Codex: `~/.codex/config.toml` の既定（gpt-6-astra/medium）と `[agents]`（gpt-6-sol/high、P8-Q4 で変更）は routing 表と一致している。profile の hook の trust は `config.toml` にある。trust を移す前の file は `~/.local/state/agents-toolkit/backup/codex-config.toml.before-trust-move` に退避してある。
 - discovery の WARN は、haiku の退役予定の2件（claude-explore と claude-alias-haiku、not-before 2026-10-15）だけである。日付が発表されたら Level 1（routing 表の行の更新）として扱う。
 
 ## 未対応事項と未検証事項
 
 - **K3（部分確認）**: managed の deny `Agent(codex:codex-rescue)` を置くと、その type が Agent tool の説明から消えることは確認した。実際の呼び出しは PreToolUse の hook が先に拒否するので、bypass の下で deny だけで拒否されるかは切り分けていない。
-- **Codex の reviewer、plan_reviewer、deep_reasoner**: 報告の後に owner が決めた（P8-Q3）。reviewer と deep_reasoner は配布をやめ、plan_reviewer は gpt-6-sol/high に上げた。gpt-6-sol は、plan_reviewer の役割では評価していない（Phase 5 では実装担当として 6/6）。組み込みの default と worker は、live の `[agents]` の設定で gpt-5.6-sol/high のままである（routing 表の codex-default-subagent。live の `config.toml` は owner が管理する）。
+- **Codex の reviewer、plan_reviewer、deep_reasoner**: 報告の後に owner が決めた（P8-Q3）。reviewer と deep_reasoner は配布をやめ、plan_reviewer は gpt-6-sol/high に上げた。gpt-6-sol は、plan_reviewer の役割では評価していない（Phase 5 では実装担当として 6/6）。組み込みの default と worker も、live の `[agents]` を gpt-6-sol/high に揃えた（P8-Q4）。
 - **Codex で cwd を `codex/` にした場合の二重注入**: 既知の制約として残す（validate-layout が WARN を出す）。
 - **任意の項目で行わなかったもの**: K10（`codex/AGENTS.md` の symlink 化。core-contract の変更が要る）、K8（`claude plugin eval`）、managed の Stop hook（evidence の無い完了報告は観測されていないので、追加の条件を満たしていない）。
 - **discovery の hook の trust**: 比べているのは、toolkit が計算した hook の定義の hash である。Codex の `trusted_hash` の計算方法は再現していない。定義が変わったのに trust が変わっていないことは検出できる。

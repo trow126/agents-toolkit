@@ -83,9 +83,9 @@ claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
 claude_imported_shared_bytes: 1441 (1 files)
 claude_always_on_total: 4544
-codex_agents_md_bytes: 3528
+codex_agents_md_bytes: 3526
 codex_agents_md_lines: 48
-combined_always_on_total: 8072
+combined_always_on_total: 8070
 custom_agents: 1
 codex_custom_agents: 2
 claude_skills: 18
