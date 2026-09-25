@@ -210,6 +210,20 @@ measure_tree() {
   echo "full_model_pins: $( (awk -F: '$3 == "pin"' <<< "$scan" | grep -c .) || true)"
   echo "tier_aliases: $( (grep 'claude/agents/' <<< "$scan" | grep -c ':alias:') || true)"
 
+  # routing 表（Phase 2 以降の layout のみ。改名前 layout の fixture には無い）
+  local routing="$root/docs/contracts/model-routing.tsv" names
+  if [[ -f "$routing" ]]; then
+    echo "routing_rows: $(($(grep -c . "$routing") - 1))"
+    if ! names="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" --names "$root")"; then
+      echo "ERROR: model name scan failed for $root — metrics abort (fail-closed)" >&2
+      exit 1
+    fi
+    echo "model_name_mentions_outside_targets: $( (grep -c . <<< "$names") || true)"
+  else
+    echo "routing_rows: n/a"
+    echo "model_name_mentions_outside_targets: n/a"
+  fi
+
   if [[ -f "$security_settings" ]] && command -v jq >/dev/null; then
     echo "permissions_allow_count: $(jq '.permissions.allow // [] | length' "$security_settings")"
     echo "permissions_ask_count: $(jq '.permissions.ask // [] | length' "$security_settings")"

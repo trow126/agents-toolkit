@@ -10,6 +10,7 @@
     明示エラーで非ゼロ終了する。
 
 usage: scan-model-pins.py <repo-root>
+       scan-model-pins.py --names <repo-root>
 output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ
         （kind = pin | runtime-pin | alias | codex-model | other）
   pin         = 完全モデル名（claude- で始まる値）
@@ -17,9 +18,17 @@ output: <relpath>:<line>:<kind>:<normalized-value> を1行ずつ
                 正式な挙動として完全モデル名を書き込むため、governance 上の pin とは区別する
   alias       = sonnet / opus / haiku / fable / inherit / default / best
 exit 0（スキャン自体の失敗のみ非ゼロ）
+
+--names: routing 表の規則（2026-09-25 近代化 Phase 2）に従い、manifest で配布されるファイルの
+  モデル名を検出する。対象は SKILL.md・references/*.md・claude/CLAUDE.md・codex/AGENTS.md・
+  shared/rules/*.md・claude/agents/*.md・codex/agents/*.toml・codex/skills/*/scripts/*.sh。
+  routing 表の targets の行（scripts/lib/check-model-routing.py --targets）は除外する。
+  output: <relpath>:<line>:name:<matched-text> を1行ずつ（0件なら何も出力しない）
 """
+import importlib.util
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -46,7 +55,68 @@ def classify(value: str) -> str:
     return "other"
 
 
+MODEL_NAME = re.compile(
+    r"claude-(?:opus|sonnet|haiku|fable)\S*|gpt-\d\S*"
+    r"|(?<![A-Za-z0-9_])(?:opus|sonnet|haiku|fable)(?![A-Za-z0-9_])",
+    re.I,
+)
+
+
+def in_name_scope(rel: str) -> bool:
+    path = Path(rel)
+    if rel in ("claude/CLAUDE.md", "codex/AGENTS.md"):
+        return True
+    if path.suffix == ".md" and (path.name == "SKILL.md" or "references" in path.parts[:-1]):
+        return True
+    if path.suffix == ".md" and rel.startswith(("shared/rules/", "claude/agents/")) and len(path.parts) == 3:
+        return True
+    if path.suffix == ".toml" and rel.startswith("codex/agents/") and len(path.parts) == 3:
+        return True
+    return re.fullmatch(r"codex/skills/[^/]+/scripts/[^/]+\.sh", rel) is not None
+
+
+def scan_names(root: Path) -> int:
+    checker = Path(__file__).with_name("check-model-routing.py")
+    spec = importlib.util.spec_from_file_location("check_model_routing", checker)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _, excluded = module.check(root)
+
+    sources = []
+    for raw in (root / "install" / "manifest.tsv").read_text(encoding="utf-8").splitlines():
+        if not raw or raw.startswith("#"):
+            continue
+        fields = raw.split("\t")
+        if len(fields) == 3:
+            sources.append(fields[1])
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files"], capture_output=True, text=True, check=True
+    ).stdout.splitlines()
+    results = []
+    for rel in tracked:
+        if not any(rel == s or rel.startswith(s + "/") for s in sources) or not in_name_scope(rel):
+            continue
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").split("\n")
+        except UnicodeDecodeError as exc:
+            print(f"ERROR: {rel}: not valid UTF-8: {exc}", file=sys.stderr)
+            return 1
+        for number, line in enumerate(lines, 1):
+            if (rel, number) in excluded:
+                continue
+            for match in MODEL_NAME.finditer(line):
+                results.append(f"{rel}:{number}:name:{match.group(0)}")
+    if results:
+        print("\n".join(results))
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "--names":
+        return scan_names(Path(sys.argv[2]))
     root = Path(sys.argv[1])
     results = []
 

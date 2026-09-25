@@ -69,11 +69,11 @@
 |---|---|---|
 | D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 branch で反映（live 未反映）。② の登録解除と ④ の gate は未反映 |
 | D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: Phase 1 branch で反映（live 未反映）。撤去と WARN は未反映 |
-| D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | 未反映 |
+| D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | routing 表: Phase 2 branch で作成（env pin の検査は実装済みで、対象は現状0件）。env pin は未反映 |
 | D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | 未反映 |
 | D6 | Phase 1 | Phase 1 branch で反映（live 未反映。`~/.claude/skills/plan-review` の link 削除は owner） |
 | D10 | Phase 1 | Phase 1 branch で反映（live 未反映） |
 | D11 | 上流版への復帰: owner / `--resume-last` 不使用の確認: Phase 1 | 不使用を確認し、gh-codex-drive と gh-roadmap-drive に明記した（Phase 1 branch）。上流版への復帰は owner |
-| OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | 現行の記述のまま |
+| OD-1 | routing 表の targets（claude-main、claude-workflow-worker）: Phase 2 | Phase 2 branch で反映。`claude/CLAUDE.md` の lead の行と worker の行を分け、それぞれを routing 表の target にした（決定の内容は変えていない） |
 | OD-5 | codex-rescue 禁止文の削除と managed deny: Phase 7 | 現行の記述のまま |
 | OD-7 | D9 で置き換える: Phase 7 | 現行の値のまま |

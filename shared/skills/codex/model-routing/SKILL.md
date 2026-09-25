@@ -12,11 +12,12 @@ description: Use when making a high-risk delegation decision（アーキテク�
 
 ## Model割り当て
 
-- built-in `default`・`worker`: `[agents]`の`gpt-5.6-sol`/`high`
-- `explorer`: `gpt-5.6-terra`/`medium`、read-only探索
-- `reviewer`: `gpt-5.6-sol`/`high`、read-only code/security review
-- `plan_reviewer`: `gpt-5.6-sol`/`high`、read-only計画review
-- `deep_reasoner`: `gpt-5.6-sol`/`xhigh`、read-only高risk判断
+- built-in `default`・`worker`: `[agents]`の既定model・effort（AGENTS.mdに記載）
+- `explorer`: read-only探索
+- `reviewer`: read-only code/security review
+- `plan_reviewer`: read-only計画review
+- `deep_reasoner`: read-only高risk判断
+- named agentのmodel・effortは各agent file（`~/.codex/agents/*.toml`）に従う。値の正本はtoolkitのrouting表である
 
 custom agent fileの`model`・`model_reasoning_effort`を最優先し、次にspawn時の明示値、`[agents]` default、親設定の順で解決する。custom agent利用時にper-spawn modelを重ねず、agent fileの指定を尊重する。
 named custom agentをspawnする場合はfull-history forkを併用せず、必要なcontextをpromptへ明示する。現行runtimeはcustom `agent_type`とfull-history forkの同時指定をrejectする。
@@ -34,7 +35,7 @@ named custom agentをspawnする場合はfull-history forkを併用せず、必�
 
 ## Claude 運用
 
-- `claude-second-opinion` skill（`~/.agents/skills/claude-second-opinion/`）を使い、Claude Code Fable へ相談する
+- `claude-second-opinion` skill（`~/.agents/skills/claude-second-opinion/`）を使い、Claude Code へ相談する
 - 妥当な待機で結果が得られなければ`deep_reasoner`の回答のみで統合し、結論に「peer opinion欠落」と明記する
 - Claude の役割は peer engineer（実装の下請けでもレビュアーでもない）
 

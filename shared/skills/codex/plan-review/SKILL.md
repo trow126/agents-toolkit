@@ -28,7 +28,7 @@ $ARGUMENTS
 
 ### Step 3: 独立コンテキストでレビューを実行
 
-native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起動し、以下のレビュー観点をプロンプトに明示する。per-spawn modelは指定せず、agent fileの`gpt-5.6-sol`/`high`を使う。プロンプトには**計画の全文**（要約・省略禁止）とStep 2のコンテキストを含める。別セッションモードでは「参照ファイル・依存の実在をコードベースで検証すること」を明示する。**計画の書き換えや実装はさせない。**
+native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起動し、以下のレビュー観点をプロンプトに明示する。per-spawn modelは指定せず、agent fileのmodel・effortを使う。プロンプトには**計画の全文**（要約・省略禁止）とStep 2のコンテキストを含める。別セッションモードでは「参照ファイル・依存の実在をコードベースで検証すること」を明示する。**計画の書き換えや実装はさせない。**
 
 ```
 ## 観点 1: 実現可能性（Feasibility）

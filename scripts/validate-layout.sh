@@ -233,12 +233,19 @@ seen_names: dict[str, Path] = {}
 required_strings = ("name", "description", "developer_instructions", "model")
 allowed_efforts = {"low", "medium", "high", "xhigh", "max", "ultra"}
 allowed_sandboxes = {"read-only", "workspace-write", "danger-full-access"}
-managed_routes = {
-    "explorer": ("gpt-5.6-terra", "medium", "read-only"),
-    "reviewer": ("gpt-5.6-sol", "high", "read-only"),
-    "plan_reviewer": ("gpt-5.6-sol", "high", "read-only"),
-    "deep_reasoner": ("gpt-5.6-sol", "xhigh", "read-only"),
-}
+# Managed Codex agent routes come from the routing table (docs/contracts/model-routing.tsv):
+# every row whose target is codex/agents/<name>.toml#model,model_reasoning_effort pins that
+# agent's model and effort. Routed agents are read-only reviewers/explorers.
+managed_routes = {}
+routing_table = root / "docs" / "contracts" / "model-routing.tsv"
+if routing_table.is_file():
+    import csv
+    with routing_table.open(encoding="utf-8", newline="") as handle:
+        for route in csv.DictReader(handle, delimiter="\t"):
+            for target in (route.get("targets") or "").split(";"):
+                m = re.fullmatch(r"\s*codex/agents/([a-z][a-z0-9_]*)\.toml#model,model_reasoning_effort\s*", target)
+                if m:
+                    managed_routes[m.group(1)] = ((route.get("model") or "").strip(), (route.get("effort") or "").strip(), "read-only")
 
 for path in sorted((root / "codex" / "agents").glob("*.toml")):
     rel = path.relative_to(root)
@@ -1313,6 +1320,32 @@ while IFS= read -r line; do
     INFO:\ *) echo "${line#INFO: }" ;;
   esac
 done <<< "$INSTRUCTION_RESULTS"
+
+# =========================================================================
+# 15. model routing 表と model 名 (2026-09-25 近代化 Phase 2)
+#     - routing 表の schema・targets の値の一致・agent file の帰属・env pin は
+#       scripts/lib/check-model-routing.py が検査する
+#     - manifest で配布されるファイルの model 名は、routing 表の targets の行を除いて0件
+# =========================================================================
+echo "== 15. model routing table and model names =="
+ROUTING_OUT="$(python3 "$SCRIPT_DIR/lib/check-model-routing.py" "$REPO_ROOT" 2>&1)" || true
+while IFS= read -r line; do
+  case "$line" in
+    FAIL:\ *) fail "model routing: ${line#FAIL: }" ;;
+    WARN:\ *) warn "model routing: ${line#WARN: }" ;;
+    INFO:\ *) echo "model routing: ${line#INFO: }" ;;
+    "") ;;
+    *) fail "model routing: unexpected checker output: $line" ;;
+  esac
+done <<< "$ROUTING_OUT"
+if NAME_SCAN="$(python3 "$SCRIPT_DIR/lib/scan-model-pins.py" --names "$REPO_ROOT" 2>&1)"; then
+  while IFS=: read -r nfile nline _nkind nvalue; do
+    [[ -n "$nfile" ]] || continue
+    fail "model name outside routing table targets: $nfile:$nline: $nvalue"
+  done <<< "$NAME_SCAN"
+else
+  fail "model name scan failed: $NAME_SCAN"
+fi
 
 echo
 if [[ "$violations" -eq 0 ]]; then

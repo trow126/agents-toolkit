@@ -138,7 +138,7 @@ env PATH="$MOCK_BIN:$PATH" TEST_CLAUDE_ARGS_FILE="$args_file" TEST_TIMEOUT_ARGS_
   TEST_IDLE_FILE="$idle_file" TEST_PWD_FILE="$pwd_file" TEST_PROMPT_FILE="$prompt_copy" \
   bash "$SCRIPT" --cwd "$SANDBOX" <"$input_file" >"$stdout_file" 2>"$stderr_file" || actual_exit=$?
 
-expected_args=$'-p\n--verbose\n--output-format\nstream-json\n--permission-mode\ndontAsk\n--safe-mode\n--no-session-persistence\n--prompt-suggestions\nfalse\n--model\nfable\n--effort\nhigh\n--tools\n\x27\x27'
+expected_args=$'-p\n--verbose\n--output-format\nstream-json\n--permission-mode\ndontAsk\n--safe-mode\n--no-session-persistence\n--prompt-suggestions\nfalse\n--model\nfable\n--effort\nhigh\n--max-budget-usd\n5\n--tools\n\x27\x27'
 run_pwd="$(<"$pwd_file")"
 prompt_contract_ok=1
 [[ "$actual_exit" -eq 0 ]] || prompt_contract_ok=0

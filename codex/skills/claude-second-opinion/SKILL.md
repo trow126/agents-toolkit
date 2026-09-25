@@ -1,13 +1,14 @@
 ---
 name: claude-second-opinion
-description: Use when the user explicitly asks for a second opinion from Claude Code, or when Codex itself has low confidence (uncertain trade-off, multi-file impact, ambiguous spec, long-context reading) and an independent opinion from Claude Code Fable would materially reduce risk. Invoke scripts/ask-claude.sh with the user's question on stdin. Do not use for short factual questions, syntax lookups, or tasks where Codex is already confident.
+description: Use when the user explicitly asks for a second opinion from Claude Code, or when Codex itself has low confidence (uncertain trade-off, multi-file impact, ambiguous spec, long-context reading) and an independent opinion from Claude Code would materially reduce risk. Invoke scripts/ask-claude.sh with the user's question on stdin. Do not use for short factual questions, syntax lookups, or tasks where Codex is already confident.
 ---
 
 # Claude Second Opinion
 
-Use this skill to fetch an independent second opinion from Claude Code Fable when a
+Use this skill to fetch an independent second opinion from Claude Code when a
 question is hard, broad, or ambiguous enough that a different model's view
-would reduce risk. The wrapper runs Fable at high effort in safe, non-interactive
+would reduce risk. The wrapper runs the routed model and effort (`CLAUDE_MODEL` /
+`CLAUDE_EFFORT` in `scripts/ask-claude.sh`) under a per-call spend cap in safe, non-interactive
 `dontAsk` mode, exposes progress on stderr, and handles the API and wall-clock
 timeouts needed by long calls.
 
@@ -94,7 +95,7 @@ decision back to the user without a recommendation.
 
 ## Security
 
-`--include-cwd` adds `--add-dir <cwd>` to the `claudecode --model fable`
+`--include-cwd` adds `--add-dir <cwd>` to the `claudecode`
 invocation and exposes only `Read`, `Glob`, and `Grep`, which lets Claude read files in
 the project and ship them to Anthropic. Do not use it in
 directories containing `.env`, `credentials*`, `secrets*`, private keys, or

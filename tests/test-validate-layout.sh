@@ -27,6 +27,7 @@ build_fixture() {
   cp "$VALIDATE" "$repo/scripts/validate-layout.sh"
   cp "$REPO_ROOT/scripts/check-managed-policy.py" "$repo/scripts/check-managed-policy.py"
   cp "$REPO_ROOT/scripts/lib/scan-model-pins.py" "$repo/scripts/lib/scan-model-pins.py"
+  cp "$REPO_ROOT/scripts/lib/check-model-routing.py" "$repo/scripts/lib/check-model-routing.py"
   chmod +x "$repo/scripts/validate-layout.sh" "$repo/scripts/check-managed-policy.py"
 
   cp "$REPO_ROOT/claude/settings.json" "$repo/claude/settings.json"
@@ -53,7 +54,7 @@ MANIFEST
   printf '# fixture\n' > "$repo/claude/.gitignore"
   printf '# fixture\n' > "$repo/claude/README.md"
   printf '# fixture\n' > "$repo/claude/rules/sample.md"
-  printf '# fixture\n' > "$repo/claude/agents/sample.md"
+  printf -- '---\nname: sample\ndescription: Fixture agent.\nmodel: haiku\n---\n\n# fixture\n' > "$repo/claude/agents/sample.md"
   printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/claude/githooks/pre-commit"
   chmod +x "$repo/claude/githooks/pre-commit"
   cat > "$repo/claude/skills/sample-skill/SKILL.md" <<'SKILL'
@@ -97,6 +98,9 @@ rule	load_mode	consumer	trigger
 rule-a	always	claude/CLAUDE.md	all tasks
 rule-b	always	codex/AGENTS.md	all tasks
 CONSUMERS
+  printf 'role\truntime\tlauncher\tmodel\teffort\ttargets\tfallback\tretires_at\tevidence\tverified_at\tadaptation\n' > "$repo/docs/contracts/model-routing.tsv"
+  printf 'fixture-claude-agent\tclaude\tAgent\thaiku\t-\tclaude/agents/sample.md#model\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
+  printf 'fixture-codex-agent\tcodex\tspawn_agent\tgpt-5.6-terra\tmedium\tcodex/agents/sample.toml#model,model_reasoning_effort\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
   cat > "$repo/docs/contracts/skill-dependencies.tsv" <<'DEPENDENCIES'
 runtime	skill	dependency	trigger
 DEPENDENCIES
@@ -322,8 +326,14 @@ run_case codex-agent-invalid-effort \
   'sed -i "s/medium/extreme/" "$repo/codex/agents/sample.toml"' \
   'model_reasoning_effort must be one of'
 run_case codex-agent-route-drift \
-  'cp "$repo/codex/agents/sample.toml" "$repo/codex/agents/explorer.toml"; sed -i -e "s/sample/explorer/" -e "s/gpt-5.6-terra/gpt-5.6-sol/" "$repo/codex/agents/explorer.toml"; git -C "$repo" add codex/agents/explorer.toml' \
+  'cp "$repo/codex/agents/sample.toml" "$repo/codex/agents/explorer.toml"; sed -i -e "s/sample/explorer/" -e "s/gpt-5.6-terra/gpt-5.6-sol/" "$repo/codex/agents/explorer.toml"; printf "codex-explorer\tcodex\tspawn_agent\tgpt-5.6-terra\tmedium\tcodex/agents/explorer.toml#model,model_reasoning_effort\t\t\tfixture\t2026-09-25\t\n" >> "$repo/docs/contracts/model-routing.tsv"; git -C "$repo" add codex/agents/explorer.toml docs/contracts/model-routing.tsv' \
   'managed route must be model=gpt-5.6-terra, effort=medium, sandbox=read-only'
+run_case routing-table-drift \
+  'sed -i "s/^model_reasoning_effort = \"medium\"/model_reasoning_effort = \"high\"/" "$repo/codex/agents/sample.toml"' \
+  'model routing: docs/contracts/model-routing.tsv:3 (fixture-codex-agent): codex/agents/sample.toml:5: model_reasoning_effort=high does not match routing table value medium'
+run_case model-name-outside-targets \
+  'printf "%s\n" "" "Use Opus here." >> "$repo/claude/skills/sample-skill/SKILL.md"; git -C "$repo" add claude/skills/sample-skill/SKILL.md' \
+  'model name outside routing table targets: claude/skills/sample-skill/SKILL.md'
 
 printf '\n'
 if [[ "$FAILURES" -eq 0 ]]; then

@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# ask-claude.sh: Invoke Claude Code Fable as an independent second-opinion oracle.
+# ask-claude.sh: Invoke Claude Code as an independent second-opinion oracle.
 # Progress is written to stderr; stdout contains only the final Claude answer.
 set -euo pipefail
 IFS=$'\n\t'
+
+# Route: role claude-second-opinion in the toolkit routing table
+# (docs/contracts/model-routing.tsv); scripts/validate-layout.sh checks these values.
+CLAUDE_MODEL=fable
+CLAUDE_EFFORT=high
+# Per-call spend cap (owner decision 2026-09-25).
+CLAUDE_MAX_BUDGET_USD=5
 
 usage() {
   cat <<'EOF'
@@ -103,8 +110,9 @@ declare -a claude_args=(
   --safe-mode
   --no-session-persistence
   --prompt-suggestions false
-  --model fable
-  --effort high
+  --model "$CLAUDE_MODEL"
+  --effort "$CLAUDE_EFFORT"
+  --max-budget-usd "$CLAUDE_MAX_BUDGET_USD"
 )
 declare -a allowed_tools=()
 if (( include_cwd )); then
@@ -190,8 +198,8 @@ parse_stream() {
   (( parse_failed == 0 )) || return 70
 }
 
-printf '[ask-claude] starting Fable/high (timeout=%ss, web=%s, cwd=%s)\n' \
-  "$timeout_sec" "$allow_web" "$include_cwd" >&2
+printf '[ask-claude] starting %s/%s (timeout=%ss, web=%s, cwd=%s, budget=%sUSD)\n' \
+  "$CLAUDE_MODEL" "$CLAUDE_EFFORT" "$timeout_sec" "$allow_web" "$include_cwd" "$CLAUDE_MAX_BUDGET_USD" >&2
 cd -- "$run_dir"
 set +e
 CLAUDE_STREAM_IDLE_TIMEOUT_MS=900000 \
