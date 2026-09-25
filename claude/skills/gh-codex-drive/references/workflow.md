@@ -23,7 +23,7 @@ Write `$(git rev-parse --git-dir)/agents-toolkit/contract-<N>.json` (the Codex s
 - `allowed_dependency_changes`, `non_goals`, `invariants`, `protected_paths_extra`: arrays, empty when none
 - `route`: `{model, effort}` from [`codex-route.env`](codex-route.env) (`CODEX_MODEL`, `CODEX_EFFORT`). Use a different route only when the user explicitly asks for it in this run, and report the route used.
 
-`codex-delegate` records `baseline` (HEAD, status, untracked hashes) and `route.cli_version`, renders the prompt, writes `active.json`, and runs `codex exec -p toolkit-implementer -s workspace-write --output-schema report.schema.json`. The profile `toolkit-implementer` disables subagents, bundled and GitHub-workflow skills, and memories.
+`codex-delegate` records `baseline` (HEAD, a snapshot of the working tree as a git tree, status, untracked hashes) and `route.cli_version`, renders the prompt, writes `active.json`, and runs `codex exec -p toolkit-implementer -s workspace-write --output-schema report.schema.json`. The profile `toolkit-implementer` disables subagents, bundled and GitHub-workflow skills, and memories.
 
 ## Status mode
 

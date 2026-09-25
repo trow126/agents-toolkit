@@ -5,7 +5,9 @@ usage: codex-delegate <contract.json> [--repo DIR] [--dry-run]
 
 Run from the Claude main session with Bash(run_in_background=true). Steps:
   1. preflight (schema, catalog route, no ultra, profile present)
-  2. record the baseline (HEAD, status, untracked hashes) and the Codex CLI version in the contract
+  2. record the baseline (HEAD, the working tree as a git tree, status, untracked hashes) and the Codex CLI
+     version in the contract; the gate diffs the working tree against that tree, so edits that predate
+     the delegation are not counted as Codex changes, and deleting or reverting them is
   3. render the prompt and write the active-delegation state (active.json)
   4. codex exec -C <repo> -p toolkit-implementer -s workspace-write -m <model>
      -c model_reasoning_effort=<effort> --json --output-schema report.schema.json

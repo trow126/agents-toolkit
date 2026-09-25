@@ -198,6 +198,57 @@ run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
 expect_rc "gate: 既存の untracked を変えたら差分に数える" 1 "diff budget exceeded: 3 files > 2"
 if jq -e '.changed_files | index("notes.txt")' "$STATE/evidence-lock-ok.json" >/dev/null; then ok "gate: 変えた既存 untracked を changed_files に含める"; else ng "gate: notes.txt not in changed_files"; fi
 
+# ---------------- baseline snapshot: edits that predate the delegation ----------------
+# prepare_case <name> <setup run in the repo before launch> [contract filter]; launches with STUB_EDIT
+prepare_case() {
+  R="$SANDBOX/base-$1"; new_repo "$R"
+  (cd "$R" && eval "$2")
+  write_contract "$R" "$1" "${3:-.}"
+  run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
+}
+prepare_case pre-edit 'printf "# Doc\n\nedited by the user\n" > docs/readme.md'
+if jq -e '.baseline.tree | test("^[0-9a-f]{40}$")' "$CONTRACT" >/dev/null; then ok "baseline: 作業ツリーの snapshot（tree）を契約に記録する"; else ng "baseline tree missing"; fi
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: 委任前の scope 外の編集を Codex の変更に数えない" 0 "GATE PASS: pre-edit (1 files, 1 lines"
+
+prepare_case pre-dirty-delta 'printf "pre 1\npre 2\n" >> src/a.txt'
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: 委任前から変更されていたファイルは、委任後の差分だけを数える" 0 "GATE PASS: pre-dirty-delta (1 files, 1 lines"
+
+STUB_EDIT=none prepare_case revert 'printf "# Doc\n\nedited by the user\n" > docs/readme.md'
+git -C "$R" checkout -q -- docs/readme.md
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: 委任前の未 commit の編集を元に戻したら検出する" 1 "out of scope: docs/readme.md"
+
+STUB_EDIT=none prepare_case untracked-delete ':'
+rm "$R/notes.txt"
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: 委任前からある未追跡ファイルの削除を検出する" 1 "out of scope: notes.txt"
+
+prepare_case after-verify ':'
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: 削除の前は PASS" 0 "GATE PASS: after-verify"
+rm "$R/notes.txt"
+run "$BIN/delegation-evidence-check" --repo "$R"
+expect_rc "evidence: 検証の後の未追跡ファイルの削除は FAIL（再検証が必要）" 1 "working tree changed after verification"
+
+prepare_case staged 'printf "# Doc\n\nstaged\n" > docs/readme.md && git add docs/readme.md'
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+if [[ "$RC" -eq 0 && "$(git -C "$R" diff --cached --name-only)" == "docs/readme.md" ]]; then
+  ok "baseline: snapshot は本物の index に触れない（stage 済みの変更はそのまま）"
+else ng "staged: rc=$RC cached=$(git -C "$R" diff --cached --name-only | tr '\n' ' ') $OUT"; fi
+
+prepare_case pruned ':'
+jq '.baseline.tree = "0123456789abcdef0123456789abcdef01234567"' "$CONTRACT" > "$CONTRACT.tmp" && mv "$CONTRACT.tmp" "$CONTRACT"
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: snapshot が object store に無ければ止める" 1 "baseline snapshot 0123456789ab is missing from the object store"
+
+STUB_EDIT=none prepare_case legacy ':'
+jq 'del(.baseline.tree)' "$CONTRACT" > "$CONTRACT.tmp" && mv "$CONTRACT.tmp" "$CONTRACT"
+rm "$R/notes.txt"
+run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
+expect_rc "baseline: tree の無い旧い baseline でも、未追跡ファイルの削除は検出する" 1 "out of scope: notes.txt"
+
 # ---------------- worktree gitdir ----------------
 R="$SANDBOX/wt-main"; new_repo "$R"
 git -C "$R" worktree add -q "$SANDBOX/wt" -b feature

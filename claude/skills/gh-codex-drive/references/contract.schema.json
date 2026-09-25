@@ -31,6 +31,7 @@
       "required": ["head", "status", "untracked"],
       "properties": {
         "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tree": {"type": "string", "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"},
         "status": {"type": "array", "items": {"type": "string"}},
         "untracked": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
       }

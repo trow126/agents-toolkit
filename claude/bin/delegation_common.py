@@ -11,7 +11,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 TOOLKIT_ROOT = Path(__file__).resolve().parents[2]
@@ -173,35 +175,81 @@ def untracked(repo: Path) -> dict[str, str]:
     return {p: sha256_file(repo / p) for p in raw.split("\0") if p and (repo / p).is_file()}
 
 
+def worktree_tree(repo: Path) -> str:
+    """The working tree as a git tree object: tracked content with uncommitted edits and deletions, plus
+    untracked files that are not ignored. Built in a temporary copy of the index, so the real index is not
+    touched; the blobs land in the object store like any `git add`."""
+    index = Path(str(git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index")).strip())
+    with tempfile.TemporaryDirectory(prefix="agents-toolkit-baseline-") as tmp:
+        temp_index = Path(tmp) / "index"
+        if index.is_file():
+            shutil.copyfile(index, temp_index)
+        env = {**os.environ, "GIT_INDEX_FILE": str(temp_index)}
+        out = b""
+        for args in (["add", "-A", "--", ":/"], ["write-tree"]):
+            result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, env=env, check=False)
+            if result.returncode != 0:
+                raise DelegationError(f"git {' '.join(args)} (snapshot) failed: {result.stderr.decode(errors='replace').strip()}")
+            out = result.stdout
+    return out.decode().strip()
+
+
 def record_baseline(repo: Path) -> dict:
     return {
         "head": str(git(repo, "rev-parse", "HEAD")).strip(),
+        "tree": worktree_tree(repo),
         "status": [line for line in str(git(repo, "status", "--porcelain")).splitlines() if line],
         "untracked": untracked(repo),
     }
 
 
+DIFF = ("diff", "--no-renames", "--no-ext-diff", "--no-textconv")
+
+
 def changes_since(repo: Path, baseline: dict) -> dict:
-    """Files and lines changed since the baseline, counting new or modified untracked files."""
-    head = baseline["head"]
-    tracked = [p for p in str(git(repo, "diff", "--name-only", "-z", head)).split("\0") if p]
+    """Files and lines changed since the baseline. With the baseline tree, the working tree is compared
+    tree to tree, so edits that predate the delegation are not counted, and a deleted untracked file or a
+    reverted pre-existing edit is. A baseline without a tree (older launcher) is compared against HEAD."""
+    head = str(git(repo, "rev-parse", "HEAD")).strip()
+    base = baseline.get("tree")
+    if not base:
+        return _changes_since_head(repo, baseline, head)
+    if subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{base}^{{tree}}"], capture_output=True, check=False).returncode != 0:
+        raise DelegationError(f"baseline snapshot {base[:12]} is missing from the object store (pruned?); the delegated changes cannot be verified")
+    current = worktree_tree(repo)
+    files = sorted(p for p in str(git(repo, *DIFF, "--name-only", "-z", base, current)).split("\0") if p)
     lines = 0
-    for row in str(git(repo, "diff", "--numstat", head)).splitlines():
+    for row in str(git(repo, *DIFF, "--numstat", base, current)).splitlines():
+        added, deleted, _path = row.split("\t", 2)
+        lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
+    digest = hashlib.sha256(bytes(git(repo, *DIFF, "--binary", base, current, binary=True)))
+    return {"files": files, "lines": lines, "diff_hash": digest.hexdigest(), "head": head}
+
+
+def _changes_since_head(repo: Path, baseline: dict, head: str) -> dict:
+    """Legacy baseline (HEAD and untracked hashes only): edits that predate the delegation count as changes."""
+    base_head = baseline["head"]
+    tracked = [p for p in str(git(repo, *DIFF, "--name-only", "-z", base_head)).split("\0") if p]
+    lines = 0
+    for row in str(git(repo, *DIFF, "--numstat", base_head)).splitlines():
         added, deleted, _path = row.split("\t", 2)
         lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
     before = baseline.get("untracked") or {}
-    new_untracked = {p: h for p, h in untracked(repo).items() if before.get(p) != h}
+    now = untracked(repo)
+    new_untracked = {p: h for p, h in now.items() if before.get(p) != h}
+    deleted_untracked = sorted(p for p in before if p not in now and not (repo / p).exists())
     for path in new_untracked:
         try:
             lines += len((repo / path).read_text(encoding="utf-8", errors="replace").splitlines())
         except OSError:
             pass
-    files = sorted(set(tracked) | set(new_untracked))
-    digest = hashlib.sha256(bytes(git(repo, "diff", "--binary", head, binary=True)))
+    files = sorted(set(tracked) | set(new_untracked) | set(deleted_untracked))
+    digest = hashlib.sha256(bytes(git(repo, *DIFF, "--binary", base_head, binary=True)))
     for path, value in sorted(new_untracked.items()):
         digest.update(f"\0{path}\0{value}".encode())
-    return {"files": files, "lines": lines, "diff_hash": digest.hexdigest(),
-            "head": str(git(repo, "rev-parse", "HEAD")).strip()}
+    for path in deleted_untracked:
+        digest.update(f"\0{path}\0<deleted>".encode())
+    return {"files": files, "lines": lines, "diff_hash": digest.hexdigest(), "head": head}
 
 
 # ---------------------------------------------------------------- path rules
