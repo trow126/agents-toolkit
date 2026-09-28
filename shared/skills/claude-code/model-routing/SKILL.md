@@ -17,7 +17,7 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 - exact-name overrideの`Explore`はfrontmatterのmodelを使い、read-only codebase探索だけを担当する
 - dynamic workflowのanonymous workerは、生成scriptの各`agent()`のmodel optionにCLAUDE.mdのworker modelを明示する。dynamic workflow専用のglobal default keyはないため、親modelの暗黙継承に依存しない
 - built-in `general-purpose`はmain modelを継承する
-- `CLAUDE_CODE_SUBAGENT_MODEL`は2.1.251以降、subagentの既定値として扱われ、全体の上書きには`_FORCE`付きの指定が要る。model割当はCLAUDE.mdとagent frontmatterで管理するため、どちらも設定しない
+- `CLAUDE_CODE_SUBAGENT_MODEL`はsubagentの既定値として扱われ、全体の上書きには`_FORCE`付きの指定が要る。model割当はCLAUDE.mdとagent frontmatterで管理するため、どちらも設定しない
 
 ## 独立した検査と計画review
 

@@ -7,7 +7,7 @@ description: Inspects, stages, commits, branches, merges, or pushes Git state. U
 
 Read `~/.agents/rules/git-workflow.md` before a mutating Git operation (any mode other than `default`); inspection in `default` mode does not load it.
 
-Use one explicit mode per request: `default` (inspect), `stage`, `branch`, `commit`, `merge`, or `push`. A mode authorizes only the matching operation in `docs/contracts/skill-authority.tsv`; do not chain modes by implication.
+Use one explicit mode per request: `default` (inspect), `stage`, `branch`, `commit`, `merge`, or `push`. A mode authorizes only the matching operation in `~/agents-toolkit/docs/contracts/skill-authority.tsv`; do not chain modes by implication.
 
 1. Inspect `git status --short --branch`, the current branch, relevant diff, and divergence.
 2. Resolve the exact operation the user requested. Authorization for one operation does not authorize commit, merge, push, PR creation, or cleanup as a group.

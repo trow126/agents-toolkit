@@ -6,7 +6,7 @@
 
 詳細な品質・Git・障害調査・言語別規約は、該当taskで `implementation-quality` または `git-operations` skillから必要なものだけを読む。
 
-記事・ブログ・外部向けREADME・outreach文面など公開向け文章を書く/直すときは、初稿の前に必ず `article-style` skillを読み、その規則と公開前チェックリストに従う（2026-07-28 owner明示指示）。
+記事・ブログ・外部向けREADME・outreach文面など公開向け文章を書く/直すときは、初稿の前に必ず `article-style` skillを読み、その規則と公開前チェックリストに従う。
 
 ## セッション初期化
 
@@ -36,6 +36,6 @@
 - `claude`はproject directoryから起動する。`$HOME`直下は大規模scanでhangするため禁止する。
 - managed policyはowner選択により`bypassPermissions`既定・sandbox無効である。permission表示を安全境界とみなさず、core contractとmanaged hooksを守る。
 - `~/.claude/settings.json`をsession内で直接編集せず、project/local settingsへpermission・hook・sandbox policyを追加しない。
-- project/localのsecurity policy driftは`scripts/check-runtime.sh`と`project-policy-gate`が拒否する。
+- project/localのsecurity policy driftは`~/agents-toolkit/scripts/check-runtime.sh`と`~/.claude/bin/project-policy-gate`が拒否する。
 - bypassPermissions下ではGit操作がpromptなしで実行されるため、commit・push・外部writeの承認はcore contractに従う。
 - Codex委任は`~/.claude/bin/codex-delegate`をmain sessionから`Bash(run_in_background=true)`で起動する。

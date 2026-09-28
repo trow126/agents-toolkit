@@ -6,7 +6,7 @@ description: Removes AI-smell from public-facing Japanese and English prose. Use
 # article-style — 公開文章から AI 臭を消す
 
 参考: https://zenn.dev/coji/articles/natural-japanese-ai-smell-lint
-（2026-07-28 に owner が明示指示で凍結。変更は owner の明示依頼時のみ）
+（owner の明示依頼がない限り変更しない）
 
 公開向けの文章を書く・直すときは、初稿を書く前にこの規則を読み、公開前に下のチェックリストで
 自己検査する。対象: 記事、外部向け README、outreach 文面、リリースノート等。コード内コメントや
