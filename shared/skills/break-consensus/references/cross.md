@@ -1,6 +1,6 @@
 # /break-consensus --cross
 
-Opt-in cross-provider mode (owner decision D7). A Codex worker and a read-only Claude worker each generate candidates from the same brief without seeing each other; you then run the prior-art, stress-test, and experiment steps on their union. It is not a delegation, so the delegation contract (OD-5) does not apply. It is read-only: no repository file changes, no external writes, and no implementation.
+Opt-in cross-provider mode. A Codex worker and a read-only Claude worker each generate candidates from the same brief without seeing each other; you then run the prior-art, stress-test, and experiment steps on their union. It is not a Codex delegation, so the `gh-codex-drive` delegation rules do not apply. It is read-only: no repository file changes, no external writes, and no implementation.
 
 **Stop** when `prepare`, `codex`, or `collect` fails, or a worker returns no output. Report the failure; do not silently continue with one provider.
 **Done** when `finish` passes and you have reported the surviving candidates with the result path.
