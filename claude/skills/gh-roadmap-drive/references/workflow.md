@@ -16,7 +16,7 @@
 - Follow the `gh-finish` skill for the apply step. `--apply` authority for each sub-Issue completed in this run comes from the roadmap-drive invocation itself; everything `gh-finish` refuses (push, PR, branch deletion, unrelated changes) stays refused.
 - Checklist update: edit the tracking Issue body with `gh issue edit <tracking> --body-file` after rewriting only the target checkbox; leave every other byte of the body unchanged.
 - Real-runtime checks: when the sub-Issue's success criteria involve external data, network collection, or long-running computation, run the actual command (smoke run, backfill) and read its output before finishing. Background long runs with `Bash(run_in_background=true)` and keep driving or waiting on them; do not declare success from code review alone.
-- If Codex delivers a defective result, prefer a fresh, narrowly scoped fix task over piling context onto the failed task. One re-delegation per defect; a second failure on the same defect stops the loop.
+- If Codex delivers a defective result, prefer a fresh, narrowly scoped fix task over piling context onto the failed task. Re-delegation per defect is not capped; report each failure, and stop the loop when the defect cannot be fixed within the contract.
 
 ## Judgment gates
 

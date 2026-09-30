@@ -32,7 +32,7 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 - 委任したCodexは実装担当であり、Claudeは委任・監督・検証・最終統合を担当する
 - 起動は`gh-codex-drive`のworkflowに従い、契約を書いてmain sessionから`~/.claude/bin/codex-delegate`を`Bash(run_in_background=true)`で起動する。`codex:codex-rescue` Agentと`/codex:adversarial-review`を委任や諮問の代わりに起動しない
 - 監督はbackground taskの完了通知と`$(git rev-parse --git-dir)/agents-toolkit/`のstate（`result-<N>.json`・`evidence-<N>.json`）で行い、完了判定は`verify-delegation`のevidenceに基づく
-- 検証に失敗したら同じ条件で1回だけ再委任し、2回目も失敗したら選択肢と推奨をユーザーに示す
+- 検証に失敗したら、契約の範囲で直せる限り同じ条件で再委任する（回数の上限なし）。失敗は毎回報告し、契約の範囲で直せないときは選択肢と推奨をユーザーに示す
 - 接続・認証に問題があれば `/codex:setup` で確認する
 
 ## 既存経路が優先

@@ -33,7 +33,7 @@
 
 | ID | 論点 | 決定 |
 |---|---|---|
-| D3 | 委任の位置づけ | ① Codex への委任は、ユーザーが明示的に指示したときに限る。明示的な指示とは、`/gh-codex-drive` や `/gh-roadmap-drive` を呼ぶこと、または文面で Codex への実装の委任を指示することを指す。Claude が自分の判断で委任を選ぶことはしない<br>② 毎 prompt に注入している2行（`claude/hooks/prompt-submit-hook.sh`）は削除する。同じ内容は core-contract と `claude/CLAUDE.md:19` にある。出力は Phase 1 で止め、hook の登録は Phase 7 で外す<br>③ `codex/AGENTS.md` にある subagent の起動条件の文は維持する<br>④ 再委任は1回までとする |
+| D3 | 委任の位置づけ | ① Codex への委任は、ユーザーが明示的に指示したときに限る。明示的な指示とは、`/gh-codex-drive` や `/gh-roadmap-drive` を呼ぶこと、または文面で Codex への実装の委任を指示することを指す。Claude が自分の判断で委任を選ぶことはしない<br>② 毎 prompt に注入している2行（`claude/hooks/prompt-submit-hook.sh`）は削除する。同じ内容は core-contract と `claude/CLAUDE.md:19` にある。出力は Phase 1 で止め、hook の登録は Phase 7 で外す<br>③ `codex/AGENTS.md` にある subagent の起動条件の文は維持する<br>④ 再委任は1回までとする（2026-09-30 に owner が撤回し、回数の上限をなくした） |
 | D4 | mode と `~/AGENTS.md`（`$HOME` 直下の AGENTS.md） | `~/AGENTS.md` の内容を issue-writing skill と `shared/rules/issue-completeness.md` に統合し、ファイルは owner が撤去する。mode は既定の or-mode のままとし、managed には書かない。既定値以外になったら、discovery が WARN を出す |
 | D5 | live の設定と repo のどちらを正本にするか | live を正本とする。UI が書き換えるキー（model、modelSettings、skillOverrides、pluginConfigs、claude.ai 同期の設定）は repo で管理せず、drift は WARN にする。Phase 7 で次を行う<br>・`claude/settings.json` から model を削除する<br>・effortLevel を D9 に合わせる<br>・manifest の `link-file claude/settings.json` を外す<br>・EX-004 を再承認する<br>`autoMemoryEnabled:false` は、discovery が FAIL として監視する |
 | D6 | 使われていない agent | Explore 以外の custom agent 9本（ai-engineer、blockchain-security-auditor、code-reviewer、data-engineer、deep-reasoner、model-qa-specialist、plan-reviewer、solidity-engineer、sre）と、Claude 版の plan-review skill の配布をやめる（Phase 1）。これらはどの環境でも使われていない。計画のレビューには、Codex 版の plan-review か `/code-review` を使う |
@@ -96,7 +96,7 @@ skillOverrides（2026-09-26）: owner の指示で、live の `~/.claude/setting
 
 | ID | 反映する Phase | 状態（2026-09-25） |
 |---|---|---|
-| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 で反映。④ は Phase 4 では skill の指示（gh-codex-drive）だけで、script では未強制だった。2026-09-26 に `codex-delegate` と preflight が契約 id ごとの起動回数（`attempts-<id>.json`）を記録し、同じ契約の3回目の起動を拒否するようにした（`delegation-evidence-check --clear` では消えない。新しい契約 id はユーザーの判断）。② の登録解除は Phase 7 branch で準備（script と test も削除。managed の適用待ち） |
+| D3 | ① ② 出力停止 ④: Phase 1 / ② 登録解除: Phase 7 / ④ の gate: Phase 4 | ①②④: Phase 1 で反映。④ は Phase 4 では skill の指示（gh-codex-drive）だけで、script では未強制だった。2026-09-26 に `codex-delegate` と preflight が契約 id ごとの起動回数（`attempts-<id>.json`）を記録し、同じ契約の3回目の起動を拒否するようにした（`delegation-evidence-check --clear` では消えない。新しい契約 id はユーザーの判断）。2026-09-30 に owner が ④ を撤回し、起動回数の拒否を削除した（`attempts-<id>.json` は attempt 番号と前回分の保存のために残す）。② の登録解除は Phase 7 branch で準備（script と test も削除。managed の適用待ち） |
 | D4 | 統合: Phase 1 / 撤去: owner / WARN: Phase 3 | 統合: 反映済み。撤去: 2026-09-25 に実施（`~/.local/state/agents-toolkit/backup/` へ退避）。WARN: Phase 3 の discovery で実装 |
 | D2 | routing 表の作成: Phase 2 / env pin の導入と該当行の commit: Phase 7 | routing 表: Phase 2 で作成。env pin: Phase 7 branch で managed に4つ入れ、routing 表に claude-alias-* の4行を加えた（managed の適用待ち） |
 | D5 | discovery の WARN / FAIL: Phase 3 / settings と manifest: Phase 7 | Phase 7 branch で `claude/settings.json` を削除し、manifest の link を外した（P7-Q2）。discovery は live の symlink を旧構成として WARN し、`autoMemoryEnabled` は managed を優先して FAIL で監視する。effort は D9 に従い owner が live の `modelSettings` で設定する |

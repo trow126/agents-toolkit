@@ -163,12 +163,12 @@ expect_rc "evidence: --clear で active を消す" 0 "active delegation cleared"
 run "$BIN/delegation-evidence-check" --repo "$R"
 expect_rc "evidence: active が無ければ OK" 0 "no active delegation"
 
-# ---------------- re-delegation limit (D3④: the delegation and one re-delegation per contract) ----------------
+# ---------------- re-delegation (not capped; D3④ lifted on 2026-09-30) ----------------
 if jq -e '.attempts | length == 1 and .[0].attempt == 1 and .[0].exit_code == 0' "$STATE/attempts-42.json" >/dev/null; then
   ok "再委任: 起動ごとに attempts-42.json へ記録し、--clear では消さない"
 else ng "再委任: attempts-42.json after clear: $(cat "$STATE/attempts-42.json" 2>&1)"; fi
 run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
-expect_rc "再委任: 同じ契約で1回だけ再起動できる" 0 "attempt 2/2"
+expect_rc "再委任: 同じ契約で再起動できる" 0 "attempt 2:"
 if jq -e '.attempt == 2' "$STATE/active.json" >/dev/null && jq -e '.attempts | length == 2' "$STATE/attempts-42.json" >/dev/null \
   && [[ -f "$STATE/result-42.attempt1.json" && -f "$STATE/evidence-42.attempt1.json" && -f "$STATE/prompt-42.attempt1.md" ]]; then
   ok "再委任: active.json に attempt を書き、前回の result、evidence、prompt を attempt1 として残す"
@@ -177,18 +177,18 @@ run "$BIN/verify-delegation" "$CONTRACT" --repo "$R"
 expect_rc "再委任: gate は元の baseline からの累積の差分を判定する" 0 "GATE PASS: 42 (1 files, 3 lines"
 if jq -e '.attempt == 2' "$STATE/evidence-42.json" >/dev/null; then ok "再委任: evidence に attempt を記録する"; else ng "再委任: evidence lacks attempt"; fi
 run "$BIN/delegation-evidence-check" --repo "$R" --clear
-run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
-expect_rc "再委任: --clear しても同じ契約の3回目は起動しない" 1 "contract 42 was already launched 2 times"
-if [[ ! -e "$STATE/active.json" ]] && jq -e '.attempts | length == 2' "$STATE/attempts-42.json" >/dev/null; then
-  ok "再委任: 3回目の拒否は state を書かない"
-else ng "再委任: third launch wrote state"; fi
 run "$BIN/codex-delegate-preflight" "$CONTRACT" --repo "$R"
-expect_rc "preflight: 上限に達した契約は FAIL" 1 "was already launched 2 times"
-run "$BIN/codex-delegate" "$CONTRACT" --repo "$R" --dry-run
-expect_rc "再委任: --dry-run でも上限を報告する" 1 "was already launched 2 times"
+expect_rc "preflight: 起動回数では FAIL しない" 0 "PREFLIGHT OK"
+run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
+expect_rc "再委任: 同じ契約の3回目も起動できる（回数の上限なし）" 0 "attempt 3:"
+if jq -e '.attempt == 3' "$STATE/active.json" >/dev/null && jq -e '(.attempts | length == 3) and (has("limit") | not)' "$STATE/attempts-42.json" >/dev/null \
+  && [[ -f "$STATE/result-42.attempt2.json" ]]; then
+  ok "再委任: 3回目も attempt を記録し、前回を attempt2 として残す"
+else ng "再委任: third attempt state: $(ls "$STATE")"; fi
+run "$BIN/delegation-evidence-check" --repo "$R" --clear
 write_contract "$R" 43
 run "$BIN/codex-delegate" "$CONTRACT" --repo "$R"
-expect_rc "再委任: 新しい契約 id は起動できる（id の変更はユーザーの判断）" 0 "attempt 1/2"
+expect_rc "新しい契約 id は attempt 1 から数える" 0 "attempt 1:"
 run "$BIN/delegation-evidence-check" --repo "$R" --clear
 
 # gate violations: each case launches a fresh delegation, then mutates the tree

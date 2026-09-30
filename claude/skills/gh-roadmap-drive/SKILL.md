@@ -34,7 +34,7 @@ Invoking default mode is the user's single explicit request covering, for each s
 ## Stop conditions
 
 - A judgment-gate sub-Issue is next, a dependency is unmet, or the Issue body is ambiguous in a way that changes design, data, or public API.
-- Verification or review failure that survives one re-delegation — report; never merge over a failure and never retry silently.
+- Verification or review failure that re-delegation within the contract cannot fix — report; never merge over a failure and never retry silently.
 - Any stop condition of `gh-codex-drive` or `gh-finish` (missing repo/Issue/plugin/auth, unrelated dirty changes, failing checks).
 - The checklist is exhausted.
 

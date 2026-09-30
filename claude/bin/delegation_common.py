@@ -2,7 +2,7 @@
 
 Used by codex-delegate, codex-delegate-preflight, verify-delegation, and delegation-evidence-check
 (agents-toolkit, owner decision D8). Contracts, prompts, results, evidence, the launch history
-(attempts-<id>.json, which enforces D3④: one delegation and at most one re-delegation per contract),
+(attempts-<id>.json; re-delegation is not capped since D3④ was lifted on 2026-09-30),
 and the active-delegation state live in $(git rev-parse --git-dir)/agents-toolkit/, which the Codex
 workspace-write sandbox cannot write.
 """
@@ -24,7 +24,6 @@ REPORT_SCHEMA = REFERENCES / "report.schema.json"
 PROMPT_TEMPLATE = REFERENCES / "contract.md"
 POST_EDIT_LINT = TOOLKIT_ROOT / "claude/hooks/lib/post_edit_lint.py"
 PROFILE = "toolkit-implementer"
-MAX_ATTEMPTS = 2  # D3④: the delegation and at most one re-delegation with the same contract
 ATTEMPT_FILES = ("prompt", "result", "jsonl", "stderr", "evidence")
 
 ALWAYS_PROTECTED = [
@@ -172,21 +171,13 @@ def active_problem(active: dict, paths: dict) -> str:
 
 def load_attempts(paths: dict) -> list[dict]:
     """Launch history of a contract (attempts-<id>.json). delegation-evidence-check --clear never
-    removes it: D3④ binds the limit to the contract id, and a new id is the user's decision."""
+    removes it, so attempt numbers and the archived *.attempt<n>.* files stay unique per contract."""
     if not paths["attempts"].exists():
         return []
     attempts = load_json(paths["attempts"]).get("attempts")
     if not isinstance(attempts, list) or not all(isinstance(a, dict) for a in attempts):
         raise DelegationError(f"{paths['attempts']}: attempts must be a list of objects")
     return attempts
-
-
-def attempt_limit_problem(paths: dict, contract_id: str) -> str | None:
-    launched = len(load_attempts(paths))
-    if launched < MAX_ATTEMPTS:
-        return None
-    return (f"contract {contract_id} was already launched {launched} times (limit {MAX_ATTEMPTS}: the delegation "
-            "and one re-delegation, D3④); changing or re-issuing the contract is the user's decision")
 
 
 def attempt_file(path: Path, attempt: int) -> Path:
@@ -356,9 +347,6 @@ def preflight_errors(contract_path: Path, repo: Path) -> list[str]:
     paths = state_paths(repo, contract["id"])
     if contract_path.resolve() != paths["contract"].resolve():
         errors.append(f"contract must live at {paths['contract']} (got {contract_path})")
-    limit = attempt_limit_problem(paths, contract["id"])
-    if limit:
-        errors.append(limit)
     route = contract["route"]
     if route["effort"] == "ultra":
         errors.append("route effort ultra is not allowed (it auto-delegates to subagents)")
