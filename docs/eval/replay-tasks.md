@@ -14,3 +14,9 @@
 | T4 | 集計の入力窓を単日から複数日に広げる機能追加 | 6 files, +582/-15 | `src/**`, `tests/**` | `uv run pytest -q` |
 | T5 | 再起動後に失われる in-memory 状態の再構築 | 2 files, +204/-31 | `src/**`, `tests/**` | `uv run pytest -q` |
 | T6 | 外部 CLI の解決失敗と分類の堅牢化 | 13 files, +362/-121 | `src/**`, `tests/**` | `uv run pytest -q` |
+| T7 | 対照アームをアーム別の独立台帳で導入する設計変更 | 6 files, +847/-42 | `src/**`, `tests/**` | `uv run pytest -q` |
+| T8 | 週末・連休前の強制手仕舞いを横断的に入れる機能追加 | 18 files, +1364/-179 | `src/**`, `tests/**`, `scripts/**`, `config.yaml` | `uv run pytest -q` |
+| T9 | 見送り判断でも予測を記録・仮想精算して集計へ流す機能追加 | 16 files, +751/-30 | `src/**`, `tests/**` | `uv run pytest -q` |
+| T10 | 観測欠落インシデントから出た複数不具合の複合修正 | 9 files, +1040/-22 | `src/**`, `tests/**` | `uv run pytest -q` |
+
+T7〜T10 は 2026-10-01 に追加した難度の高い題材（gpt-6.1-sol の routing eval 用）。T1〜T6 では全条件が 6/6 で差が出なかったため、参照修正が約 750〜1,550 行の Issue を選んだ。base の状態で `uv run pytest -q` が全件通ることを確かめてある。参照修正に含まれる docs・README・policy の変更は scope の外とし、契約と prompt に明記する。
