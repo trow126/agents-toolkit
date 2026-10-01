@@ -48,6 +48,7 @@
 | P5-Q1 | Codex の実装担当の route | gpt-6-astra/medium を維持する（low、sol/medium との差は出なかった）（2026-09-26） |
 | P5-Q2 | Codex の explorer | gpt-5.6-terra から gpt-6-luna（medium）に変える（2026-09-26） |
 | P5-Q3 | `--cross` の Claude worker | main が opus になったので、fable に変える（2026-09-26） |
+| RE-1 | Codex の実装担当の route（P5-Q1 を置き換える） | gpt-6.1-sol/xhigh に変える。Codex CLI 0.159.3 の replay eval（T1〜T10、各2回）で gate の成功率は astra/medium と同じ 20/20。T7〜T10 の盲検 review で品質の合計点が最も高く（16.6/20、astra/medium 14.6、sol61/medium 15.3）、credit の見積もりは astra/medium の約1/3、時間は約2.2倍。fallback は gpt-6-astra/medium。`docs/reports/2026-10-01-routing-eval-sol61.md`（2026-10-01） |
 
 ## 未決定の論点（D）
 
