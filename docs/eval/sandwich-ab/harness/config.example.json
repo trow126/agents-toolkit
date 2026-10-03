@@ -1,0 +1,110 @@
+{
+  "_comment": "sandwich-ab harness の設定例。${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/eval/sandwich/config.json に写して使う（追跡しない）。価格は null のままでも動くが、その場合 report は token 数だけを比べ、費用の判定は保留になる。価格は実行前に owner が公式の料金表で埋め、実行中は変えない。",
+  "eval_root": "~/eval-sandwich",
+  "tasks_dir": "~/.config/agents-toolkit/eval/sandwich/tasks",
+  "tests_dir": "~/.config/agents-toolkit/eval/sandwich/tests",
+  "toolkit_bin": "~/agents-toolkit/claude/bin",
+  "templates_dir": "~/agents-toolkit/docs/eval/sandwich-ab/templates",
+  "arms": {
+    "A": {
+      "label": "opus-solo",
+      "claude_model": "claude-opus-5-5",
+      "claude_effort": "medium"
+    },
+    "B": {
+      "label": "sandwich",
+      "claude_model": "claude-opus-5-5",
+      "claude_effort": "medium",
+      "codex_model": "gpt-6.1-sol",
+      "codex_effort": "xhigh",
+      "max_codex_rounds": 3
+    },
+    "C": {
+      "label": "sol-solo",
+      "codex_model": "gpt-6.1-sol",
+      "codex_effort": "xhigh"
+    }
+  },
+  "claude_common_args": [
+    "--no-session-persistence",
+    "--strict-mcp-config"
+  ],
+  "claude_impl_tools": [
+    "Read",
+    "Glob",
+    "Grep",
+    "Edit",
+    "Write",
+    "Bash(uv run:*)",
+    "Bash(git diff:*)",
+    "Bash(git status:*)"
+  ],
+  "claude_readonly_tools": [
+    "Read",
+    "Glob",
+    "Grep",
+    "Bash(git diff:*)",
+    "Bash(git status:*)",
+    "Bash(git log:*)"
+  ],
+  "claude_max_budget_usd_per_call": 15,
+  "timeouts_s": {
+    "claude": 3600,
+    "codex": 5400,
+    "check": 1800,
+    "uv_sync": 900
+  },
+  "parallel": 2,
+  "prices_usd_per_mtok": {
+    "_comment": "Codex の token を API 換算 USD にするための単価。Claude 側は claude -p の total_cost_usd をそのまま使う。",
+    "gpt-6.1-sol": {
+      "input": null,
+      "cached_input": null,
+      "cache_write_input": null,
+      "output": null
+    },
+    "gpt-6-astra": {
+      "input": null,
+      "cached_input": null,
+      "cache_write_input": null,
+      "output": null
+    }
+  },
+  "codex_credits_per_mtok": {
+    "_comment": "2026-10-01 routing eval に記載の公表値（cache 入力の単価は未確認なので null）。参考値として report に併記する。",
+    "gpt-6.1-sol": {
+      "input": 50,
+      "cached_input": null,
+      "output": 250
+    }
+  },
+  "claude_impl_toolset": [
+    "Read",
+    "Glob",
+    "Grep",
+    "Edit",
+    "Write",
+    "Bash"
+  ],
+  "claude_readonly_toolset": [
+    "Read",
+    "Glob",
+    "Grep",
+    "Bash"
+  ],
+  "_comment_toolset": "managed policy が defaultMode=bypassPermissions・allowManagedPermissionRulesOnly のため --allowedTools は権限を絞らない（2026-10-03 確認）。使えるツールは *_toolset（--tools）で固定する。*_tools は記録のために残す。",
+  "blind_reviewers": [
+    {
+      "name": "opus",
+      "kind": "claude",
+      "claude_model": "claude-opus-5-5",
+      "claude_effort": "high"
+    },
+    {
+      "name": "astra",
+      "kind": "codex",
+      "codex_model": "gpt-6-astra",
+      "codex_effort": "high"
+    }
+  ]
+}

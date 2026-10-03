@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "sandwich-ab review verdict",
+  "description": "arm B の工程内レビューの出力。harness は verdict と must_fix の件数で再委任を決める。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verdict", "summary", "findings", "leak_suspected"],
+  "properties": {
+    "verdict": {"type": "string", "enum": ["APPROVED", "WARNING", "BLOCKED"]},
+    "summary": {"type": "string"},
+    "leak_suspected": {"type": "boolean"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "category", "location", "evidence", "fix"],
+        "properties": {
+          "severity": {"type": "string", "enum": ["must_fix", "should_fix", "nit"]},
+          "category": {"type": "string", "enum": ["lookahead", "requirements", "correctness", "tests", "scope", "design"]},
+          "location": {"type": "string"},
+          "evidence": {"type": "string"},
+          "fix": {"type": "string"}
+        }
+      }
+    }
+  }
+}
