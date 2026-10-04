@@ -151,13 +151,83 @@ def fmt(v, nd=3):
     return "n/a" if v is None else (f"{v:.{nd}f}" if isinstance(v, float) else str(v))
 
 
+def d_section(d_rows: list[dict], rows: list[dict], prices: dict, summary: dict) -> None:
+    """arm D の副次指標（判定に使わない、D 設計書 §5.2）: Codex の反復回数、軽量レビューの指摘率と有効性。"""
+    n = len(d_rows)
+    calls = Counter(len(r.get("codex", [])) for r in d_rows)
+    test_rounds = Counter((r.get("d") or {}).get("test_rounds") for r in d_rows)
+    passed_at = Counter((r.get("d") or {}).get("tests_passed_round") for r in d_rows)
+    reviewed = [r for r in d_rows if (r.get("d") or {}).get("review")]
+    verdicts = Counter(r["d"]["review"]["verdict"] for r in reviewed)
+    with_must = [r for r in reviewed if r["d"]["review"]["must_fix"]]
+    cats = Counter(f.get("category") for r in reviewed for v in r.get("reviews", []) for f in v.get("findings", [])
+                   if f.get("severity") == "must_fix")
+    fixed = [r for r in d_rows if (r.get("d") or {}).get("fix")]
+
+    def ok(g):
+        return success({"final": g}) if g else None
+    better = worse = same = 0
+    for r in fixed:
+        pre, post = ok((r.get("round_grades") or [None])[0]), success(r)
+        better += (pre is False and post)
+        worse += (pre is True and not post)
+        same += (pre == post)
+    # 軽量レビューが APPROVED（修正依頼なし）だったが、レビュー前の隠しテストが落ちていた run（見逃し）
+    missed_hidden = sum(1 for r in reviewed if not r["d"]["review"]["must_fix"] and (g := (r.get("round_grades") or [None])[0])
+                        and g.get("hidden", {}).get("total") and not g["hidden"]["all"])
+    rv_cost = sum(c.get("cost_usd") or 0 for r in d_rows for c in r.get("claude", []))
+    tot = [run_cost(r, prices) for r in d_rows]
+    print("\n## D の副次指標（判定に使わない）\n")
+    print(f"- Codex 呼び出し回数の分布 {dict(sorted(calls.items()))}（平均 {statistics.mean(len(r.get('codex', [])) for r in d_rows):.2f}）、"
+          f"テスト段階の回数 {dict(sorted(test_rounds.items(), key=str))}、gate が通った回 {dict(sorted(passed_at.items(), key=str))}")
+    print(f"- テスト段階で上限（gate 不通過）に達した run {sum('tests:max_rounds' in r['interventions'] for r in d_rows)}/{n}")
+    print(f"- 軽量レビュー: 実施 {len(reviewed)}/{n}、判定 {dict(verdicts)}、must_fix を出した run {len(with_must)}/{len(reviewed)}"
+          f"（category 別 {dict(cats)}）")
+    print(f"- 修正依頼 {len(fixed)} run: 修正後の gate 通過 {sum(r['d']['fix']['gate_passed'] for r in fixed)}/{len(fixed)}、"
+          f"成功（採点）がレビュー前→最終で 改善 {better}・悪化 {worse}・不変 {same}")
+    print(f"- レビュー前に隠しテストが落ちていたのに must_fix を出さなかった run {missed_hidden}")
+    if None not in tot and sum(tot):
+        print(f"- 費用のうち軽量レビュー（Opus）の割合 {rv_cost / sum(tot):.1%}、run 平均 {rv_cost / n:.3f} USD")
+    summary["D"] = {"codex_calls": dict(calls), "reviewed": len(reviewed), "verdicts": dict(verdicts),
+                    "must_fix_runs": len(with_must), "fixed": len(fixed), "fix_better": better, "fix_worse": worse,
+                    "fix_same": same, "missed_hidden": missed_hidden,
+                    "review_cost_share": rv_cost / sum(tot) if None not in tot and sum(tot) else None}
+    tam = Counter(r["arm"] for r in rows if r.get("acceptance_tampered"))
+    print(f"- 受け入れテストの改変（採点は原本で行う）: {dict(tam) or 'なし'}")
+
+
+def prior_section(path: Path, prices: dict, rows: list[dict]) -> None:
+    """前回の A・B・C と今回のアームを並べる（参考、判定に使わない）。盲検は pack が違うので並べない。"""
+    prior = [json.loads(x) for x in path.read_text().splitlines() if x.strip()] if path.exists() else []
+    latest = {}
+    for r in prior:
+        latest[r["rid"]] = r
+    prior = [r for r in latest.values() if excluded_reason(r) is None]
+    print(f"\n## 参考: 前回の実験（{path}）と並べる（判定に使わない。盲検は pack が別なので並べない）\n")
+    print("| 実験 | arm | runs | 成功率 | acceptance 合格率 | 隠しテスト失敗 run（leak 題材） | 平均費用 USD | 平均時間 s |")
+    print("|---|---|---|---|---|---|---|---|")
+    for label, src in (("前回", prior), ("今回", rows)):
+        for arm in sorted({r["arm"] for r in src}):
+            rs = [r for r in src if r["arm"] == arm]
+            costs = [run_cost(r, prices) for r in rs]
+            lf = sum(1 for r in rs if r["leak_trap"] and (r.get("final") or {}).get("hidden", {}).get("total")
+                     and not r["final"]["hidden"]["all"])
+            print(f"| {label} | {arm} | {len(rs)} | {sum(map(success, rs)) / len(rs):.2f} "
+                  f"| {sum((r.get('final') or {}).get('acceptance', {}).get('all', False) for r in rs) / len(rs):.2f} | {lf} "
+                  f"| {fmt(statistics.mean(costs) if None not in costs else None, 3)} | {statistics.mean(r['wall_s'] for r in rs):.0f} |")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     ap.add_argument("--boot", type=int, default=10000)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--json", type=Path, help="主要な数値を JSON でも書き出す")
+    ap.add_argument("--base", default="A", help="判定の基準アーム（D 実験では AP = A'）")
+    ap.add_argument("--treat", default="B", help="判定の対象アーム（D 実験では D）")
+    ap.add_argument("--prior", type=Path, help="参考比較（判定に使わない）: 前回の results.jsonl")
     a = ap.parse_args()
+    BASE, TREAT = a.base, a.treat
     cfg = load_config(a.config)
     prices = {k: v for k, v in cfg.get("prices_usd_per_mtok", {}).items() if not k.startswith("_")}
     sens = cfg.get("prices_sensitivity_uncached_as_cache_write")
@@ -224,7 +294,9 @@ def main() -> int:
         print(f"| {arm} | {cc:.2f} | {co:.0f} | {cr:.0f} | {xi:.0f} | {xc:.0f} | {xo:.0f} | {xr:.0f} | {fmt(xusd, 2)} "
               f"| {fmt(statistics.mean(tot_s) if None not in tot_s else None, 2)} |")
 
-    b_rows = [r for r in rows if r["arm"] == "B"]
+    b_rows = [r for r in rows if r["arm"] == TREAT and r.get("reviews") is not None]
+    if TREAT == "D" and b_rows:
+        d_section(b_rows, rows, prices, summary)
     if b_rows:
         caught = missed = 0
         must = sum(1 for r in b_rows for v in r.get("reviews", []) for f in v.get("findings", []) if f.get("severity") == "must_fix")
@@ -254,7 +326,7 @@ def main() -> int:
                 cost_parts["total"] += tot
         rounds = Counter(len(r.get("codex", [])) for r in b_rows)
         ttot = sum(time_parts.values())
-        print(f"\n## B の工程内レビュー\n\n- 判定の内訳 {dict(verdicts)}、must_fix 合計 {must}（category 別 {dict(cats)}）")
+        print(f"\n## {TREAT} の工程内レビュー\n\n- 判定の内訳 {dict(verdicts)}、must_fix 合計 {must}（category 別 {dict(cats)}）")
         print(f"- Codex の round 数の分布 {dict(sorted(rounds.items()))}、平均 {statistics.mean(len(r.get('codex', [])) for r in b_rows):.2f}")
         print(f"- リーク検出: 隠しテストが落ちた round のうち、レビューがリークを指摘した割合 {caught}/{caught + missed}"
               f"（隠しテストが通った round でのリーク指摘 {false_alarm} 件）")
@@ -310,12 +382,16 @@ def main() -> int:
             print(f"- {rv}: 隠しテストが落ちた候補のうち leakage ≤ 2 を付けた割合 {tp}/{tp + fn_}")
         summary["agreement"] = {"pearson": pr, "spearman": sp, "mad": mad, "leak_agree": leak_agree, "n": len(both)}
 
-    if not {"A", "B"} <= set(arms):
-        print("\n判定: A と B の両方の結果が必要")
+    if a.prior:
+        prior_section(a.prior, prices, rows)
+    if not {BASE, TREAT} <= set(arms):
+        print(f"\n判定: {BASE} と {TREAT} の両方の結果が必要")
+        if a.json:
+            a.json.write_text(json.dumps(summary, ensure_ascii=False, indent=1, default=str))
         return 0
-    tasks = sorted(set(per_task(rows, "A", success)) & set(per_task(rows, "B", success)))
-    sa, sb = per_task(rows, "A", success), per_task(rows, "B", success)
-    ca, cb = per_task(rows, "A", lambda r: run_cost(r, prices)), per_task(rows, "B", lambda r: run_cost(r, prices))
+    tasks = sorted(set(per_task(rows, BASE, success)) & set(per_task(rows, TREAT, success)))
+    sa, sb = per_task(rows, BASE, success), per_task(rows, TREAT, success)
+    ca, cb = per_task(rows, BASE, lambda r: run_cost(r, prices)), per_task(rows, TREAT, lambda r: run_cost(r, prices))
 
     def sdiff(ts):
         return statistics.mean(sb[t] - sa[t] for t in ts)
@@ -331,16 +407,16 @@ def main() -> int:
                           and (r.get("final") or {}).get("hidden", {}).get("total") and not r["final"]["hidden"]["all"])
                  for arm in arms}
 
-    def qdiff(reviewer=None, x="B"):
-        qa = [v for r in rows if r["arm"] == "A" and (v := blind_mean(r["rid"], reviewer)) is not None]
+    def qdiff(reviewer=None, x=TREAT):
+        qa = [v for r in rows if r["arm"] == BASE and (v := blind_mean(r["rid"], reviewer)) is not None]
         qb = [v for r in rows if r["arm"] == x and (v := blind_mean(r["rid"], reviewer)) is not None]
         return statistics.mean(qb) - statistics.mean(qa) if qa and qb else None
 
     qd = qdiff()
     print(f"\n## 判定（事前登録: {CRITERIA}）\n")
-    print(f"- 成功率差 B−A = {d:+.3f}（bootstrap 95% [{d_lo:+.3f}, {d_hi:+.3f}]、題材 {len(tasks)}）")
+    print(f"- 成功率差 {TREAT}−{BASE} = {d:+.3f}（bootstrap 95% [{d_lo:+.3f}, {d_hi:+.3f}]、題材 {len(tasks)}）")
     print("- leak 題材の隠しテスト失敗 run: " +"、".join(f"{arm}={leak_fail[arm]}" for arm in arms))
-    print(f"- 盲検合計の差 B−A = {fmt(qd, 2)}（reviewer 平均）" + "".join(
+    print(f"- 盲検合計の差 {TREAT}−{BASE} = {fmt(qd, 2)}（reviewer 平均）" + "".join(
         f"、{rv} のみ {fmt(qdiff(rv), 2)}" for rv in reviewers))
     if len(reviewers) >= 2 and qd is not None:
         per = {rv: (q := qdiff(rv)) is not None and q >= CRITERIA["quality_diff_min"] for rv in reviewers}
@@ -357,21 +433,21 @@ def main() -> int:
         return 0
     crt = cratio(tasks)
     cr_lo, cr_hi = boot(tasks, cratio, a.boot, a.seed)
-    print(f"- 費用比 B/A = {crt:.3f}（bootstrap 95% [{cr_lo:.3f}, {cr_hi:.3f}]）")
+    print(f"- 費用比 {TREAT}/{BASE} = {crt:.3f}（bootstrap 95% [{cr_lo:.3f}, {cr_hi:.3f}]）")
     if sens:
-        cas = per_task(rows, "A", lambda r: run_cost(r, prices, sens))
-        cbs = per_task(rows, "B", lambda r: run_cost(r, prices, sens))
+        cas = per_task(rows, BASE, lambda r: run_cost(r, prices, sens))
+        cbs = per_task(rows, TREAT, lambda r: run_cost(r, prices, sens))
         print(f"- 費用比（感度: Codex の非 cache 入力を cache write 単価で換算）= {sum(cbs[t] for t in tasks) / sum(cas[t] for t in tasks):.3f}（判定には使わない）")
     c = CRITERIA
     checks = {
         "1_cost": crt <= c["cost_ratio_max"] and cr_hi <= c["cost_ratio_upper_max"],
         "2_success": d >= c["success_diff_min"] and d_lo >= c["success_diff_lower_min"],
-        "3_leak": leak_fail["B"] <= leak_fail["A"] + c["leak_fail_margin"],
+        "3_leak": leak_fail[TREAT] <= leak_fail[BASE] + c["leak_fail_margin"],
         "4_quality": qd is None or qd >= c["quality_diff_min"],
     }
     adopt = all(checks.values())
     reject_why = [k for k, v in {"cost": crt > c["reject_cost_ratio"], "success": d < c["reject_success_diff"],
-                                 "leak": leak_fail["B"] >= leak_fail["A"] + c["reject_leak_margin"]}.items() if v]
+                                 "leak": leak_fail[TREAT] >= leak_fail[BASE] + c["reject_leak_margin"]}.items() if v]
     verdict = "ADOPT" if adopt else "REJECT" if reject_why else "INCONCLUSIVE"
     if qd is None and adopt:
         verdict = "ADOPT（盲検 review 未実施のため暫定）"
@@ -379,10 +455,10 @@ def main() -> int:
     print(f"- REJECT 条件に当たったもの: {reject_why or 'なし'}")
     print(f"\n**判定: {verdict}**")
     summary.update({"cost_ratio": crt, "cost_ratio_ci": [cr_lo, cr_hi], "adopt_checks": checks, "reject_why": reject_why,
-                    "verdict": verdict})
+                    "verdict": verdict, "base": BASE, "treat": TREAT})
 
     # 参照の判断（arm C）
-    if "C" in arms:
+    if "C" in arms and (BASE, TREAT) == ("A", "B"):
         sc = per_task(rows, "C", success)
         cc = per_task(rows, "C", lambda r: run_cost(r, prices))
         tc = sorted(set(tasks) & set(sc))

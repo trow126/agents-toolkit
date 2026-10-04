@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """sandwich-ab — Opus 単独（A）/ サンドイッチ（B）/ Sol 単独（C）の比較 harness（雛形）。
+追加実験（docs/eval/sandwich-ab-d-design.md）: 受け入れテストを可視にした Opus 単独（AP = A'）と、
+Codex 実装＋テスト通過までの反復＋Opus の軽量レビュー（D）。
 
 設計: docs/eval/sandwich-ab-design.md。題材・test・結果は private overlay と eval_root に置き、公開 repo には置かない。
 
 usage:
   sandwich_ab.py check      [--config PATH]                     前提の確認（モデルは呼ばない）
+  sandwich_ab.py selftest   [--config PATH]                     契約・プロンプトの interface 一覧と arm D の制御を検査（モデルは呼ばない）
   sandwich_ab.py verify-task [--config PATH] <S01> [--draft]    題材の ready 条件（§4.2）を機械検証（モデルは呼ばない）
   sandwich_ab.py schedule   [--config PATH] [--arms A,B,C] [--reps 2] [--rep-start 1] [--seed N] [--tasks S01,...]
   sandwich_ab.py run        [--config PATH] [--dry-run] [--limit N] [--parallel N]
@@ -44,6 +47,10 @@ EXCLUDE_FROM_DIFF = [":(exclude)uv.lock", ":(exclude).venv", ":(exclude)tests/_a
 COPY_IGNORE = shutil.ignore_patterns(".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache")
 LOCK = threading.Lock()
 STOP = threading.Event()  # 致命的な基盤エラー（CLI の版の変化など）で新しい run を始めない
+# 受け入れテストを作業ツリーに可視で置くアーム（sandwich-ab-d-design.md §2）。置き場所は tests/_acceptance。
+VISIBLE_ARMS = {"AP", "D"}
+VISIBLE_DIR = "tests/_acceptance"
+RID_RE = r"S\d+-[A-Za-z0-9]+-r\d+"
 
 
 # ---------------------------------------------------------------- utilities
@@ -223,19 +230,40 @@ def codex_usage(jsonl: Path) -> dict:
     return tot
 
 
-def contract_for(task: dict, rid: str, arm: dict, plan: str | None) -> dict:
+def visible_checks(task: dict) -> list[str]:
+    """可視アーム（AP・D）に渡す check。題材の必須 check に、受け入れテストの実行を足す。
+    ruff は受け入れテスト（repo の lint 規約に合わせて書いていない）を対象から外す（設計書 D §2）。"""
+    out = [c + f" --extend-exclude {VISIBLE_DIR}" if "ruff check" in c else c for c in task["required_checks"]]
+    return out + [f"uv run pytest -q {VISIBLE_DIR}"]
+
+
+def visible_section(cfg: dict) -> str:
+    return template(cfg, "visible-tests.md").strip().replace("{visible_dir}", VISIBLE_DIR)
+
+
+def interface_section(task: dict) -> str:
+    return "## interface（変更しないこと）\n\n" + bullets(task["interface"])
+
+
+def contract_for(task: dict, rid: str, arm: dict, plan: str | None, *, visible: str | None = None) -> dict:
+    """Codex への契約。interface 一覧を必ず goal に入れる（前回の arm C で抜けていた不具合の修正。selftest で検査）。
+    visible: 可視アームの受け入れテストの説明（visible-tests.md）。与えたときは check も visible_checks にする。"""
     goal = f"# {task['title']}\n\n{task['body']}"
+    if visible:
+        goal += "\n\n" + visible
+    goal += "\n\n" + interface_section(task)
     if plan:
         goal += "\n\n---\n\n以下は、このタスクのために書かれた実装計画です。計画に従って実装してください。\n\n" + plan
+    checks = visible_checks(task) if visible else task["required_checks"]
     return {
         "id": rid, "goal": goal,
         "acceptance_criteria": [
             "タスク本文の要件を scope の中で実装する",
-            "本文に書かれた interface（関数名・引数・戻り値）を変えない",
+            "本文に書かれた interface（関数名・引数・戻り値）を変えない: " + "; ".join(task["interface"]),
             "変更した振る舞いを検証する test を追加または更新する",
-            *[f"`{c}` が成功する" for c in task["required_checks"]],
+            *[f"`{c}` が成功する" for c in checks],
         ],
-        "scope_paths": task["scope_paths"], "required_checks": task["required_checks"],
+        "scope_paths": task["scope_paths"], "required_checks": checks,
         "diff_budget": task["diff_budget"], "allowed_dependency_changes": [],
         "non_goals": ["scope_paths の外のファイル（docs、README、設定）の更新", "依頼されていないリファクタや整形"],
         "invariants": ["既存の test を削除、skip、弱体化しない", "commit しない"],
@@ -316,6 +344,9 @@ def copy_for_grading(cfg: dict, wt: Path, out_dir: Path, tag: str) -> Path:
 def grade(cfg: dict, task: dict, wt: Path, out_dir: Path, tag: str = "final") -> dict:
     """作業ツリーの写しで採点する。作業ツリーそのものは変えない。"""
     g = copy_for_grading(cfg, wt, out_dir, tag)
+    # 可視アームの作業ツリーには受け入れテストがある。必須 check は従来どおり repo 自身の test で測り、
+    # 受け入れテストは下で overlay の原本を置き直して測る（エージェントが書き換えていても原本で採点する）
+    shutil.rmtree(g / VISIBLE_DIR, ignore_errors=True)
     ds = diff_stats(g, task["base"], task["scope_paths"])
     (out_dir / f"{tag}.diff").write_text(ds.pop("patch"))
     checks = []
@@ -368,14 +399,21 @@ def mutant_score(cfg: dict, task: dict, g: Path, changed: list[str], out_dir: Pa
     return {"killed": sum(applied), "applied": len(applied), "total": len(killed), "agent_tests": agent_tests}
 
 
-def contamination(cfg: dict, run_dir: Path) -> bool:
+def contamination(cfg: dict, run_dir: Path, visible: bool = False) -> bool:
     """エージェントの記録に overlay の test パスが出てきたら汚染として記録する（その run は集計から外す）。
-    別の run の作業ツリー・diff（eval_root/runs/<他の rid>）、盲検 pack・対応表への言及も汚染とする。"""
+    別の run の作業ツリー・diff（eval_root/runs/<他の rid>）、盲検 pack・対応表への言及も汚染とする。
+    visible=True（AP・D）: 受け入れテストは作業ツリーに可視で置くので、tests/_acceptance への言及は汚染としない。
+    汚染の対象は隠しテスト（とその置き場の overlay、参照解・罠版・ミュータント）、他 run、盲検 pack に限る（D 設計書 §4）。"""
     # "_acceptance" 単体は R4 の src（parse_submission_acceptance_times）に出るので、tests/ 付きで探す
-    needles = {str(cfg["tests_dir"]), "eval/sandwich/tests", "eval/sandwich/tasks", "tests/_hidden", "tests/_acceptance",
+    needles = {str(cfg["tests_dir"]), "eval/sandwich/tests", "eval/sandwich/tasks", "tests/_hidden",
                "blind-map", str(cfg["eval_root"] / "blind"), str(cfg["eval_root"] / "prep"), str(cfg["eval_root"] / "dev")}
+    if not visible:
+        needles.add("tests/_acceptance")
+    else:
+        # D は工程の途中で隠しテストを当て、その junit を作業ツリーの隣（run_dir）に置く。読みに行ったら汚染
+        needles |= {"-hidden.xml", "/grade-"}
     # Codex は上位ディレクトリの AGENTS.md を探すので runs/AGENTS.md は出てよい。rid の形のものだけを見る
-    runs_re = re.compile(re.escape(str(cfg["eval_root"] / "runs")) + r"/(S\d+-[A-Z]-r\d+)")
+    runs_re = re.compile(re.escape(str(cfg["eval_root"] / "runs")) + rf"/({RID_RE})")
     logs = list(run_dir.glob("claude-*.json")) + list((run_dir / "state").glob("exec-*.jsonl"))
     for f in logs:
         text = f.read_text(errors="replace")
@@ -479,7 +517,138 @@ def arm_c(cfg, task, rid, wt, run_dir, rec):
         rec["interventions"].append(f"codex:stopped:{cr['stopped']}")
 
 
-ARMS = {"A": arm_a, "B": arm_b, "C": arm_c}
+# ---------------------------------------------------------------- arms AP / D（sandwich-ab-d-design.md）
+def place_visible_tests(cfg: dict, task: dict, wt: Path) -> dict:
+    """受け入れテストを作業ツリーの tests/_acceptance に置き、原本の sha256 を返す（改変の検出用）。"""
+    import hashlib
+    dst = wt / VISIBLE_DIR
+    dst.mkdir(parents=True, exist_ok=True)
+    (dst / "__init__.py").touch()
+    hashes = {}
+    for rel in task.get("acceptance_tests", []):
+        src = cfg["tests_dir"] / task["id"] / rel
+        shutil.copy2(src, dst / Path(rel).name)
+        hashes[Path(rel).name] = hashlib.sha256(src.read_bytes()).hexdigest()
+    return hashes
+
+
+def visible_tampered(wt: Path, hashes: dict) -> list[str]:
+    import hashlib
+    bad = []
+    for name, h in hashes.items():
+        p = wt / VISIBLE_DIR / name
+        if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != h:
+            bad.append(name)
+    return bad
+
+
+def visible_solo_prompt(cfg: dict, task: dict) -> str:
+    """A' のプロンプト。A と同じ solo-prompt.md に、D の契約と同じ受け入れテストの説明と check を入れる。"""
+    return template(cfg, "solo-prompt.md").format(
+        title=task["title"], body=task["body"] + "\n\n" + visible_section(cfg), interface=bullets(task["interface"]),
+        scope_paths=bullets(task["scope_paths"]), required_checks=bullets(visible_checks(task)),
+        diff_budget_files=task["diff_budget"]["files"], diff_budget_lines=task["diff_budget"]["lines"])
+
+
+def arm_ap(cfg, task, rid, wt, run_dir, rec):
+    arm = cfg["arms"]["AP"]
+    rec["claude"] = [claude_call(cfg, arm, visible_solo_prompt(cfg, task), wt, run_dir / "claude-impl.json", write=True)]
+    if rec["claude"][0]["subtype"] not in (None, "success"):
+        rec["interventions"].append(f"claude:{rec['claude'][0]['subtype']}")
+
+
+def gate_feedback(cr: dict) -> str:
+    v = cr.get("violations") or ["（gate の evidence が無い。required check を自分で実行して確かめること）"]
+    return "\n".join(f"- {x}" for x in v)
+
+
+def light_review_prompt(cfg: dict, task: dict, diff: str, cr: dict) -> str:
+    return template(cfg, "light-review.md") + "\n\n" + "\n\n".join([
+        f"## タスク\n\n# {task['title']}\n\n{task['body']}",
+        interface_section(task),
+        "## 受け入れテストと gate の結果\n\n" + ("受け入れテスト（tests/_acceptance）と必須 check はすべて通っている。"
+                                          if cr.get("gate_passed") else "gate が通っていない: \n" + gate_feedback(cr)),
+        f"## diff（base {task['base'][:12]} から。tests/_acceptance は除く）\n\n```diff\n{diff}\n```",
+    ])
+
+
+def arm_d(cfg, task, rid, wt, run_dir, rec):
+    """D: Codex が実装し、可視の受け入れテストと必須 check（gate）が通るまで反復（Codex 呼び出し max_test_rounds 回まで）。
+    通ったら Opus が diff を 1 回だけ軽量レビュー（読み取り専用）。must_fix があれば Codex に 1 回だけ修正を依頼し、gate を再実行。
+    規則は sandwich-ab-d-design.md §2.2 で事前に固定した。"""
+    arm = cfg["arms"]["D"]
+    sd = state_dir(wt)
+    cpath = sd / f"contract-{rid}.json"
+    contract = contract_for(task, rid, arm, None, visible=visible_section(cfg))
+    cpath.write_text(json.dumps(contract, ensure_ascii=False, indent=2))
+    rec["codex"], rec["reviews"], rec["round_grades"], rec["claude"] = [], [], [], []
+    rec["d"] = {"test_rounds": 0, "tests_passed_round": None, "review": None, "fix": None}
+    passed = False
+    for rnd in range(1, arm["max_test_rounds"] + 1):
+        cr = codex_round(cfg, wt, cpath, rid) | {"phase": "test", "round": rnd}
+        rec["codex"].append(cr)
+        rec["d"]["test_rounds"] = rnd
+        if cr["rate_limited"] or cr["auth_error"]:
+            rec["rate_limited"] = cr["rate_limited"]
+            return
+        if cr["status"] == "stopped":
+            rec["interventions"].append(f"codex:stopped:{cr['stopped']}")
+            return
+        if cr["gate_passed"]:
+            passed = True
+            rec["d"]["tests_passed_round"] = rnd
+            break
+        if rnd < arm["max_test_rounds"]:
+            c = json.loads(cpath.read_text())
+            c["goal"] += (f"\n\n---\n\n## 前回の実行の後の gate の結果（{rnd} 回目）。すべて解消すること\n\n" + gate_feedback(cr)
+                          + "\n\n受け入れテスト（tests/_acceptance）は変更しない。")
+            cpath.write_text(json.dumps(c, ensure_ascii=False, indent=2))
+    if not passed:
+        rec["interventions"].append("tests:max_rounds")
+        return
+    # 軽量レビューの前に隠しテストを当てる（記録だけ。Codex にも reviewer にも渡さない）
+    rec["round_grades"].append(grade(cfg, task, wt, run_dir, tag="prereview"))
+    diff = (run_dir / "prereview.diff").read_text()
+    schema = cfg["templates_dir"] / "review-verdict.schema.json"
+    fp = wt_fingerprint(wt)
+    rv = claude_call(cfg, arm, light_review_prompt(cfg, task, diff, cr), wt, run_dir / "claude-review1.json", write=False,
+                     schema=schema, toolset=cfg["light_review_toolset"])
+    if wt_fingerprint(wt) != fp:
+        rec["interventions"].append("claude:readonly_write:review1")
+    verdict = rv.get("structured") or {}
+    rec["claude"].append(rv | {"stage": "review1", "structured": None, "result": None})
+    rec["reviews"].append(verdict)
+    if rv.get("rate_limited") or rv.get("auth_error"):
+        return
+    v = verdict.get("verdict")
+    must = [f for f in verdict.get("findings", []) if f.get("severity") == "must_fix"]
+    rec["d"]["review"] = {"verdict": v, "must_fix": len(must), "findings": len(verdict.get("findings", []))}
+    if v is None:
+        rec["interventions"].append("review:unparsed")
+        return
+    if v == "BLOCKED":
+        rec["interventions"].append("review:BLOCKED")
+        return
+    if not must:
+        return
+    c = json.loads(cpath.read_text())
+    c["goal"] += ("\n\n---\n\n## レビュー指摘。must_fix をすべて直し、受け入れテストと必須 check が通る状態を保つこと\n\n"
+                  + "\n".join(f"- [{f['category']}] {f['location']}: {f['fix']}" for f in must)
+                  + "\n\n受け入れテスト（tests/_acceptance）は変更しない。")
+    cpath.write_text(json.dumps(c, ensure_ascii=False, indent=2))
+    cr = codex_round(cfg, wt, cpath, rid) | {"phase": "fix", "round": 1}
+    rec["codex"].append(cr)
+    if cr["rate_limited"] or cr["auth_error"]:
+        rec["rate_limited"] = cr["rate_limited"]
+        return
+    rec["d"]["fix"] = {"gate_passed": cr["gate_passed"], "status": cr["status"]}
+    if cr["status"] == "stopped":
+        rec["interventions"].append(f"codex:stopped:{cr['stopped']}")
+    elif not cr["gate_passed"]:
+        rec["interventions"].append("fix:gate_failed")
+
+
+ARMS = {"A": arm_a, "B": arm_b, "C": arm_c, "AP": arm_ap, "D": arm_d}
 
 
 def run_one(cfg: dict, task: dict, arm_id: str, rep: int, dry: bool) -> dict | None:
@@ -492,9 +661,15 @@ def run_one(cfg: dict, task: dict, arm_id: str, rep: int, dry: bool) -> dict | N
     rec = {"rid": rid, "task": task["id"], "arm": arm_id, "rep": rep, "kind": task["kind"],
            "leak_trap": task["leak_trap"], "started_at": now(), "interventions": [], "rate_limited": False}
     rec["versions"] = cli_versions()
+    visible = arm_id in VISIBLE_ARMS
+    hashes = place_visible_tests(cfg, task, wt) if visible else {}
     t0 = time.monotonic()
     ARMS[arm_id](cfg, task, rid, wt, run_dir, rec)
     rec["wall_s"] = round(time.monotonic() - t0)
+    if visible:
+        rec["acceptance_tampered"] = visible_tampered(wt, hashes)
+        if rec["acceptance_tampered"]:
+            rec["interventions"].append("acceptance:tampered")
     if any(c.get("rate_limited") for c in rec.get("claude", [])):
         rec["rate_limited"] = True
     rec["auth_error"] = any(c.get("auth_error") for c in rec.get("claude", []) + rec.get("codex", []))
@@ -503,7 +678,7 @@ def run_one(cfg: dict, task: dict, arm_id: str, rep: int, dry: bool) -> dict | N
     sd = state_dir(wt)
     shutil.copytree(sd, run_dir / "state", dirs_exist_ok=True)
     rec["final"] = grade(cfg, task, wt, run_dir)
-    rec["contaminated"] = contamination(cfg, run_dir)
+    rec["contaminated"] = contamination(cfg, run_dir, visible=visible)
     if not rec["final"]["checks_passed"]:
         rec["interventions"].append("checks:failed")
     if rec["final"]["diff"]["out_of_scope"]:
@@ -528,7 +703,8 @@ def cmd_check(cfg: dict, _a) -> int:
     prof = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "toolkit-implementer.config.toml"
     if not prof.exists():
         problems.append(f"Codex profile missing: {prof} (bootstrap.sh --apply)")
-    for name in ("plan.md", "plan-prompt.md", "solo-prompt.md", "review.md", "review-verdict.schema.json", "blind-review.md"):
+    for name in ("plan.md", "plan-prompt.md", "solo-prompt.md", "review.md", "review-verdict.schema.json", "blind-review.md",
+                 "visible-tests.md", "light-review.md"):
         if not (cfg["templates_dir"] / name).exists():
             problems.append(f"template missing: {name}")
     all_tasks = load_tasks(cfg, ready_only=False)
@@ -548,9 +724,113 @@ def cmd_check(cfg: dict, _a) -> int:
         vj = cfg["eval_root"] / "prep" / t["id"] / "verify.json"
         if not vj.exists() or not json.loads(vj.read_text()).get("ready"):
             problems.append(f"{t['id']}: verify-task が PASS していない（{vj}）")
+        if VISIBLE_ARMS & set(cfg["arms"]):
+            vv = cfg["eval_root"] / "prep" / t["id"] / "verify-visible.json"
+            if not vv.exists() or not json.loads(vv.read_text()).get("ready"):
+                problems.append(f"{t['id']}: verify-visible が PASS していない（{vv}）")
     for p in problems:
         print("FAIL:", p)
     print("OK" if not problems else f"{len(problems)} problem(s)")
+    return 1 if problems else 0
+
+
+def cmd_selftest(cfg: dict, _a) -> int:
+    """モデルを呼ばずに検査する（D 設計書 §6）。
+    1. 全 ready 題材で、D の契約から codex-delegate が実際に描くプロンプト（delegation_common.render_prompt）と A' のプロンプトに、
+       interface の全項目・受け入れテストの置き場所・可視 check の全部が入る。契約が contract.schema.json に通る。
+       visible なしの契約（前回の arm C の形）にも interface が入る（前回の不具合の回帰検査）。
+    2. arm D の制御（gate の反復上限、軽量レビュー 1 回、must_fix の修正依頼 1 回、BLOCKED・stopped の終了）を stub で通す。"""
+    import tempfile
+    sys.path.insert(0, str(cfg["toolkit_bin"]))
+    import delegation_common as dc
+    problems = []
+    tasks = load_tasks(cfg)
+    schema = dc.load_json(dc.CONTRACT_SCHEMA)
+    arm_d_cfg = cfg["arms"]["D"]
+    for t in tasks:
+        rid = f"{t['id']}-D-r1"
+        c = contract_for(t, rid, arm_d_cfg, None, visible=visible_section(cfg))
+        for e in dc.schema_errors(c, schema):
+            problems.append(f"{t['id']}: contract schema: {e}")
+        texts = {"D codex prompt": dc.render_prompt(c), "AP prompt": visible_solo_prompt(cfg, t),
+                 "contract without visible (C 形)": dc.render_prompt(contract_for(t, rid, arm_d_cfg, None))}
+        for name, text in texts.items():
+            for item in t["interface"]:
+                if item not in text:
+                    problems.append(f"{t['id']}: {name} に interface が無い: {item[:80]}")
+            if name != "contract without visible (C 形)":
+                if VISIBLE_DIR not in text:
+                    problems.append(f"{t['id']}: {name} に {VISIBLE_DIR} が無い")
+                for chk in visible_checks(t):
+                    if chk not in text:
+                        problems.append(f"{t['id']}: {name} に check が無い: {chk[:80]}")
+        if any("ruff check" in x and VISIBLE_DIR not in x for x in visible_checks(t)):
+            problems.append(f"{t['id']}: ruff check が受け入れテストを除外していない")
+    print(f"selftest 1: {len(tasks)} 題材の契約とプロンプト（interface・可視テスト・check）")
+
+    # 2. arm D の制御を stub で通す
+    g = globals()
+    saved = {k: g[k] for k in ("codex_round", "claude_call", "grade", "wt_fingerprint", "state_dir")}
+    task = tasks[0] if tasks else None
+    scenarios = {
+        # name: (gate 結果の列, review verdict, 期待する codex 呼び出し数, 期待する interventions, 修正依頼の有無)
+        "pass1-approved": ([True], "APPROVED", 1, [], False),
+        "fail3": ([False, False, False], None, 3, ["tests:max_rounds"], False),
+        "pass2-mustfix": ([False, True, True], "WARNING", 3, [], True),
+        "pass1-blocked": ([True], "BLOCKED", 1, ["review:BLOCKED"], False),
+        "pass1-mustfix-fixfails": ([True, False], "WARNING", 2, ["fix:gate_failed"], True),
+    }
+    try:
+        for name, (gates, verdict, n_codex, ints, fix) in scenarios.items():
+            if task is None:
+                break
+            with tempfile.TemporaryDirectory() as td:
+                wt, run_dir, sd = Path(td) / "wt", Path(td), Path(td) / "state"
+                wt.mkdir()
+                sd.mkdir()
+                seq = iter(gates)
+                calls = {"codex": 0, "review": 0}
+
+                def fake_codex(_cfg, _wt, _cpath, _rid, _seq=seq, _calls=calls):
+                    _calls["codex"] += 1
+                    ok = next(_seq)
+                    return {"model": "stub", "exit": 0, "wall_s": 0, "gate_passed": ok, "status": "completed",
+                            "stopped": None, "violations": [] if ok else ["required check failed (exit 1): stub"],
+                            "rate_limited": False, "auth_error": False, "input_tokens": 0, "cached_input_tokens": 0,
+                            "cache_write_input_tokens": 0, "output_tokens": 0, "reasoning_output_tokens": 0}
+
+                def fake_claude(_cfg, _arm, prompt, _cwd, _out, _verdict=verdict, _calls=calls, **kw):
+                    _calls["review"] += 1
+                    assert kw.get("toolset") == cfg["light_review_toolset"], kw.get("toolset")
+                    for item in task["interface"]:
+                        assert item in prompt
+                    findings = [{"severity": "must_fix", "category": "design", "location": "x.py:1", "evidence": "e",
+                                 "fix": "STUBFIX"}] if _verdict == "WARNING" else []
+                    return {"structured": {"verdict": _verdict, "summary": "", "findings": findings, "leak_suspected": False},
+                            "cost_usd": 0, "subtype": "success", "rate_limited": False, "auth_error": False}
+
+                def fake_grade(_cfg, _task, _wt, rd, tag="final"):
+                    (rd / f"{tag}.diff").write_text("diff --git a/x b/x\n")
+                    return {"hidden": {"total": 0}}
+
+                g.update(codex_round=fake_codex, claude_call=fake_claude, grade=fake_grade,
+                         wt_fingerprint=lambda _w: "same", state_dir=lambda _w, _sd=sd: _sd)
+                rec = {"interventions": [], "rate_limited": False}
+                arm_d(cfg, task, f"{task['id']}-D-r1", wt, run_dir, rec)
+                goal = json.loads((sd / f"contract-{task['id']}-D-r1.json").read_text())["goal"]
+                exp_review = 0 if name == "fail3" else 1
+                got = (calls["codex"], rec["interventions"], calls["review"], "STUBFIX" in goal)
+                want = (n_codex, ints, exp_review, fix)
+                if got != want:
+                    problems.append(f"arm D stub {name}: got {got} want {want}")
+                if name in ("fail3", "pass2-mustfix") and "gate の結果（1 回目）" not in goal:
+                    problems.append(f"arm D stub {name}: 再委任に gate の結果が入っていない")
+                print(f"selftest 2: arm D {name}: codex={calls['codex']} review={calls['review']} int={rec['interventions']}")
+    finally:
+        g.update(saved)
+    for p in problems:
+        print("FAIL:", p)
+    print("SELFTEST OK" if not problems else f"SELFTEST {len(problems)} problem(s)")
     return 1 if problems else 0
 
 
@@ -726,6 +1006,45 @@ def cmd_verify_task(cfg: dict, a) -> int:
     return finish_verify(prep, rep)
 
 
+def cmd_verify_visible(cfg: dict, a) -> int:
+    """可視アームの前提（D 設計書 §3）: 受け入れテストを tests/_acceptance に置いた作業ツリーで、
+    base では可視 check（visible_checks）のどれかが落ち、参照解では全部通る。結果は eval_root/prep/<id>/verify-visible.json。"""
+    task = load_tasks(cfg, [a.task], ready_only=False)[0]
+    prep = cfg["eval_root"] / "prep" / task["id"]
+    prep.mkdir(parents=True, exist_ok=True)
+    rep: dict = {"task": task["id"], "at": now(), "checks": visible_checks(task), "problems": []}
+    wt = make_worktree(cfg, task, task["id"] + "-visible", sub="prep")
+    place_visible_tests(cfg, task, wt)
+
+    def run_checks():
+        out = []
+        for c in visible_checks(task):
+            try:
+                rc = sh(["bash", "-lc", c], cwd=wt, timeout=cfg["timeouts_s"]["check"], check=False).returncode
+            except subprocess.TimeoutExpired:
+                rc = 124
+            out.append({"cmd": c, "exit": rc})
+        return out
+    rep["base"] = run_checks()
+    if all(c["exit"] == 0 for c in rep["base"]):
+        rep["problems"].append("base: 可視 check が全部通ってしまう")
+    r = sh(["git", "-C", str(wt), "apply", str(cfg["tests_dir"] / task["id"] / task["reference"])], check=False)
+    if r.returncode:
+        rep["problems"].append(f"reference が当たらない: {r.stderr[-300:]}")
+    else:
+        rep["reference"] = run_checks()
+        bad = [c for c in rep["reference"] if c["exit"] != 0]
+        if bad:
+            rep["problems"].append(f"reference: 可視 check が落ちる {bad}")
+    m = mirror(cfg, task["repo"])
+    sh(["git", "-C", str(m), "worktree", "remove", "--force", str(wt)], check=False)
+    rep["ready"] = not rep["problems"]
+    (prep / "verify-visible.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
+    print(json.dumps(rep, ensure_ascii=False, indent=1))
+    print("VISIBLE READY" if rep["ready"] else "VISIBLE NOT READY")
+    return 0 if rep["ready"] else 1
+
+
 def finish_verify(prep: Path, rep: dict) -> int:
     rep["ready"] = not rep["problems"]
     prep.mkdir(parents=True, exist_ok=True)
@@ -857,6 +1176,7 @@ def main() -> int:
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check")
+    sub.add_parser("selftest")
     s = sub.add_parser("schedule")
     s.add_argument("--arms", default="A,B,C")
     s.add_argument("--reps", type=int, default=2)
@@ -865,6 +1185,8 @@ def main() -> int:
     v = sub.add_parser("verify-task")
     v.add_argument("task")
     v.add_argument("--keep", action="store_true")
+    vv = sub.add_parser("verify-visible")
+    vv.add_argument("task")
     s.add_argument("--tasks")
     r = sub.add_parser("run")
     r.add_argument("--dry-run", action="store_true")
@@ -879,7 +1201,7 @@ def main() -> int:
     a = ap.parse_args()
     cfg = load_config(a.config)
     os.environ["AGENTS_TOOLKIT_SLACK_NOTIFY"] = "off"  # 各 claude -p の Stop hook で Slack 通知を出さない
-    return {"check": cmd_check, "verify-task": cmd_verify_task, "schedule": cmd_schedule, "run": cmd_run,
+    return {"check": cmd_check, "selftest": cmd_selftest, "verify-task": cmd_verify_task, "verify-visible": cmd_verify_visible, "schedule": cmd_schedule, "run": cmd_run,
             "grade": cmd_grade, "blind-pack": cmd_blind_pack, "blind-review": cmd_blind_review}[a.cmd](cfg, a)
 
 
