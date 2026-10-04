@@ -1,0 +1,26 @@
+{
+  "title": "cross-critic critic output",
+  "description": "Final answer of one critic (Codex: codex exec --output-schema; Claude: claude -p --json-schema). cross-critic run also checks the document hash and that no field is empty.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_sha256", "findings"],
+  "properties": {
+    "document_sha256": {"type": "string"},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "target", "claim", "why_it_matters", "resolution", "severity"],
+        "properties": {
+          "kind": {"type": "string", "enum": ["objection", "oversight", "alternative_explanation", "alternative"]},
+          "target": {"type": "string"},
+          "claim": {"type": "string"},
+          "why_it_matters": {"type": "string"},
+          "resolution": {"type": "string"},
+          "severity": {"type": "string", "enum": ["high", "medium", "low"]}
+        }
+      }
+    }
+  }
+}

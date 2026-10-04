@@ -1,11 +1,15 @@
 ---
 name: gh-roadmap-drive
-description: Loops a tracking Issue's sub-Issues through /gh-codex-drive → verify → /gh-finish --apply, updating its checklist until a gate, unmet dependency, or failure. Use when the user asks to advance a roadmap Issue with Codex. Not for a single Issue.
+description: Deprecated (2026-10 A/B REJECT; successor /gh-roadmap-run). Loops a tracking Issue's sub-Issues through /gh-codex-drive → verify → /gh-finish --apply until a gate, unmet dependency, or failure. Use only when asked to run a roadmap with Codex.
 disable-model-invocation: true
 argument-hint: "<tracking-issue-number> [--status]"
 ---
 
 # /gh-roadmap-drive
+
+> **非推奨**（2026-10 の A/B 実験 `docs/eval/sandwich-ab-results.md` / `sandwich-ab-d-results.md`（agents-toolkit）で REJECT）。後継: `/gh-roadmap-run`（各 sub-Issue を `/gh-test-first` で Claude が実装）。Codex 実装はClaude単独に対して費用を下げず（2.34倍・1.04倍）、時間は3〜6倍だった。
+
+**起動時の案内**: 何かを始める前に、この非推奨と後継（`/gh-roadmap-run <tracking-issue>`）をユーザーに伝え、後継へ切り替えるか Codex での loop を続けるかを確認する。ユーザーが続行を明示した場合だけ、以下の手順を実行する。`--status` は確認なしで実行してよい。
 
 Read [`references/workflow.md`](references/workflow.md). The per-step contracts are owned by the `gh-codex-drive` and `gh-finish` skills — load each via the Skill tool at the step that uses it. This skill only adds the loop over a tracking Issue; it never relaxes either skill's rules.
 

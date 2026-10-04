@@ -17,15 +17,21 @@ config-audit	default	deny	deny	deny	deny	deny	deny	deny	read-only report
 config-audit	--record	deny	allow	deny	deny	deny	deny	deny	append one XDG history record
 knowledge-audit	default	deny	deny	deny	deny	deny	deny	deny	in-chat report
 knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	deny	selected project knowledge files only
-gh-codex-drive	default	allow	allow	deny	deny	deny	deny	allow	Codex implements through codex-delegate; creates or switches the feature branch and writes contract result evidence and active state under the git-dir; completion side effects are forbidden
+gh-codex-drive	default	allow	allow	deny	deny	deny	deny	allow	deprecated 2026-10 (successor gh-test-first); runs only after the user confirms continuing; Codex implements through codex-delegate; creates or switches the feature branch and writes contract result evidence and active state under the git-dir; completion side effects are forbidden
 gh-codex-drive	--status	deny	deny	deny	deny	deny	deny	deny	report task state and local evidence only; no delegation or edits
 gh-finish	default	deny	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
 gh-finish	--apply	allow	allow	allow	deny	allow	deny	deny	commit scoped changes locally merge and close one Issue with a comment
 gh-index	default	deny	deny	deny	deny	deny	deny	deny	in-chat index
 gh-index	--output	allow	deny	deny	deny	deny	deny	deny	exact repo-local path
 gh-index	--output --force	allow	deny	deny	deny	deny	deny	deny	overwrite the exact existing repo-local file named by --output
-gh-roadmap-drive	default	allow	allow	allow	deny	allow	deny	allow	per sub-Issue commit and local merge close plus one tracking checklist update
+gh-roadmap-drive	default	allow	allow	allow	deny	allow	deny	allow	deprecated 2026-10 (successor gh-roadmap-run); runs only after the user confirms continuing; per sub-Issue commit and local merge close plus one tracking checklist update
 gh-roadmap-drive	--status	deny	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no delegation edits or writes
+gh-roadmap-run	default	allow	allow	allow	deny	allow	deny	deny	per sub-Issue gh-test-first implementation in this session then commit local merge close plus one tracking checklist update; no Codex delegation
+gh-roadmap-run	--critic	allow	allow	allow	deny	allow	deny	allow	the default loop plus one cross-critic --gate run per judgment gate; gate material goes to the critic sessions
+gh-roadmap-run	--status	deny	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no implementation critics edits or writes
+gh-test-first	default	allow	allow	deny	deny	deny	deny	deny	creates or switches the feature branch; writes tests first then the implementation and local test runs; no commit or GitHub write
+cross-critic	default	deny	allow	deny	deny	deny	deny	allow	sends one document to a read-only Codex critic (codex exec -s read-only); writes only its run directory under ~/.local/state; no repository writes
+cross-critic	--gate	deny	allow	deny	deny	deny	deny	allow	adds a read-only Claude critic (claude -p --tools Read,Grep,Glob) that is never the author model; writes only its run directory under ~/.local/state
 gh-start	default	allow	deny	deny	deny	deny	deny	deny	local implementation and tests
 gh-start	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified scoped changes
 gh-start	--sync	deny	deny	deny	deny	allow	deny	deny	one Issue status update

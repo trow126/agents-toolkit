@@ -1,10 +1,14 @@
 ---
 name: gh-codex-drive
-description: Drives one GitHub Issue with Codex as implementer while Claude scopes, supervises, verifies, and reviews; --status reports only. Use when the user explicitly delegates the implementation to Codex（「実装はcodex」等）. Not for Claude's own work (gh-start).
+description: Deprecated (2026-10 A/B REJECT; successor /gh-test-first). Drives one Issue with Codex as implementer under Claude's supervision; --status reports only. Use only when the user explicitly delegates implementation to Codex（「実装はcodex」等）.
 argument-hint: "<issue-number> [--status]"
 ---
 
 # /gh-codex-drive
+
+> **非推奨**（2026-10 の A/B 実験 `docs/eval/sandwich-ab-results.md` / `sandwich-ab-d-results.md`（agents-toolkit）で REJECT）。後継: `/gh-test-first`（1 Issue）・`/gh-roadmap-run`（roadmap）。Codex 実装はClaude単独に対して費用を下げず（2.34倍・1.04倍）、時間は3〜6倍だった。品質を上げたのは実装前のテストと明確な仕様である。
+
+**起動時の案内**: 何かを始める前に、この非推奨と後継をユーザーに伝え、後継へ切り替えるか Codex 委任を続けるかを確認する。ユーザーが続行を明示した場合だけ、以下の手順を実行する。`--status` は確認なしで実行してよい（委任中の作業の確認のため）。
 
 Stop before delegating when the Issue, repository, or success criteria are unclear in a way that changes design, data, or public API. The run is complete when the post-delegation gate has passed (or has been reported as failed), the diff has been reviewed, and the report names the exact follow-up command.
 

@@ -25,10 +25,12 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 - 高リスク変更（アーキテクチャ・データ破壊・公開 API）は、deterministic CI と `/code-review` で差分を検査する
 - 計画reviewはCodex版`plan-review`（ユーザーがCodexで実行する）か`/code-review`を使う
 - 別providerの独立した発想が必要なときは、ユーザーが明示した場合だけ`/break-consensus --cross`を使う。委任ではなくread-onlyで、実装には移らない
+- 計画・事前登録・amendment・設計・仮説への異系統の批判は、ユーザーが明示した場合だけ`/cross-critic`（重要ゲートは`--gate`）を使う。批判役であり判定役ではない
 
 ## Codex 委任（ユーザーの明示指示がある場合だけ）
 
 - 委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。Claudeが自分の判断で委任を選ばない
+- `/gh-codex-drive`・`/gh-roadmap-drive`は非推奨（2026-10のA/B実験でREJECT）。後継は`/gh-test-first`・`/gh-roadmap-run`で、起動時に後継を案内する
 - 委任したCodexは実装担当であり、Claudeは委任・監督・検証・最終統合を担当する
 - 起動は`gh-codex-drive`のworkflowに従い、契約を書いてmain sessionから`~/.claude/bin/codex-delegate`を`Bash(run_in_background=true)`で起動する。`codex:codex-rescue` Agentと`/codex:adversarial-review`を委任や諮問の代わりに起動しない
 - 監督はbackground taskの完了通知と`$(git rev-parse --git-dir)/agents-toolkit/`のstate（`result-<N>.json`・`evidence-<N>.json`）で行い、完了判定は`verify-delegation`のevidenceに基づく

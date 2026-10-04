@@ -1,0 +1,645 @@
+#!/usr/bin/env python3
+"""cross-critic — run the read-only critics of /cross-critic and check the synthesis (agents-toolkit).
+
+usage:
+  cross-critic run <document> --author MODEL [--gate] [--repo DIR] [--timeout SEC] [--dry-run]
+  cross-critic finish <run-dir>
+
+run     copy the document into a new run directory under
+        ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/cross-critic/, render the critic prompt from
+        claude/skills/cross-critic/references/workflow.md, and run the critics in parallel:
+        always the Codex critic (codex exec -s read-only, route CODEX_MODEL/CODEX_EFFORT), and with
+        --gate also a Claude critic (claude -p --tools Read,Grep,Glob). The Claude critic is
+        CLAUDE_GATE_MODEL unless --author names that model, then CLAUDE_ALT_MODEL. Both children run
+        through `bash -lc` (codex and claude are on PATH only in a login shell) with
+        AGENTS_TOOLKIT_SLACK_NOTIFY=off. Validates both outputs, checks that git status is unchanged,
+        and writes findings.json and synthesis.template.md.
+finish  check <run>/synthesis.md against findings.json (every finding ID covered, source, priority,
+        and an adopt/reject decision with a reason per row), check git status again, and write
+        <run>/result.md.
+Nothing here writes to the repository. Critics criticize; they never judge.
+"""
+import datetime as dt
+import hashlib
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import (  # noqa: E402
+    DelegationError, catalog_levels, codex_home, load_json, schema_errors, sha256_file, write_json,
+)
+
+TOOLKIT_ROOT = Path(__file__).resolve().parents[2]
+REFERENCES = TOOLKIT_ROOT / "claude/skills/cross-critic/references"
+ROUTE_FILE = REFERENCES / "critic-route.env"
+SCHEMA_FILE = REFERENCES / "critic.schema.json"
+PROCEDURE = REFERENCES / "workflow.md"
+MAX_DOCUMENT_BYTES = 64 * 1024
+DEFAULT_TIMEOUT = 1800
+CLAUDE_TOOLS = "Read,Grep,Glob"
+COLUMNS = ["ID", "指摘", "出所", "優先度", "判定", "理由"]
+PRIORITY = {"low": "低", "medium": "中", "high": "高"}
+RANK = {"低": 0, "中": 1, "高": 2}
+BOTH = "両方"
+DECISIONS = {"採用", "不採用"}
+PLACEHOLDERS = {"", "-", "—", "todo", "tbd", "?", "n/a"}
+SECRET_PATTERNS = (
+    r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+    r"\bgh[pousr]_[A-Za-z0-9]{36,}",
+    r"\bgithub_pat_[A-Za-z0-9_]{20,}",
+    r"\bsk-[A-Za-z0-9_-]{20,}",
+    r"\bxox[abprs]-[A-Za-z0-9-]{10,}",
+    r"\bAKIA[0-9A-Z]{16}\b",
+)
+
+
+def now() -> str:
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def state_root() -> Path:
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
+    return Path(base) / "agents-toolkit" / "cross-critic"
+
+
+def pop_option(args: list[str], name: str) -> str | None:
+    if name not in args:
+        return None
+    i = args.index(name)
+    value = args[i + 1] if i + 1 < len(args) else ""
+    del args[i:i + 2]
+    if not value or value.startswith("--"):
+        raise DelegationError(f"{name} needs a value")
+    return value
+
+
+def pop_flag(args: list[str], name: str) -> bool:
+    if name in args:
+        args.remove(name)
+        return True
+    return False
+
+
+# ---------------------------------------------------------------- route and models
+def read_route() -> dict[str, str]:
+    values = {}
+    for line in ROUTE_FILE.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"^\s*([A-Z_]+)=(.*)$", line)
+        if match:
+            values[match.group(1)] = match.group(2).strip().strip("\"'")
+    keys = ("CODEX_MODEL", "CODEX_EFFORT", "CLAUDE_GATE_MODEL", "CLAUDE_ALT_MODEL", "CLAUDE_MAX_BUDGET_USD")
+    missing = [k for k in keys if not values.get(k)]
+    if missing:
+        raise DelegationError(f"{ROUTE_FILE}: missing {', '.join(missing)}")
+    return {k.lower(): values[k] for k in keys}
+
+
+def same_model(author: str, model: str) -> bool:
+    """True when the author model id or name names the model alias (e.g. claude-x-5-1 vs x)."""
+    return re.search(rf"(?<![a-z0-9]){re.escape(model.lower())}(?![a-z0-9])", author.lower()) is not None
+
+
+def label(model: str) -> str:
+    """Short critic label: the last word of the model name that is not the vendor prefix."""
+    words = [w for w in re.findall(r"[a-z]+", model.lower()) if w not in {"gpt", "claude"}]
+    return words[-1] if words else model
+
+
+def codex_route_errors(route: dict[str, str]) -> list[str]:
+    model, effort = route["codex_model"], route["codex_effort"]
+    if effort == "ultra":
+        return ["CODEX_EFFORT ultra is not allowed"]
+    levels = catalog_levels()
+    if not levels:
+        return [f"Codex model catalog is unavailable: {codex_home() / 'models_cache.json'}"]
+    if model not in levels:
+        return [f"CODEX_MODEL {model} is not in the Codex catalog"]
+    if effort not in levels[model]:
+        return [f"CODEX_EFFORT {effort} is not supported by {model}: {levels[model]}"]
+    return []
+
+
+def choose_claude_model(route: dict[str, str], author: str) -> tuple[str, str]:
+    gate, alt = route["claude_gate_model"], route["claude_alt_model"]
+    if not same_model(author, gate):
+        return gate, "gate model"
+    if same_model(author, alt):
+        raise DelegationError(f"author {author!r} matches both the gate and the alternate critic model")
+    return alt, f"alternate model (the author is the gate model {gate})"
+
+
+# ---------------------------------------------------------------- repository state
+def find_repo(start: Path) -> Path | None:
+    result = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+                            capture_output=True, text=True, check=False)
+    return Path(result.stdout.strip()).resolve() if result.returncode == 0 else None
+
+
+def git_state(repo: str | None) -> dict | None:
+    if repo is None:
+        return None
+    head = subprocess.run(["git", "-C", repo, "rev-parse", "--verify", "-q", "HEAD"],
+                          capture_output=True, text=True, check=False).stdout.strip()
+    status = subprocess.run(["git", "-C", repo, "status", "--porcelain=v1", "--untracked-files=all"],
+                            capture_output=True, text=True, check=False)
+    if status.returncode != 0:
+        raise DelegationError(f"git status failed in {repo}: {status.stderr.strip()}")
+    return {"repo": repo, "head": head, "status": [line for line in status.stdout.splitlines() if line]}
+
+
+def git_unchanged(run: dict) -> tuple[bool, str]:
+    before = run.get("git_before")
+    if before is None:
+        return True, "no repository was recorded"
+    after = git_state(before["repo"])
+    if after == before:
+        return True, f"git status and HEAD of {before['repo']} are unchanged"
+    return False, f"git status or HEAD of {before['repo']} changed: before {before}, now {after}"
+
+
+# ---------------------------------------------------------------- prompt and commands
+def prompt_template() -> str:
+    text = PROCEDURE.read_text(encoding="utf-8")
+    match = re.search(r"^## Critic prompt$.*?^```text\n(.*?)^```$", text, re.M | re.S)
+    if not match:
+        raise DelegationError(f"{PROCEDURE}: critic prompt template not found")
+    return match.group(1)
+
+
+def login_shell(command: list[str]) -> list[str]:
+    if os.environ.get("CROSS_CRITIC_NO_LOGIN_SHELL") == "1":  # tests put stubs on PATH
+        return command
+    return ["bash", "-lc", 'exec "$@"', "cross-critic", *command]
+
+
+def child_env() -> dict[str, str]:
+    env = dict(os.environ)
+    env["AGENTS_TOOLKIT_SLACK_NOTIFY"] = "off"
+    for key in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT"):  # the critic is a separate top-level session
+        env.pop(key, None)
+    return env
+
+
+def codex_command(run: dict, run_dir: Path) -> list[str]:
+    route = run["route"]
+    return ["codex", "exec", "-C", run["workdir"], "--skip-git-repo-check", "-s", "read-only",
+            "-m", route["codex_model"], "-c", f"model_reasoning_effort={route['codex_effort']}",
+            "-c", "agents.enabled=false", "-c", "features.memories=false",
+            "-c", "skills.include_instructions=false",
+            "--json", "--output-schema", str(SCHEMA_FILE), "-o", str(run_dir / "codex-output.json"), "-"]
+
+
+def claude_command(run: dict) -> list[str]:
+    schema = json.dumps(json.loads(SCHEMA_FILE.read_text(encoding="utf-8")), separators=(",", ":"))
+    return ["claude", "-p", "--model", run["claude"]["model"], "--tools", CLAUDE_TOOLS,
+            "--safe-mode", "--no-session-persistence", "--output-format", "json",
+            "--json-schema", schema, "--max-budget-usd", run["route"]["claude_max_budget_usd"],
+            "--add-dir", run["workdir"]]
+
+
+# ---------------------------------------------------------------- output parsing
+def thread_id_of(jsonl: Path) -> str | None:
+    try:
+        lines = jsonl.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "thread.started":
+            thread = event.get("thread_id")
+            if isinstance(thread, str) and re.fullmatch(r"[0-9A-Za-z-]{8,}", thread):
+                return thread
+    return None
+
+
+def codex_usage(jsonl: Path) -> dict | None:
+    usage = None
+    try:
+        lines = jsonl.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "turn.completed":
+            usage = event.get("usage")
+    return usage
+
+
+def rollout_context(thread_id: str | None) -> dict | None:
+    """Model, effort, and sandbox from the turn_context of the Codex session rollout."""
+    if not thread_id:
+        return None
+    matches = sorted((codex_home() / "sessions").glob(f"*/*/*/rollout-*-{thread_id}.jsonl"))
+    if not matches:
+        return None
+    with matches[-1].open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                item = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(item, dict) and item.get("type") == "turn_context":
+                payload = item.get("payload") or {}
+                sandbox = payload.get("sandbox_policy")
+                return {"model": payload.get("model"), "effort": payload.get("effort"),
+                        "sandbox": sandbox.get("type") if isinstance(sandbox, dict) else sandbox}
+    return None
+
+
+def strip_fences(text: str) -> str:
+    match = re.fullmatch(r"\s*```(?:json)?\s*\n(.*?)\n\s*```\s*", text, re.S)
+    return match.group(1) if match else text
+
+
+def claude_result(stdout: str) -> dict:
+    """The result event of claude -p --output-format json (the last JSON line on stdout)."""
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "result":
+            return event
+    raise DelegationError("claude -p printed no result event")
+
+
+def output_errors(output: object, document_sha: str) -> list[str]:
+    schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+    if not isinstance(output, dict):
+        return ["output is not a JSON object"]
+    errors = schema_errors(output, schema)
+    if errors:
+        return errors
+    if output["document_sha256"] != document_sha:
+        errors.append(f"document_sha256 {output['document_sha256']!r} does not match the document ({document_sha})")
+    for index, finding in enumerate(output["findings"]):
+        empty = [k for k, v in finding.items() if isinstance(v, str) and not v.strip()]
+        if empty:
+            errors.append(f"findings[{index}]: empty {', '.join(empty)}")
+    return errors
+
+
+# ---------------------------------------------------------------- run
+def make_run_dir(document_sha: str) -> Path:
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    root = state_root()
+    root.mkdir(parents=True, exist_ok=True)
+    for attempt in range(100):
+        run_dir = root / (f"{stamp}-{document_sha[:8]}" + (f"-{attempt}" if attempt else ""))
+        try:
+            run_dir.mkdir()
+            return run_dir
+        except FileExistsError:
+            continue
+    raise DelegationError(f"cannot create a run directory under {root}")
+
+
+def read_document(path: Path) -> tuple[bytes, str]:
+    if not path.is_file():
+        raise DelegationError(f"document is not a file: {path}")
+    data = path.read_bytes()
+    if not data.strip():
+        raise DelegationError("document is empty")
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise DelegationError(f"document is larger than {MAX_DOCUMENT_BYTES} bytes; split or summarize it")
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise DelegationError(f"document is not UTF-8: {exc}") from exc
+    for pattern in SECRET_PATTERNS:
+        if re.search(pattern, text):
+            raise DelegationError(f"document looks like it contains a secret (pattern {pattern}); remove it")
+    return data, text
+
+
+def finish_codex(run: dict, run_dir: Path, rc: int | None) -> dict:
+    route = run["route"]
+    result = {"exit_code": rc, "ok": False, "errors": []}
+    if rc != 0:
+        result["errors"].append(f"codex exec exited {rc} (see codex-exec.stderr)")
+    thread = thread_id_of(run_dir / "codex-exec.jsonl")
+    used = rollout_context(thread)
+    result.update({"thread_id": thread, "used": used, "usage": codex_usage(run_dir / "codex-exec.jsonl")})
+    if used is None:
+        result["errors"].append(f"cannot confirm the Codex route: no session rollout for thread {thread}")
+    else:
+        if (used["model"], used["effort"]) != (route["codex_model"], route["codex_effort"]):
+            result["errors"].append(f"Codex used {used['model']}/{used['effort']}, route is "
+                                    f"{route['codex_model']}/{route['codex_effort']}")
+        if used["sandbox"] != "read-only":
+            result["errors"].append(f"Codex sandbox was {used['sandbox']}, not read-only")
+    try:
+        output = load_json(run_dir / "codex-output.json")
+    except DelegationError as exc:
+        result["errors"].append(f"codex output: {exc}")
+        return result
+    result["errors"] += [f"codex output: {e}" for e in output_errors(output, run["document_sha256"])]
+    result["ok"] = not result["errors"]
+    if result["ok"]:
+        result["findings"] = output["findings"]
+    return result
+
+
+def finish_claude(run: dict, run_dir: Path, rc: int | None) -> dict:
+    result = {"exit_code": rc, "ok": False, "errors": []}
+    stdout = (run_dir / "claude-stdout.json").read_text(encoding="utf-8", errors="replace")
+    if rc != 0:
+        result["errors"].append(f"claude -p exited {rc} (see claude.stderr)")
+    try:
+        event = claude_result(stdout)
+    except DelegationError as exc:
+        result["errors"].append(str(exc))
+        return result
+    used = sorted((event.get("modelUsage") or {}).keys())
+    result.update({"cost_usd": event.get("total_cost_usd"), "models_used": used,
+                   "num_turns": event.get("num_turns")})
+    if event.get("is_error") or event.get("subtype") != "success":
+        result["errors"].append(f"claude -p returned {event.get('subtype')} (is_error={event.get('is_error')})")
+        return result
+    critic_model = run["claude"]["model"]
+    if not any(same_model(m, critic_model) for m in used):
+        result["errors"].append(f"cannot confirm the Claude critic model: used {used}, route {critic_model}")
+    if label(critic_model) == label(run["author"]):
+        result["errors"].append(f"the Claude critic model {critic_model} is the author model {run['author']}")
+    output = event.get("structured_output")
+    if output is None:
+        try:
+            output = json.loads(strip_fences(str(event.get("result") or "")))
+        except json.JSONDecodeError as exc:
+            result["errors"].append(f"claude output is not JSON: {exc}")
+            return result
+    write_json(run_dir / "claude-output.json", output if isinstance(output, dict) else {"invalid": output})
+    result["errors"] += [f"claude output: {e}" for e in output_errors(output, run["document_sha256"])]
+    result["ok"] = not result["errors"]
+    if result["ok"]:
+        result["findings"] = output["findings"]
+    return result
+
+
+def cell(text: str, limit: int = 240) -> str:
+    text = " ".join(text.split()).replace("|", "\\|")
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def write_findings(run: dict, run_dir: Path, results: dict[str, dict]) -> dict:
+    critics = []
+    for key, prefix in (("codex", "X"), ("claude", "C")):
+        if key not in results:
+            continue
+        res = results[key]
+        model = run["route"]["codex_model"] if key == "codex" else run["claude"]["model"]
+        findings = [dict(f, id=f"{prefix}{i}") for i, f in enumerate(res.get("findings") or [], 1)]
+        critics.append({"key": key, "label": label(model), "model": model, "prefix": prefix,
+                        "ok": res["ok"], "errors": res["errors"], "findings": findings})
+    data = {"run_id": run["id"], "document_sha256": run["document_sha256"], "critics": critics}
+    write_json(run_dir / "findings.json", data)
+    rows = ["# cross-critic synthesis", "",
+            f"Document: `{run['document_name']}` (sha256 `{run['document_sha256'][:12]}`).", "",
+            "| " + " | ".join(COLUMNS) + " |", "|" + "---|" * len(COLUMNS)]
+    for critic in critics:
+        for f in critic["findings"]:
+            rows.append(f"| {f['id']} | [{f['kind']}] {cell(f['target'], 80)}: {cell(f['claim'])} | "
+                        f"{critic['label']} | {PRIORITY[f['severity']]} |  |  |")
+    rows += ["", "## Notes", ""]
+    (run_dir / "synthesis.template.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return data
+
+
+def cmd_run(args: list[str]) -> int:
+    author = pop_option(args, "--author")
+    repo_arg = pop_option(args, "--repo")
+    timeout_arg = pop_option(args, "--timeout")
+    gate = pop_flag(args, "--gate")
+    dry_run = pop_flag(args, "--dry-run")
+    if len(args) != 1 or args[0].startswith("--") or not author:
+        raise DelegationError("usage: cross-critic run <document> --author MODEL [--gate] [--repo DIR] "
+                              "[--timeout SEC] [--dry-run]")
+    timeout = int(timeout_arg) if timeout_arg and timeout_arg.isdigit() and int(timeout_arg) > 0 else None
+    if timeout_arg and timeout is None:
+        raise DelegationError("--timeout must be a positive integer")
+    document = Path(args[0]).resolve()
+    data, text = read_document(document)
+    repo = find_repo(Path(repo_arg).resolve() if repo_arg else Path.cwd())
+    if repo_arg and repo is None:
+        raise DelegationError(f"--repo is not inside a git repository: {repo_arg}")
+    workdir = repo or document.parent
+    if workdir.resolve() == Path.home().resolve():
+        raise DelegationError("the critics' working directory must not be $HOME; pass --repo")
+    route = read_route()
+    errors = codex_route_errors(route)
+    if errors:
+        raise DelegationError("; ".join(errors))
+    document_sha = sha256_bytes(data)
+    run = {"author": author, "gate": gate, "route": route, "document_sha256": document_sha,
+           "document_name": document.name, "workdir": str(workdir),
+           "claude": None}
+    if gate:
+        model, why = choose_claude_model(route, author)
+        run["claude"] = {"model": model, "why": why}
+    prompt = (prompt_template().replace("{{DOCUMENT_SHA256}}", document_sha)
+              .replace("{{DOCUMENT_NAME}}", document.name).replace("{{DOCUMENT}}", text.rstrip("\n")))
+    if dry_run:
+        print("DRY RUN (cwd " + str(workdir) + "):")
+        print("  " + " ".join(shlex.quote(c) for c in login_shell(codex_command(run, Path("<run>")))) + " < prompt.md")
+        if gate:
+            print("  " + " ".join(shlex.quote(c) for c in login_shell(claude_command(run))) + " < prompt.md")
+            print(f"  Claude critic: {run['claude']['model']} ({run['claude']['why']})")
+        return 0
+
+    run_dir = make_run_dir(document_sha)
+    run["id"] = run_dir.name
+    run["created_at"] = now()
+    run["git_before"] = git_state(str(repo)) if repo else None
+    (run_dir / "document.md").write_bytes(data)
+    (run_dir / "prompt.md").write_text(prompt, encoding="utf-8")
+    write_json(run_dir / "run.json", run)
+
+    env = child_env()
+    procs: dict[str, tuple[subprocess.Popen, list]] = {}
+    started = time.monotonic()
+    handles = []
+    jobs = [("codex", codex_command(run, run_dir), "codex-exec.jsonl", "codex-exec.stderr")]
+    if gate:
+        jobs.append(("claude", claude_command(run), "claude-stdout.json", "claude.stderr"))
+    for key, command, out_name, err_name in jobs:
+        stdin = (run_dir / "prompt.md").open("rb")
+        stdout = (run_dir / out_name).open("wb")
+        stderr = (run_dir / err_name).open("wb")
+        handles += [stdin, stdout, stderr]
+        procs[key] = (subprocess.Popen(login_shell(command), cwd=workdir, env=env, stdin=stdin,
+                                       stdout=stdout, stderr=stderr), command)
+        print(f"[cross-critic] {run['id']}: started {key} critic", file=sys.stderr)
+    codes: dict[str, int | None] = {}
+    limit = timeout or DEFAULT_TIMEOUT
+    for key, (proc, _command) in procs.items():
+        try:
+            codes[key] = proc.wait(timeout=max(1, limit - (time.monotonic() - started)))
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            codes[key] = None
+    for handle in handles:
+        handle.close()
+
+    results = {"codex": finish_codex(run, run_dir, codes["codex"])}
+    if codes["codex"] is None:
+        results["codex"]["errors"].insert(0, f"timed out after {limit}s")
+    if gate:
+        results["claude"] = finish_claude(run, run_dir, codes["claude"])
+        if codes["claude"] is None:
+            results["claude"]["errors"].insert(0, f"timed out after {limit}s")
+    unchanged, git_message = git_unchanged(run)
+    run["finished_at"] = now()
+    run["results"] = {k: {x: y for x, y in v.items() if x != "findings"} for k, v in results.items()}
+    run["git_after"] = {"ok": unchanged, "message": git_message}
+    write_json(run_dir / "run.json", run)
+    data_out = write_findings(run, run_dir, results)
+
+    ok = unchanged and all(r["ok"] for r in results.values())
+    for critic in data_out["critics"]:
+        state = "ok" if critic["ok"] else "FAILED"
+        print(f"{critic['key']} critic ({critic['label']}): {state}, {len(critic['findings'])} finding(s)")
+        for error in critic["errors"]:
+            print(f"  - {error}")
+    print(("ok: " if unchanged else "FAIL: ") + git_message)
+    print(json.dumps({"run_dir": str(run_dir), "findings": str(run_dir / "findings.json"),
+                      "template": str(run_dir / "synthesis.template.md"),
+                      "claude_critic": run["claude"], "ok": ok}, ensure_ascii=False, indent=2))
+    return 0 if ok else 1
+
+
+# ---------------------------------------------------------------- finish
+def split_row(line: str) -> list[str]:
+    body = line.strip()
+    if body.startswith("|"):
+        body = body[1:]
+    if body.endswith("|") and not body.endswith("\\|"):
+        body = body[:-1]
+    return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", body)]
+
+
+def synthesis_errors(text: str, findings: dict) -> list[str]:
+    errors: list[str] = []
+    critics = {c["prefix"]: c for c in findings["critics"]}
+    severity = {f["id"]: f["severity"] for c in findings["critics"] for f in c["findings"]}
+    owner = {f["id"]: c["prefix"] for c in findings["critics"] for f in c["findings"]}
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.strip().startswith("|")
+                  and split_row(line) == COLUMNS), None)
+    if start is None:
+        return [f"synthesis table with columns {' | '.join(COLUMNS)} not found"]
+    covered: set[str] = set()
+    rows = 0
+    for number, line in enumerate(lines[start + 2:], start + 3):
+        if not line.strip().startswith("|"):
+            break
+        rows += 1
+        cells = split_row(line)
+        if len(cells) != len(COLUMNS):
+            errors.append(f"line {number}: expected {len(COLUMNS)} cells, got {len(cells)}")
+            continue
+        ids_cell, finding, source, priority, decision, reason = cells
+        ids = [i for i in re.split(r"[\s,、]+", ids_cell) if i]
+        unknown = [i for i in ids if i not in owner]
+        if not ids or unknown:
+            errors.append(f"line {number}: unknown or missing finding ID(s) {unknown or ids_cell!r}")
+            continue
+        covered.update(ids)
+        prefixes = {owner[i] for i in ids}
+        expected = BOTH if len(prefixes) > 1 else critics[prefixes.pop()]["label"]
+        if source != expected:
+            errors.append(f"line {number}: 出所 is {source!r}, expected {expected!r} for {', '.join(ids)}")
+        if not finding.strip():
+            errors.append(f"line {number}: 指摘 is empty")
+        if priority not in RANK:
+            errors.append(f"line {number}: 優先度 must be 高, 中, or 低 (got {priority!r})")
+        else:
+            base = max(RANK[PRIORITY[severity[i]]] for i in ids)
+            want = min(base + 1, RANK["高"]) if expected == BOTH else base
+            if RANK[priority] < want:
+                errors.append(f"line {number}: 優先度 {priority} is below "
+                              f"{[k for k, v in RANK.items() if v == want][0]} for {', '.join(ids)}"
+                              + (" (両方 raises one level)" if expected == BOTH else ""))
+        if decision not in DECISIONS:
+            errors.append(f"line {number}: 判定 must be 採用 or 不採用 (got {decision!r})")
+        if reason.strip().lower() in PLACEHOLDERS:
+            errors.append(f"line {number}: 理由 is empty or a placeholder")
+    if rows == 0:
+        errors.append("the synthesis table has no rows")
+    missing = sorted(set(owner) - covered, key=lambda i: (i[0], int(i[1:])))
+    if missing:
+        errors.append(f"finding IDs without a decision: {', '.join(missing)}")
+    return errors
+
+
+def cmd_finish(args: list[str]) -> int:
+    if len(args) != 1:
+        raise DelegationError("usage: cross-critic finish <run-dir>")
+    run_dir = Path(args[0]).resolve()
+    run = load_json(run_dir / "run.json")
+    findings = load_json(run_dir / "findings.json")
+    synthesis = run_dir / "synthesis.md"
+    if not synthesis.is_file():
+        raise DelegationError(f"{synthesis} is missing; copy synthesis.template.md and complete it")
+    text = synthesis.read_text(encoding="utf-8")
+    checks: list[tuple[bool, str]] = []
+    failed = [c["key"] for c in findings["critics"] if not c["ok"]]
+    checks.append((not failed, "every critic returned valid output" + (f" (failed: {failed})" if failed else "")))
+    errors = synthesis_errors(text, findings)
+    checks.append((not errors, "synthesis covers every finding with source, priority, decision, and reason"
+                   + ("".join(f"\n  - {e}" for e in errors))))
+    checks.append(git_unchanged(run))
+    ok = all(passed for passed, _ in checks)
+    for passed, message in checks:
+        print(("ok: " if passed else "FAIL: ") + message)
+    if not ok:
+        return 1
+    parts = [text.rstrip("\n"), "", "## Raw critic outputs", ""]
+    for critic in findings["critics"]:
+        parts += [f"### {critic['key']} critic ({critic['label']})", "", "```json",
+                  json.dumps(critic["findings"], ensure_ascii=False, indent=2), "```", ""]
+    (run_dir / "result.md").write_text("\n".join(parts), encoding="utf-8")
+    run["finished_synthesis_at"] = now()
+    run["synthesis_sha256"] = sha256_file(synthesis)
+    write_json(run_dir / "run.json", run)
+    print(f"result: {run_dir / 'result.md'}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 2 or argv[1] in {"-h", "--help"}:
+        print(__doc__)
+        return 0 if len(argv) >= 2 else 2
+    commands = {"run": cmd_run, "finish": cmd_finish}
+    if argv[1] not in commands:
+        print(f"cross-critic: unknown command {argv[1]!r}", file=sys.stderr)
+        return 2
+    try:
+        return commands[argv[1]](list(argv[2:]))
+    except DelegationError as exc:
+        print(f"cross-critic: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

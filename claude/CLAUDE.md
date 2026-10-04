@@ -21,7 +21,7 @@
 - dynamic workflowのanonymous workerはOpusを既定とし、生成時は各anonymous `agent()`のmodel optionに`opus`を明示して、親modelを暗黙継承させない。
 - read-only codebase探索は`Explore`を使い、そのfrontmatterのmodelを尊重する。built-in `general-purpose`は親modelを継承する。
 - 計画reviewはCodex版`plan-review`（ユーザーがCodexで実行する）か`/code-review`を使う。
-- Codexへの委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。高リスク判断・model確認の詳細は`model-routing` skillを使う。
+- Codexへの委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。両skillは非推奨で、後継は`/gh-test-first`・`/gh-roadmap-run`（Claudeがテスト先行で実装）。高リスク判断・model確認の詳細は`model-routing` skillを使う。
 
 # private routing
 
