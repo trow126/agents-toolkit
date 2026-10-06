@@ -1366,6 +1366,25 @@ else
   fail "model name scan failed: $NAME_SCAN"
 fi
 
+# =========================================================================
+# 16. Claude desktop app (Windows) 向け skill 配布表 (install/windows-skills.tsv)
+#     - 各 skill は manifest で ~/.claude/skills へ link-dir 配布される source であること
+#     - helper は claude/bin の実行可能ファイルで、宣言どおりの呼び出しが変換できること
+#     - 変換で frontmatter が壊れないこと(scripts/windows-skills.py validate)
+# =========================================================================
+echo "== 16. Windows desktop skill list =="
+WINDOWS_LIST="$REPO_ROOT/install/windows-skills.tsv"
+WINDOWS_TOOL="$REPO_ROOT/scripts/windows-skills.py"
+if [[ ! -f "$WINDOWS_LIST" && ! -f "$WINDOWS_TOOL" ]]; then
+  echo "skip: no Windows skill list in this tree"
+elif [[ ! -f "$WINDOWS_LIST" || ! -f "$WINDOWS_TOOL" ]]; then
+  fail "windows skills: install/windows-skills.tsv と scripts/windows-skills.py は対で必要です"
+elif ! WINDOWS_OUT="$(python3 "$WINDOWS_TOOL" validate --repo "$REPO_ROOT" 2>&1)"; then
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && fail "windows skills: ${line#ERROR: }"
+  done <<< "$WINDOWS_OUT"
+fi
+
 echo
 if [[ "$violations" -eq 0 ]]; then
   echo "PASS: no layout violations found"

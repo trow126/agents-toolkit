@@ -47,11 +47,35 @@ Claude Code の permission・sandbox・hook は user settings ではなく OS-ma
 
 ```
 Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
+       bootstrap.sh --windows-check|--windows-dry-run|--windows-apply [--windows-target PATH]
   --check    manifest(+overlay)通りの symlink 状態を検証する(変更なし)
   --dry-run  --apply が行う操作を実行せず列挙する(変更なし)
   --apply    symlink を作成する(既定。引数なしも同じ)
   --overlay PATH  overlay root を明示指定する
+  --windows-check    Claude desktop app(Windows)向け skill copy と source の差分を検証する(変更なし)
+  --windows-dry-run  --windows-apply が行う操作を列挙する(変更なし)
+  --windows-apply    install/windows-skills.tsv の skill を変換して Windows の .claude/skills へコピーする
+  --windows-target PATH  Windows の .claude directory(WSL path。既定: %USERPROFILE%\.claude を自動検出)
 ```
+
+### Claude desktop app(Windows)向け skill
+
+Windows の Claude desktop app は WSL の `~/.claude` ではなく `%USERPROFILE%\.claude` を読む。Windows のディレクトリ symlink で `\\wsl.localhost` を指すには OS 設定の変更が要るため、symlink ではなく変換したコピーを配布する。対象は `install/windows-skills.tsv` に列挙した skill だけで、helper(`claude/bin`)は WSL に置いたまま `wsl -d <distro> -- bash -lc '~/.claude/bin/<helper> ...'` で呼ぶ。
+
+| skill | 判定 | 理由 |
+|---|---|---|
+| `grok-digest` | 配布 | built-in browser(`mcp__Claude_Browser__*`)が desktop app にしかない。helper 呼び出しの WSL 化だけで動く |
+| `cross-critic` | 配布 | `grok-digest --critic` の依存。helper(`run`・`finish`)の WSL 化と run directory の UNC 参照だけで動く |
+| `article-style` | 配布 | 文章規則だけで shell 依存が無く、変換不要 |
+| `gh-*`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
+| `gh-codex-drive`・`gh-roadmap-drive`・`break-consensus` | 除外 | Codex 委任・`--cross` の多段 orchestration が WSL 前提。非推奨 skill も含む |
+| `config-audit`・`model-routing`・`knowledge-audit`・`implementation-quality`・`python-refactor-analysis` | 除外 | WSL の設定・rule(`~/.agents/rules`)・`uv` 環境を前提にし、desktop app 固有の利点が無い |
+
+変換は `scripts/windows-skills.py` が配布のたびに行い、source は二重管理しない。`*.md` の code span・code block 行にある宣言済み helper の呼び出しを WSL 経由に書き換え、先頭に「生成物・手で編集しない」marker、helper を使う SKILL.md には Windows での実行規則の節(Git Bash では `MSYS_NO_PATHCONV=1`、Windows path は `wsl -e wslpath -a` で変換、入力ファイルは BOM なし)を入れる。配布先の各 directory には生成元 commit・生成日時・file hash を持つ `.agents-toolkit-generated.json` を置く。
+
+- `--windows-apply` は一覧の skill directory と、marker を持つ旧配布 directory だけを書き換える。marker の無い既存 directory(手書き)や、hash が合わない(手で編集された)directory があれば何も書かずに停止する。一覧から外した skill の生成物は削除する
+- `--windows-check` は一覧の skill を再生成して配布物と比べ、未配布・source との差・手編集・一覧外の生成物を DRIFT として exit 1 にする
+- skill を更新したら commit 後に `./bootstrap.sh --windows-dry-run` → `--windows-apply` → `--windows-check` を実行する。skill を追加するときは desktop app で意味があるかを上の基準で判断し、`install/windows-skills.tsv` に `skill<TAB>source<TAB>helpers` を足す(`validate-layout.sh` が manifest との整合と変換可否を検証する)
 
 ### private overlay
 

@@ -8,13 +8,19 @@ MANIFEST="$REPO_DIR/install/manifest.tsv"
 OVERLAY_ROOT="${AGENTS_TOOLKIT_OVERLAY:-${XDG_CONFIG_HOME:-$HOME/.config}/agents-toolkit/overlay}"
 
 MODE="apply"
+WINDOWS_TARGET=""
 usage() {
   cat <<'EOF'
 Usage: bootstrap.sh [--check|--dry-run|--apply] [--overlay PATH]
+       bootstrap.sh --windows-check|--windows-dry-run|--windows-apply [--windows-target PATH]
   --check    manifest(+overlay)通りの symlink 状態を検証する(変更なし)
   --dry-run  --apply が行う操作を実行せず列挙する(変更なし)
   --apply    symlink を作成する(既定。引数なしも同じ)
   --overlay PATH  overlay root を明示指定する
+  --windows-check    Claude desktop app(Windows)向け skill copy と source の差分を検証する(変更なし)
+  --windows-dry-run  --windows-apply が行う操作を列挙する(変更なし)
+  --windows-apply    install/windows-skills.tsv の skill を変換して Windows の .claude/skills へコピーする
+  --windows-target PATH  Windows の .claude directory(WSL path。既定: %USERPROFILE%\.claude を自動検出)
 EOF
 }
 
@@ -23,6 +29,17 @@ while [[ $# -gt 0 ]]; do
     --check) MODE="check"; shift ;;
     --dry-run) MODE="dry-run"; shift ;;
     --apply) MODE="apply"; shift ;;
+    --windows-check) MODE="windows-check"; shift ;;
+    --windows-dry-run) MODE="windows-dry-run"; shift ;;
+    --windows-apply) MODE="windows-apply"; shift ;;
+    --windows-target)
+      if [[ $# -lt 2 ]]; then
+        echo "ERROR: --windows-target には PATH を指定してください" >&2
+        exit 1
+      fi
+      WINDOWS_TARGET="$2"
+      shift 2
+      ;;
     --overlay)
       if [[ $# -lt 2 ]]; then
         echo "ERROR: --overlay には PATH を指定してください" >&2
@@ -39,6 +56,18 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Windows 配布は WSL 側の ~/.claude を触らないため、manifest の読み込み・managed policy・
+# doctor より前に分岐する。生成・コピー・差分検出は scripts/windows-skills.py が行う。
+if [[ "$MODE" == windows-* ]]; then
+  windows_args=("${MODE#windows-}" --repo "$REPO_DIR")
+  [[ -n "$WINDOWS_TARGET" ]] && windows_args+=(--target "$WINDOWS_TARGET")
+  exec python3 "$REPO_DIR/scripts/windows-skills.py" "${windows_args[@]}"
+fi
+if [[ -n "$WINDOWS_TARGET" ]]; then
+  echo "ERROR: --windows-target は --windows-check/--windows-dry-run/--windows-apply と一緒に指定してください" >&2
+  exit 1
+fi
 
 declare -a ENTRY_MODE=()
 declare -a ENTRY_SRC=()

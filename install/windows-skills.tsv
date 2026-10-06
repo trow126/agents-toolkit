@@ -1,0 +1,14 @@
+# install/windows-skills.tsv — Claude desktop app (Windows) 向けに配布する skill の一覧
+# bootstrap.sh --windows-{dry-run,apply,check} が読み、scripts/windows-skills.py が変換・コピーする。
+# 形式: skill<TAB>source<TAB>helpers
+#   skill   : 配布先 <Windows の .claude>/skills/<skill>/ のディレクトリ名（frontmatter name と一致）
+#   source  : repo root 相対 path。install/manifest.tsv で .claude/skills/<skill> へ link-dir 配布される source に限る
+#   helpers : SKILL.md・references から呼ぶ claude/bin の helper 名（comma 区切り、無ければ -）。
+#             配布時に `~/.claude/bin/<helper> [args]` と `<helper> <args>` の code span・code block 行を
+#             `wsl -d <distro> -- bash -lc '~/.claude/bin/<helper> ...'` へ書き換える。
+# 選定基準: desktop app 固有機能（built-in browser 等）が要る skill、その依存 skill、
+#           または WSL 経由呼び出しへの書き換えが小さい（無い）skill に限る。選定理由は README を参照。
+# "#" 始まりの行と空行は無視する。
+grok-digest	claude/skills/grok-digest	grok-digest,private-routing-locate
+cross-critic	claude/skills/cross-critic	cross-critic
+article-style	shared/skills/article-style	-
