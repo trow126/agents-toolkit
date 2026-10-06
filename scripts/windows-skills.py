@@ -52,7 +52,7 @@ BIN_PATH_RE = re.compile(r"^~/\.claude/bin/([A-Za-z0-9_.-]+)(\s+\S.*)?$", re.DOT
 BARE_HELPER_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]*)(\s+\S.*)$", re.DOTALL)
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".ruff_cache", ".mypy_cache", ".venv"}
 VALIDATE_DISTRO = "Ubuntu"
-VALIDATE_HOME = "/home/user"
+VALIDATE_HOME = "/wsl-home"
 
 
 class StopError(Exception):
