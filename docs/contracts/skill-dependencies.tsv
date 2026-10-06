@@ -4,3 +4,4 @@ codex	gh-issue	issue-writing	create or body update
 claude	gh-roadmap-run	gh-test-first	each sub-Issue implementation
 claude	gh-roadmap-run	gh-finish	each sub-Issue apply
 claude	gh-roadmap-run	cross-critic	judgment gate with --critic
+claude	grok-digest	cross-critic	deep-dive critique with --critic

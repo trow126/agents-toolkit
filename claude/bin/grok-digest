@@ -1,0 +1,405 @@
+#!/usr/bin/env python3
+"""grok-digest — deterministic parts of /grok-digest (agents-toolkit).
+
+usage:
+  grok-digest select [--days N] [--today YYYY-MM-DD] [FILE]
+  grok-digest answer --question-file Q --page-file P [--before-file B]
+                     [--done-marker S ...] [--busy-marker S ...]
+  grok-digest vault
+  grok-digest note --url URL --title TITLE --body-file BODY [--date YYYY-MM-DD]
+                   [--saved YYYY-MM-DD] [--staging] [--dry-run]
+  grok-digest projects [--root DIR] [--lines N]
+
+select    read the history items collected in the browser (JSON list of {heading, href, title}
+          in page order; FILE or stdin), drop duplicate conversations, resolve each date heading
+          (今日, 昨日, a weekday, YYYY年M月D日, M月D日, and the English forms) against --today, and
+          print the conversations whose date is within the last N days (today included).
+answer    cut Grok's answer to QUESTION out of the page text: the answer starts after the
+          question and ends at the first done-marker line. With --before-file (the page text
+          captured before sending), the search starts where the page diverges from it, so a
+          phrase of the question quoted earlier or inside the answer cannot be mistaken for the
+          question. Exit 0: complete, 3: still generating, 2: question not found or ambiguous.
+vault     print the resolved vault (exit 3 when it cannot be resolved).
+note      write one Markdown note in the format of the vault's clipping notes. Never overwrites;
+          exit 4 when a note with the same url exists, exit 3 when the vault cannot be resolved.
+          --staging writes under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/grok-digest/
+          instead, in the same clippings/ layout, for copying into the vault later.
+projects  list the git repositories directly under --root (default: home) with the first lines
+          of README.md and CLAUDE.md, for matching conversations against the user's projects.
+
+Vault resolution: $GROK_DIGEST_INBOX_CONFIG, else `config` in section [inbox] of
+${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/grok-digest.toml (untracked). Either names the
+clipping pipeline's config.toml, whose [vault] path is the vault. Nothing is hard-coded here.
+Nothing here opens a browser or talks to the network.
+"""
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import sys
+import tomllib
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+sys.dont_write_bytecode = True
+
+WEEKDAYS_JA = ["月", "火", "水", "木", "金", "土", "日"]
+WEEKDAYS_EN = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+MONTHS_EN = ["january", "february", "march", "april", "may", "june", "july", "august",
+             "september", "october", "november", "december"]
+DONE_MARKERS = ["高速"]
+BUSY_MARKERS = ["Thinking", "考え中", "思考中", "生成中"]
+CONVERSATION_URL = "https://x.com/i/grok?conversation={}"
+URL_RE = re.compile(r"https://x\.com/i/grok\?conversation=(\d+)")
+# Windows-forbidden characters, characters Obsidian dislikes, and control characters
+# (the same slug rule as the pipeline's clipping notes).
+INVALID_SLUG = re.compile(r'[\\/:*?"<>|#^\[\]\n\r\t]')
+REQUIRED_SECTIONS = ("## 会話の要約", "## 次の一手")
+RESERVED_SECTIONS = ("## 関連ノート (auto)", "## Deep dive (auto)", "## 出典")
+
+
+class DigestError(Exception):
+    def __init__(self, message: str, code: int = 1):
+        super().__init__(message)
+        self.code = code
+
+
+# ---- select ------------------------------------------------------------------------------------
+def heading_date(heading: str, today: dt.date) -> dt.date | None:
+    """Resolve a history date heading to a date; None when it is not a date heading."""
+    h = re.sub(r"\s+", " ", heading).strip()
+    low = h.lower()
+    if h == "今日" or low == "today":
+        return today
+    if h == "昨日" or low == "yesterday":
+        return today - dt.timedelta(days=1)
+    weekday = None
+    m = re.fullmatch(r"([月火水木金土日])曜(?:日)?", h)
+    if m:
+        weekday = WEEKDAYS_JA.index(m.group(1))
+    elif low in WEEKDAYS_EN:
+        weekday = WEEKDAYS_EN.index(low)
+    if weekday is not None:
+        # 今日 and 昨日 have their own headings, so a weekday is 2 to 7 days back.
+        for back in range(2, 8):
+            day = today - dt.timedelta(days=back)
+            if day.weekday() == weekday:
+                return day
+    m = re.fullmatch(r"(\d{4})年(\d{1,2})月(\d{1,2})日", h)
+    if m:
+        return dt.date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    m = re.fullmatch(r"(\d{1,2})月(\d{1,2})日", h)
+    if m:
+        return _without_year(today, int(m.group(1)), int(m.group(2)))
+    m = re.fullmatch(r"([a-z]+) (\d{1,2})(?:, (\d{4}))?", low)
+    if m and m.group(1) in MONTHS_EN:
+        month = MONTHS_EN.index(m.group(1)) + 1
+        if m.group(3):
+            return dt.date(int(m.group(3)), month, int(m.group(2)))
+        return _without_year(today, month, int(m.group(2)))
+    return None
+
+
+def _without_year(today: dt.date, month: int, day: int) -> dt.date:
+    candidate = dt.date(today.year, month, day)
+    return candidate if candidate <= today else dt.date(today.year - 1, month, day)
+
+
+def conversation_id(href: str) -> str | None:
+    values = parse_qs(urlparse(href).query).get("conversation")
+    if not values or not re.fullmatch(r"\d+", values[0]):
+        return None
+    return values[0]
+
+
+def select(items: list, today: dt.date, days: int) -> dict:
+    if days < 1:
+        raise DigestError("--days must be at least 1")
+    since = today - dt.timedelta(days=days - 1)
+    seen: set[str] = set()
+    selected, older, unparsed = [], 0, []
+    for item in items:
+        cid = conversation_id(str(item.get("href", "")))
+        if cid is None or cid in seen:
+            continue
+        seen.add(cid)
+        heading = str(item.get("heading", "")).strip()
+        date = heading_date(heading, today)
+        entry = {"id": cid, "url": CONVERSATION_URL.format(cid),
+                 "title": str(item.get("title", "")).strip(), "heading": heading,
+                 "date": date.isoformat() if date else None}
+        if date is None:
+            unparsed.append(entry)
+        elif since <= date <= today:
+            selected.append(entry)
+        else:
+            older += 1
+    return {"today": today.isoformat(), "since": since.isoformat(), "days": days,
+            "conversations": selected, "older": older, "unparsed": unparsed}
+
+
+# ---- answer ------------------------------------------------------------------------------------
+def _normalize(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace(" ", " ")
+
+
+def _question_pattern(question: str) -> re.Pattern:
+    # Whitespace-insensitive: the page wraps the question at arbitrary points.
+    chars = [c for c in question if not c.isspace()]
+    if not chars:
+        raise DigestError("the question is empty", 2)
+    return re.compile(r"\s*".join(re.escape(c) for c in chars))
+
+
+def extract_answer(page: str, question: str, before: str | None = None,
+                   done_markers=DONE_MARKERS, busy_markers=BUSY_MARKERS) -> dict:
+    page = _normalize(page)
+    pattern = _question_pattern(_normalize(question))
+    start = 0
+    if before is not None:
+        before = _normalize(before)
+        limit = min(len(before), len(page))
+        while start < limit and before[start] == page[start]:
+            start += 1
+        start = page.rfind("\n", 0, start) + 1  # include a partly matching first line
+    matches = list(pattern.finditer(page, start))
+    if not matches:
+        raise DigestError("the question was not found in the page text (not sent yet?)", 2)
+    if before is None and len(matches) > 1:
+        raise DigestError(f"the question occurs {len(matches)} times; pass --before-file", 2)
+    region = page[matches[0].end():]
+    lines = region.split("\n")
+    done_at = None
+    for index, line in enumerate(lines):
+        if line.strip() in done_markers:
+            done_at = index
+            break
+    body = lines if done_at is None else lines[:done_at]
+    # A busy label at the start can stay as a collapsed header; one at the end means the
+    # answer is still being generated.
+    while body and (not body[0].strip() or body[0].strip() in busy_markers):
+        body = body[1:]
+    tail = [line.strip() for line in body if line.strip()]
+    busy = bool(tail) and tail[-1] in busy_markers
+    answer = "\n".join(body).strip()
+    complete = done_at is not None and not busy and bool(answer)
+    return {"complete": complete, "answer": answer, "question_matches": len(matches)}
+
+
+# ---- vault and note ----------------------------------------------------------------------------
+def _config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
+def _state_home() -> Path:
+    return Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+
+
+def resolve_vault() -> tuple[Path, str]:
+    source = "GROK_DIGEST_INBOX_CONFIG"
+    inbox_config = os.environ.get("GROK_DIGEST_INBOX_CONFIG")
+    if not inbox_config:
+        private = _config_home() / "agents-toolkit" / "grok-digest.toml"
+        source = str(private)
+        if not private.is_file():
+            raise DigestError(f"no vault configured: set GROK_DIGEST_INBOX_CONFIG or create {private}", 3)
+        try:
+            inbox_config = tomllib.loads(private.read_text(encoding="utf-8"))["inbox"]["config"]
+        except (KeyError, TypeError, tomllib.TOMLDecodeError) as exc:
+            raise DigestError(f"{private}: [inbox] config is missing or invalid: {exc}", 3) from exc
+    path = Path(str(inbox_config)).expanduser()
+    if not path.is_file():
+        raise DigestError(f"pipeline config not found: {path} (from {source})", 3)
+    try:
+        vault = Path(tomllib.loads(path.read_text(encoding="utf-8"))["vault"]["path"]).expanduser()
+    except (KeyError, TypeError, tomllib.TOMLDecodeError) as exc:
+        raise DigestError(f"{path}: [vault] path is missing or invalid: {exc}", 3) from exc
+    if not vault.is_dir():
+        raise DigestError(f"vault directory not found: {vault} (from {path})", 3)
+    return vault, str(path)
+
+
+def staging_root() -> Path:
+    return _state_home() / "agents-toolkit" / "grok-digest"
+
+
+def make_slug(title: str, fallback: str) -> str:
+    slug = INVALID_SLUG.sub("", title).strip().replace(" ", "-")
+    slug = slug[:50].rstrip("-.")
+    return slug or fallback
+
+
+def _frontmatter_url(path: Path) -> str | None:
+    with open(path, encoding="utf-8") as handle:
+        if handle.readline().strip() != "---":
+            return None
+        for line in handle:
+            if line.strip() == "---":
+                return None
+            if line.startswith("url:"):
+                return line.split(":", 1)[1].strip().strip('"')
+    return None
+
+
+def render_note(url: str, title: str, body: str, date: str | None, saved: str) -> str:
+    if not URL_RE.fullmatch(url):
+        raise DigestError(f"not a Grok conversation URL: {url}")
+    body = _normalize(body).strip()
+    if body.startswith("---"):
+        raise DigestError("the body must not carry frontmatter; the helper writes it")
+    for heading in REQUIRED_SECTIONS:
+        if not re.search(rf"^{re.escape(heading)}\s*$", body, re.M):
+            raise DigestError(f"the body lacks the section {heading!r}")
+    for heading in RESERVED_SECTIONS:
+        if re.search(rf"^{re.escape(heading)}\s*$", body, re.M):
+            raise DigestError(f"the body must not contain {heading!r} (reserved)")
+    clean_title = re.sub(r"\s+", " ", title).strip().replace('"', "'")
+    if not clean_title:
+        raise DigestError("--title is empty")
+    lines = [
+        "---",
+        f'title: "Grok: {clean_title}"',
+        f'url: "{url}"',
+        "source: grok",
+        'author: "Grok"',
+        f"saved: {saved}",
+        "status: unread",
+        "tags: [clipping, grok-digest]",
+        "---",
+        "",
+        body,
+        "",
+        "## 出典",
+        "",
+        f"- 元会話: {url}",
+        f"- 会話の日付（履歴の見出し）: {date or '不明'}",
+        "- 内容は Grok との会話と、そこで挙げられた投稿の要約であり、未検証",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def write_note(directory: Path, text: str, url: str, title: str, saved: str, dry_run: bool) -> Path:
+    clippings = directory / "clippings"
+    if clippings.is_dir():
+        for existing in sorted(clippings.glob("*.md")):
+            if _frontmatter_url(existing) == url:
+                raise DigestError(f"already saved: {existing}", 4)
+    stem = f"{saved}-{make_slug('Grok-' + title, saved)}"
+    candidate, n = stem, 1
+    while (clippings / f"{candidate}.md").exists():
+        n += 1
+        candidate = f"{stem}-{n}"
+    path = clippings / f"{candidate}.md"
+    if not dry_run:
+        clippings.mkdir(parents=True, exist_ok=True)
+        with open(path, "x", encoding="utf-8") as handle:
+            handle.write(text)
+    return path
+
+
+# ---- projects ----------------------------------------------------------------------------------
+def list_projects(root: Path, lines: int) -> list[dict]:
+    out = []
+    for child in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+        if child.name.startswith(".") or not child.is_dir() or not (child / ".git").exists():
+            continue
+        entry = {"name": child.name, "path": str(child)}
+        for name in ("README.md", "CLAUDE.md"):
+            doc = child / name
+            if doc.is_file():
+                with open(doc, encoding="utf-8", errors="replace") as handle:
+                    head = [next(handle, "") for _ in range(lines)]
+                entry[name] = "".join(head).rstrip()
+        out.append(entry)
+    return out
+
+
+# ---- CLI ---------------------------------------------------------------------------------------
+def _date(value: str) -> dt.date:
+    try:
+        return dt.date.fromisoformat(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"not a YYYY-MM-DD date: {value}") from exc
+
+
+def _read(path: str | None) -> str:
+    if path in (None, "-"):
+        return sys.stdin.read()
+    return Path(path).read_text(encoding="utf-8")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="grok-digest", description=__doc__.split("\n")[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("select")
+    p.add_argument("file", nargs="?")
+    p.add_argument("--days", type=int, default=7)
+    p.add_argument("--today", type=_date, default=None)
+    p = sub.add_parser("answer")
+    p.add_argument("--question-file", required=True)
+    p.add_argument("--page-file", required=True)
+    p.add_argument("--before-file")
+    p.add_argument("--done-marker", action="append")
+    p.add_argument("--busy-marker", action="append")
+    sub.add_parser("vault")
+    p = sub.add_parser("note")
+    p.add_argument("--url", required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--body-file", required=True)
+    p.add_argument("--date", type=_date)
+    p.add_argument("--saved", type=_date)
+    p.add_argument("--staging", action="store_true")
+    p.add_argument("--dry-run", action="store_true")
+    p = sub.add_parser("projects")
+    p.add_argument("--root", default=str(Path.home()))
+    p.add_argument("--lines", type=int, default=15)
+    args = parser.parse_args(argv)
+
+    try:
+        if args.command == "select":
+            items = json.loads(_read(args.file))
+            if not isinstance(items, list):
+                raise DigestError("select expects a JSON list of {heading, href, title}")
+            today = args.today or dt.date.today()
+            print(json.dumps(select(items, today, args.days), ensure_ascii=False, indent=1))
+            return 0
+        if args.command == "answer":
+            before = _read(args.before_file) if args.before_file else None
+            result = extract_answer(_read(args.page_file), _read(args.question_file), before,
+                                    args.done_marker or DONE_MARKERS, args.busy_marker or BUSY_MARKERS)
+            print(json.dumps(result, ensure_ascii=False, indent=1))
+            return 0 if result["complete"] else 3
+        if args.command == "vault":
+            vault, source = resolve_vault()
+            print(json.dumps({"vault": str(vault), "clippings": str(vault / "clippings"),
+                              "config": source}, ensure_ascii=False))
+            return 0
+        if args.command == "note":
+            saved = (args.saved or dt.datetime.now(dt.timezone.utc).date()).isoformat()
+            date = args.date.isoformat() if args.date else None
+            text = render_note(args.url, args.title, _read(args.body_file), date, saved)
+            if args.staging:
+                target, where = staging_root(), "staging"
+            else:
+                target, _source = resolve_vault()
+                where = "vault"
+            path = write_note(target, text, args.url, args.title, saved, args.dry_run)
+            print(json.dumps({"written": not args.dry_run, "where": where, "path": str(path)},
+                             ensure_ascii=False))
+            return 0
+        if args.command == "projects":
+            print(json.dumps(list_projects(Path(args.root).expanduser(), args.lines),
+                             ensure_ascii=False, indent=1))
+            return 0
+    except DigestError as exc:
+        print(f"grok-digest: {exc}", file=sys.stderr)
+        return exc.code
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"grok-digest: {exc}", file=sys.stderr)
+        return 1
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

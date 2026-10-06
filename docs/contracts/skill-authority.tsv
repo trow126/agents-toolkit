@@ -32,6 +32,8 @@ gh-roadmap-run	--status	deny	deny	deny	deny	deny	deny	deny	report checklist stat
 gh-test-first	default	allow	allow	deny	deny	deny	deny	deny	creates or switches the feature branch; writes tests first then the implementation and local test runs; no commit or GitHub write
 cross-critic	default	deny	allow	deny	deny	deny	deny	allow	sends one document to a read-only Codex critic (codex exec -s read-only); writes only its run directory under ~/.local/state; no repository writes
 cross-critic	--gate	deny	allow	deny	deny	deny	deny	allow	adds a read-only Claude critic (claude -p --tools Read,Grep,Glob) that is never the author model; writes only its run directory under ~/.local/state
+grok-digest	default	deny	allow	deny	deny	deny	deny	allow	reads the user's Grok history on X in the built-in browser with the user's sign-in; sends only user-approved questions to Grok; writes new notes (never overwrites) to the vault resolved from the private config or to its XDG staging dir; no X posts replies likes follows DMs or settings changes
+grok-digest	--critic	deny	allow	deny	deny	deny	deny	allow	the default flow plus one cross-critic run (default mode) on the deep-dive results with private data left out; the document goes to the critic session
 gh-start	default	allow	deny	deny	deny	deny	deny	deny	local implementation and tests
 gh-start	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified scoped changes
 gh-start	--sync	deny	deny	deny	deny	allow	deny	deny	one Issue status update
