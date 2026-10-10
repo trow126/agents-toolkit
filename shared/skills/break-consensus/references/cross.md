@@ -7,18 +7,18 @@ Default mode of `/break-consensus` in Claude Code (owner decision D13; `--cross`
 
 ## Steps
 
-1. Write the brief to a file outside the repository (your scratchpad or `/tmp`): the problem, constraints, what is already known, and what counts as useful. The brief goes to another model provider, so leave out secrets, credentials, and private data. By default the brief is the only input; attach repository excerpts only when the user asks.
+1. Run the baseline probe of skill step 1 ([`probe-and-audit.md`](probe-and-audit.md)). Then write the brief to a file outside the repository (your scratchpad or `/tmp`): the problem, constraints, what is already known, what counts as useful, and the frozen baseline under a `## Known answers (exclusions)` heading. The brief goes to another model provider, so leave out secrets, credentials, and private data. By default the brief is the only input; attach repository excerpts only when the user asks.
 2. Run `~/.claude/bin/break-consensus-cross prepare <brief>`. It copies the brief into a run directory under `~/.local/state/agents-toolkit/break-consensus/`, records its sha256, the `git status` of the current repository, and the hash of the global `~/.codex/AGENTS.md`, checks the route in `divergent-route.env` against the Codex catalog, and prints JSON with `run_dir`, `brief_sha256`, `claude_model`, `prompt_file`, and `schema_file`.
 3. Read `prompt_file` and `schema_file`. In one message, launch both workers:
    - Bash with `run_in_background: true`: `~/.claude/bin/break-consensus-cross codex <run_dir>`. It runs `codex exec -C <empty temporary directory> --skip-git-repo-check -p toolkit-divergent -s read-only` with the route model and effort, web search disabled, `--json`, and `--output-schema`, and records the model, effort, sandbox, cwd, and web searches of the Codex session.
    - Workflow with the script below and `args` `{"prompt": <prompt_file text>, "model": <claude_model>, "schema": <schema_file JSON>}`. You invoked this skill, so this is the explicit opt-in the Workflow tool requires.
 4. When both have finished, write the Workflow result as JSON to `<run_dir>/claude-output.json` and run `~/.claude/bin/break-consensus-cross collect <run_dir>`. It checks both outputs against the schema and the brief hash, the prompt both workers received, the Codex route, sandbox, and empty cwd, that Codex made no web search, and that `git status` is unchanged, then prints both candidate lists.
-5. On the union of candidates, run steps 4–6 of the skill: check prior art, stress-test, and turn survivors into the smallest reversible experiment.
+5. On the union of candidates, run steps 4–6 of the skill: the blind prior-art audit, the stress test, and the smallest reversible experiment for each survivor.
 6. Write `<run_dir>/synthesis.md` with these sections, each non-empty:
    - `## Agreements`: candidates or baseline items both workers produced, matched by mechanism rather than wording.
    - `## Differences`: candidates only one worker produced, and baseline disagreements.
    - `## Decisions`: for every candidate, adopted or rejected and the reason (prior art found, failed stress test, duplicate).
-   - `## Notes`: that the Codex worker also read the global `~/.codex/AGENTS.md` (hash in `run.json`) and the Claude worker the usual CLAUDE.md files, and any fallback you used.
+   - `## Notes`: that the Codex worker also read the global `~/.codex/AGENTS.md` (hash in `run.json`) and the Claude worker the usual CLAUDE.md files, the probe and audit you ran (number of fresh contexts, what the audit searched), and any fallback you used.
 7. Run `~/.claude/bin/break-consensus-cross finish <run_dir>`. It checks the sections and `git status` again and writes `<run_dir>/result.md` with your synthesis and both raw outputs.
 8. Report the surviving candidates and the path of `result.md`. Do not score or converge the candidates, and do not start implementation; implementation is a separate workflow the user starts explicitly.
 
@@ -37,7 +37,7 @@ Rules:
 - Answer with only the JSON object required by the output schema. Copy brief_sha256 exactly from the line below.
 
 Steps:
-1. List and freeze the consensus baseline: standard practice, the first solutions a language model is likely to produce, and any current approach the brief describes. These are exploration exclusions, not candidates.
+1. Freeze the consensus baseline: the known answers the brief lists, plus any other standard practice or current approach the brief describes that they miss. These are exploration exclusions, not candidates.
 2. Generate candidates through all three mechanisms: assumption_inversion (invert a load-bearing assumption), structural_transfer (transfer a mechanism from a structurally different field, with the correspondence stated), and changed_principle (change the generation principle or the objective).
 3. Make each candidate operationally distinct. Reject synonyms, cosmetic variations, and combinations of baseline ideas.
 4. For each candidate, give the broken assumption, the mechanism, the predicted benefit, and the observation that would show it fails.

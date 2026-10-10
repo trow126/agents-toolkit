@@ -53,3 +53,18 @@
 
 - 「合意列挙 → 封鎖」「原理タグ quota」は直接の実証がない独自手続き。falsifiable: 本 skill の light/standard 実行で、封鎖なし brainstorming と候補の非重複率・採用後の生存率を比較すれば検証できる
 - novelty 監査は検索範囲に依存する。「新規らしい」は「調査範囲で未発見」以上を意味しない
+
+## 2026-10 更新: baseline probe と blind prior-art audit（手順1と4）
+
+### 根拠
+
+- Opus 5.5 は方向づけがないと少数の既定に落ち、「ありがちを避けて」という一般的な指示は既定を別の既定に入れ替えるだけで、避けたいものを具体的に並べたリストが効く。初回の出力を見てリストを伸ばす（Anthropic, Prompting Claude Opus 5.5「Frontend design defaults」）。https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5
+- 出した案をカテゴリ分けしてその外で出させる単純な defixation prompt で独創性が上がるが、モデル間の均質化は残る（IDEAFix, arXiv 2606.00875）。https://arxiv.org/abs/2606.00875
+- LLM judge の novelty 判定は不安定で、「査読者が片方を新規と判断した」と伝えるだけで同じペアの半数以上で判定が反転し、精度が50点以上動く。検索の上積みは小さい（Sternlicht et al., arXiv 2610.02022）。https://arxiv.org/abs/2610.02022
+
+### 実測（2026-10-11、前回の --cross run の brief 1本、Claude 側のみ）
+
+- baseline probe: 手順なしの fresh context 5体の回答は15の塊になった。前回の自己列挙の baseline（19項目）が覆ったのは3塊（20%）。前回の「非合意」候補16件のうち13件が probe の塊に入っていた。自己列挙では本当の mode を取りこぼす
+- blind audit: 中立化した11候補に対し、fresh context の監査役が前回の記憶ベースの確認に無い先行事例を7件で URL 付きで見つけた（KNOWN 7、PARTIAL 4、NOT_FOUND 0）。「新規な案」と伝えた監査役とは3件で判定が変わった（反復なしなので、手がかりの効果とばらつきは区別できない）
+- 不採用: 生成ストリームごとの外部乱数シード（persona と clipping の要約）は、塊の数が 13 対 14 で事前登録の基準（20%増）を満たさなかった
+- 限界: brief は1本で、probe は Opus 5.5、前回の worker は Fable と Astra。brief の「What counts as useful」が回答を誘導していた

@@ -303,6 +303,22 @@ if grep -qE '^- default \(`--cross` names it explicitly\): ' "${SKILL_FILES[0]}"
 else
   ng "Claude Code 版の mode 記述が D13 と合わない"
 fi
+PROBE_AUDIT="$REPO_ROOT/shared/skills/break-consensus/references/probe-and-audit.md"
+if grep -qF 'references/probe-and-audit.md' "${SKILL_FILES[0]}" && grep -qF '../../break-consensus/references/probe-and-audit.md' "${SKILL_FILES[1]}" &&
+  grep -qE '^1\. Freeze the consensus baseline from observed answers, not recall' "${SKILL_FILES[0]}" &&
+  grep -qE '^4\. Check prior art with a blind auditor in a fresh context' "${SKILL_FILES[0]}" &&
+  grep -qF '## Baseline probe (step 1)' "$PROBE_AUDIT" && grep -qF '## Blind prior-art audit (step 4)' "$PROBE_AUDIT" &&
+  grep -qF 'Never "novel"' "$PROBE_AUDIT"; then
+  ok "手順1は fresh context の probe、手順4は blind audit で、両 runtime が probe-and-audit.md を参照する"
+else
+  ng "手順1・4 と probe-and-audit.md の契約が不正"
+fi
+if grep -qF '## Known answers (exclusions)' "$REPO_ROOT/shared/skills/break-consensus/references/cross.md" &&
+  grep -qF 'the known answers the brief lists' "$REPO_ROOT/shared/skills/break-consensus/references/cross.md"; then
+  ok "cross は probe の baseline を brief に入れ、worker はそれを baseline にする"
+else
+  ng "cross の brief と worker prompt が probe の baseline を扱っていない"
+fi
 steps() { sed -n '/^1\. /,/^6\. /p' "$1"; }
 if diff <(steps "${SKILL_FILES[0]}") <(steps "${SKILL_FILES[1]}") >/dev/null; then
   ok "既定の手順は Claude 版と Codex 版で同じ"
