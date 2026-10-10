@@ -58,8 +58,8 @@
 
 p.12 §4.1 の「外部調査によって既視感を排除する」を補うため、opt-in の `/break-consensus --cross` を加えた。原本へ新しい要件を加えるものではなく、候補を独立した context で出す実装の選択肢である。
 
-- 既定の動作は変えない。`--cross` は Claude Code 版だけにあり、user が明示したときだけ使う。
-- Claude main が brief を書いて sha256 を記録し、同じ brief だけを2つの worker に渡す。Codex worker は `codex exec -s read-only` を空の一時ディレクトリで profile `toolkit-divergent` を付けて動かし、Claude worker は dynamic workflow の `agent()` で Bash、Edit、Write、NotebookEdit を除いて動かす。
+- ~~既定の動作は変えない。`--cross` は Claude Code 版だけにあり、user が明示したときだけ使う。~~ owner 決定 D13（2026-10-11）で置き換えた: Claude Code 版の既定を cross-provider にする（`--cross` は既定を明示する別名）。`--solo` で session 内だけの実行になる。Codex 版は cross を起動できないので、既定は `--solo` の動作のまま。
+- Claude main が brief を書いて sha256 を記録し、同じ brief だけを2つの worker に渡す。Codex worker は `codex exec -s read-only` を空の一時ディレクトリで profile `toolkit-divergent` を付け、web search を無効にして動かす。Claude worker は dynamic workflow の `agent()` で Bash、Edit、Write、NotebookEdit、WebSearch、WebFetch、MCP の tool を除いて動かす。
 - 両方の出力の後で、Claude main が先行事例の確認、stress test、最小の実験を行い、一致点、相違点、採否の理由、両方の生の出力を統合結果に残す。
 - 採点、収束、実装は行わない。repository の変更と外部への書き込みは禁止する。
 - 手順は `shared/skills/break-consensus/references/cross.md`、launcher は `claude/bin/break-consensus-cross` にある。

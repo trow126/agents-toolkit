@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""break-consensus-cross — run the two divergent workers of /break-consensus --cross (agents-toolkit, D7).
+"""break-consensus-cross — run the two divergent workers of /break-consensus (default mode; agents-toolkit, D7, D13).
 
 usage:
   break-consensus-cross prepare <brief-file> [--repo DIR]
@@ -497,7 +497,7 @@ def cmd_finish(args: list[str]) -> int:
     read = ", ".join(f"{name} {digest[:12]}" for name, digest in instructions["sha256"].items() if digest) or "none"
     fence = "~~~~"
     result = "\n".join([
-        f"# /break-consensus --cross {run['id']}",
+        f"# /break-consensus {run['id']}",
         "",
         f"- brief sha256: `{run['brief_sha256']}`",
         f"- Claude worker: `{run['route']['claude_model']}` (Workflow agent(), read-only)",

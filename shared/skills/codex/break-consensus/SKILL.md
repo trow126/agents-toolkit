@@ -9,8 +9,8 @@ description: "Generates non-consensus candidates: freezes the consensus baseline
 
 ## Modes
 
-- default: generate and test candidates in this session.
-- `--cross`: available only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `/break-consensus --cross` in Claude Code, and stop.
+- In Codex: generate and test candidates in this session (the `--solo` behavior), with or without `--solo`.
+- `--cross`: the cross-provider mode, the default only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `/break-consensus` in Claude Code, and stop.
 
 Read [`../../break-consensus/references/evidence.md`](../../break-consensus/references/evidence.md).
 

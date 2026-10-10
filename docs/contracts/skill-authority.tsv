@@ -1,8 +1,8 @@
 skill	mode	repo_write	state_write	commit	push	github_write	delete	egress	notes
 article-style	default	deny	deny	deny	deny	deny	deny	deny	public prose guidance only
 branch-cleanup	default	deny	allow	deny	deny	deny	allow	deny	checkout pull and fetch state; delete only verified merged branches or clean worktrees
-break-consensus	default	deny	deny	deny	deny	deny	deny	deny	explores and proposes; no implementation external writes or destructive experiments
-break-consensus	--cross	deny	allow	deny	deny	deny	deny	allow	Claude Code only; sends the brief to a Codex worker (codex exec -s read-only in an empty directory) and a read-only Claude worker; writes only its run directory under ~/.local/state; no repository writes or implementation
+break-consensus	default|--cross	deny	allow	deny	deny	deny	deny	allow	default in Claude Code (D13; in Codex the default is --solo); sends the brief to a Codex worker (codex exec -s read-only with web search disabled in an empty directory) and a read-only Claude worker without web or MCP tools; writes only its run directory under ~/.local/state; no repository writes or implementation
+break-consensus	--solo	deny	deny	deny	deny	deny	deny	deny	explores and proposes in this session; nothing is sent to another provider; no implementation external writes or destructive experiments
 claude-second-opinion	default	deny	allow	deny	deny	deny	deny	allow	writes prompt and candidate result to a protected temporary directory then removes it
 doctor	default	deny	deny	deny	deny	deny	deny	deny	comprehensive read-only checkup before any confirmed repair
 doctor	repair	allow	allow	deny	deny	deny	deny	deny	apply only approved surgical repairs to applicable rules configuration or installation state

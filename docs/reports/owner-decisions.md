@@ -45,6 +45,7 @@
 | D2 | alias の方針 | managed の env pin（`ANTHROPIC_DEFAULT_{OPUS,FABLE,SONNET,HAIKU}_MODEL`）で alias の解決先を固定し、明示的に昇格させる。agent の frontmatter は alias のままにし、OD-4 と両立させる。env pin は managed の変更なので、routing 表の該当行とあわせて Phase 7 で入れる（2026-09-25、この作業 session で owner が推奨案を選択） |
 | D1 | Claude の main モデル | Opus 5.5 を main にする。Phase 5 の replay eval（6題材）で fable/high と同じ成功率で、費用は約1/2.9、時間は約1/1.8。opus での互換性（hook、deny、完了通知）も確認した。`claude/CLAUDE.md` の lead の行と routing 表の claude-main を変え、live のモデルは owner が `/model` で選ぶ（D5）。OD-1 の「main は Fable」を置き換える（2026-09-26、この作業 session で owner が選択） |
 | D9 | Claude の effort（OD-7 を置き換える） | モデルの既定値を使う（Fable 5.1 は high、Opus 5.5 は medium）。xhigh は Phase 5 の eval で high より遅く高く、良くもならなかった。値は owner が live の `modelSettings` に設定する（D5）（2026-09-26、この作業 session で owner が選択） |
+| D13 | break-consensus の既定モード（D7 の opt-in を置き換える） | Claude Code 版の既定を cross-provider にする。brief は既定で Codex worker（OpenAI）にも送る。`--cross` は既定を明示する別名として残し、`--solo` で session 内だけの実行にする。cross の手順が失敗したら止めて報告し、`--solo` へ黙って切り替えない。Codex 版は cross を起動できないので既定は `--solo` の動作のまま。同時に、worker が外部に出られた穴を塞いだ（Codex は profile と `-c web_search="disabled"`、collect が web search の記録を検査。Claude worker は `disallowedTools` に WebSearch、WebFetch、`mcp__*`。`prepare` は worker の model を無視させる環境変数を拒否）（2026-10-11、この作業 session で owner が指示） |
 | P5-Q1 | Codex の実装担当の route | gpt-6-astra/medium を維持する（low、sol/medium との差は出なかった）（2026-09-26） |
 | P5-Q2 | Codex の explorer | gpt-5.6-terra から gpt-6-luna（medium）に変える（2026-09-26） |
 | P5-Q3 | `--cross` の Claude worker | main が opus になったので、fable に変える（2026-09-26） |

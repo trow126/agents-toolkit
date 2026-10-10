@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /break-consensus --cross (D7, §6.6, appendix C.5 static part): break-consensus-cross prepare,
+# /break-consensus cross mode (D7, D13, §6.6, appendix C.5 static part): break-consensus-cross prepare,
 # codex, collect, and finish on a fixture repo with a stub `codex`, plus the skill's static
 # contract. No model is called.
 set -euo pipefail
@@ -296,6 +296,12 @@ if grep -qx 'web_search = "disabled"' "$REPO_ROOT/codex/profiles/toolkit-diverge
   ok "toolkit-divergent profile は user config の web search を無効にする"
 else
   ng "toolkit-divergent profile が web search を無効にしていない"
+fi
+if grep -qE '^- default \(`--cross` names it explicitly\): ' "${SKILL_FILES[0]}" && grep -qE '^- `--solo`: ' "${SKILL_FILES[0]}" &&
+  grep -qF 'do not fall back to `--solo` on your own' "${SKILL_FILES[0]}"; then
+  ok "Claude Code 版の既定は cross で、--solo へ黙って切り替えない（D13）"
+else
+  ng "Claude Code 版の mode 記述が D13 と合わない"
 fi
 steps() { sed -n '/^1\. /,/^6\. /p' "$1"; }
 if diff <(steps "${SKILL_FILES[0]}") <(steps "${SKILL_FILES[1]}") >/dev/null; then

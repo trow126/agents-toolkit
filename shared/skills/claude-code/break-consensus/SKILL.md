@@ -2,6 +2,7 @@
 name: break-consensus
 description: "Generates non-consensus candidates: freezes the consensus baseline, breaks assumptions, checks prior art, and stress-tests survivors into reversible experiments. Use when the user explicitly invokes /break-consensus. Not for ordinary implementation."
 disable-model-invocation: true
+argument-hint: "[--solo] <problem>"
 ---
 
 # /break-consensus
@@ -10,8 +11,8 @@ disable-model-invocation: true
 
 ## Modes
 
-- default: generate and test candidates in this session.
-- `--cross <problem>`: first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider; use this mode only when the user asks for it.
+- default (`--cross` names it explicitly): first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider (OpenAI), so write it without secrets, credentials, or private data; if the problem cannot be stated without them, ask the user before sending it or use `--solo`. If a cross step fails, stop and report it; do not fall back to `--solo` on your own.
+- `--solo`: generate and test candidates in this session only; nothing is sent to another provider.
 
 Read [`references/evidence.md`](references/evidence.md).
 

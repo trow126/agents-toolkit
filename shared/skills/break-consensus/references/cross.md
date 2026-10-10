@@ -1,8 +1,8 @@
-# /break-consensus --cross
+# /break-consensus cross-provider mode (default)
 
-Opt-in cross-provider mode. A Codex worker and a read-only Claude worker each generate candidates from the same brief without seeing each other; you then run the prior-art, stress-test, and experiment steps on their union. It is not a Codex delegation, so the delegation rules do not apply. It is read-only: no repository file changes, no external writes, and no implementation.
+Default mode of `/break-consensus` in Claude Code (owner decision D13; `--cross` names it explicitly, `--solo` skips it). A Codex worker and a read-only Claude worker each generate candidates from the same brief without seeing each other; you then run the prior-art, stress-test, and experiment steps on their union. It is not a Codex delegation, so the delegation rules do not apply. It is read-only: no repository file changes, no external writes, and no implementation.
 
-**Stop** when `prepare`, `codex`, or `collect` fails, or a worker returns no output. Report the failure; do not silently continue with one provider.
+**Stop** when `prepare`, `codex`, or `collect` fails, or a worker returns no output. Report the failure; do not silently continue with one provider or switch to `--solo`. Tell the user they can rerun with `--solo`.
 **Done** when `finish` passes and you have reported the surviving candidates with the result path.
 
 ## Steps

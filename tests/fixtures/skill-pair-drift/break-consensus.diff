@@ -2,6 +2,9 @@
 +++ codex
 @@
 -disable-model-invocation: true
+-argument-hint: "[--solo] <problem>"
 @@
--- `--cross <problem>`: first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider; use this mode only when the user asks for it.
-+- `--cross`: available only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `<invoke>break-consensus --cross` in Claude Code, and stop.
+-- default (`--cross` names it explicitly): first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider (OpenAI), so write it without secrets, credentials, or private data; if the problem cannot be stated without them, ask the user before sending it or use `--solo`. If a cross step fails, stop and report it; do not fall back to `--solo` on your own.
+-- `--solo`: generate and test candidates in this session only; nothing is sent to another provider.
++- In Codex: generate and test candidates in this session (the `--solo` behavior), with or without `--solo`.
++- `--cross`: the cross-provider mode, the default only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `<invoke>break-consensus` in Claude Code, and stop.
