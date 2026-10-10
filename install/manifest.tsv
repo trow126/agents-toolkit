@@ -29,6 +29,7 @@ link-dir	claude/skills/gh-roadmap-run	.claude/skills/gh-roadmap-run
 link-dir	claude/skills/gh-test-first	.claude/skills/gh-test-first
 link-dir	claude/skills/cross-critic	.claude/skills/cross-critic
 link-dir	claude/skills/grok-digest	.claude/skills/grok-digest
+link-dir	claude/skills/skill-tuneup	.claude/skills/skill-tuneup
 link-dir	shared/skills/gh-index	.claude/skills/gh-index
 link-dir	shared/skills/gh-index	.agents/skills/gh-index
 link-dir	shared/skills/gh-roadmap-plan	.claude/skills/gh-roadmap-plan

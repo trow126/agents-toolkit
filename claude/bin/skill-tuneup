@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+"""skill-tuneup — inventory, record, and check a /skill-tuneup run (agents-toolkit).
+
+usage:
+  skill-tuneup prepare [--only NAME[,NAME...]]
+  skill-tuneup record <run-dir> [--results FILE]
+  skill-tuneup finish <run-dir>
+  skill-tuneup plan <run-dir>
+
+prepare  inventory every skill the toolkit ships (shared/skills, shared/skills/{claude-code,codex},
+         claude/skills, codex/skills; same-name entrypoints are one skill), create a run directory
+         under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/skill-tuneup/, record the toolkit HEAD
+         and git status and the date of the previous finished run, and print JSON with the skills
+         (name, description, deprecated, files) and the estimated number of agents.
+record   validate <run>/results.json (the Workflow result) against references/result.schema.json and
+         the run: every skill present, KNOWN/PARTIAL verdicts with a url and method, a verdict for every
+         candidate, a criterion and verdict for every experiment. Writes <run>/skills/<name>.json.
+finish   check research.md, synthesis.md, the recorded results, and that the toolkit HEAD and git status
+         are unchanged since prepare (the default mode writes no repository file), then write
+         <run>/result.md and update the ledger of finished runs.
+plan     for --apply: check that the run finished and that the skills' files are unchanged since the
+         inventoried HEAD, then print per skill the hygiene findings and the candidates whose
+         experiment passed.
+Nothing here writes to the repository.
+"""
+import datetime as dt
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True  # keep the live checkout free of __pycache__
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from delegation_common import DelegationError, load_json, schema_errors, sha256_file, write_json  # noqa: E402
+
+TOOLKIT_ROOT = Path(__file__).resolve().parents[2]
+SKILL_DIR = TOOLKIT_ROOT / "claude/skills/skill-tuneup"
+SCHEMA_FILE = SKILL_DIR / "references/result.schema.json"
+# (directory, runtimes); shared/skills/<name> serves both runtimes, the per-runtime dirs one each.
+SOURCES = (
+    ("shared/skills", ("claude", "codex")),
+    ("shared/skills/claude-code", ("claude",)),
+    ("shared/skills/codex", ("codex",)),
+    ("claude/skills", ("claude",)),
+    ("codex/skills", ("codex",)),
+)
+PER_RUNTIME_DIRS = {"claude-code", "codex"}
+CONTENT_SUFFIXES = {".md", ".json", ".env", ".yaml", ".yml", ".toml", ".txt"}
+AGENTS_PER_SKILL = (8, 16)  # workflow.md: 3 probes, cluster, layer 2, generator, auditor, designer, 0-2 x (3 runs + judge)
+RESEARCH_AGENTS = 3
+MIN_PROBES = 3
+SECTIONS = ("Summary", "Per skill", "Not covered")
+LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
+
+
+def now() -> str:
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
+
+
+def state_root() -> Path:
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
+    return Path(base) / "agents-toolkit" / "skill-tuneup"
+
+
+def pop_option(args: list[str], name: str) -> str | None:
+    if name not in args:
+        return None
+    i = args.index(name)
+    value = args[i + 1] if i + 1 < len(args) else ""
+    del args[i:i + 2]
+    if not value:
+        raise DelegationError(f"{name} needs a value")
+    return value
+
+
+def git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(TOOLKIT_ROOT), *args], capture_output=True, text=True, check=False)
+
+
+def git_state() -> dict:
+    head = git("rev-parse", "--verify", "-q", "HEAD").stdout.strip()
+    status = git("status", "--porcelain=v1", "--untracked-files=all")
+    if status.returncode != 0:
+        raise DelegationError(f"git status failed in {TOOLKIT_ROOT}: {status.stderr.strip()}")
+    return {"head": head, "status": [line for line in status.stdout.splitlines() if line]}
+
+
+# ---------------------------------------------------------------- inventory
+def frontmatter_field(text: str, key: str) -> str:
+    match = re.match(r"^---\n(.*?)\n---\n", text, re.S)
+    if not match:
+        return ""
+    for line in match.group(1).splitlines():
+        if line.startswith(f"{key}:"):
+            return line.split(":", 1)[1].strip().strip("\"'")
+    return ""
+
+
+def skill_files(entry: Path) -> list[Path]:
+    """The entrypoint, the content files in its directory, and the toolkit files its links point to."""
+    files = {entry}
+    for path in entry.parent.rglob("*"):
+        if path.is_file() and path.suffix in CONTENT_SUFFIXES and "tests" not in path.relative_to(entry.parent).parts:
+            files.add(path)
+    for doc in sorted(files.copy()):
+        if doc.suffix != ".md":
+            continue
+        for target in LINK.findall(doc.read_text(encoding="utf-8", errors="replace")):
+            if "://" in target:
+                continue
+            resolved = (doc.parent / target).resolve()
+            if resolved.is_file() and resolved.is_relative_to(TOOLKIT_ROOT):
+                files.add(resolved)
+    return sorted(files)
+
+
+def inventory() -> list[dict]:
+    skills: dict[str, dict] = {}
+    for rel, runtimes in SOURCES:
+        base = TOOLKIT_ROOT / rel
+        if not base.is_dir():
+            continue
+        for entry in sorted(base.glob("*/SKILL.md")):
+            if rel == "shared/skills" and entry.parent.name in PER_RUNTIME_DIRS:
+                continue
+            text = entry.read_text(encoding="utf-8")
+            name = frontmatter_field(text, "name") or entry.parent.name
+            skill = skills.setdefault(name, {"name": name, "description": "", "deprecated": False,
+                                             "runtimes": [], "entrypoints": [], "files": []})
+            skill["runtimes"] = sorted(set(skill["runtimes"]) | set(runtimes))
+            skill["entrypoints"].append(str(entry.relative_to(TOOLKIT_ROOT)))
+            description = frontmatter_field(text, "description")
+            skill["description"] = skill["description"] or description
+            skill["deprecated"] = skill["deprecated"] or description.lower().startswith("deprecated")
+            skill["files"] = sorted(set(skill["files"]) | {str(p) for p in skill_files(entry)})
+    for skill in skills.values():
+        paths = [str(Path(f).relative_to(TOOLKIT_ROOT)) for f in skill["files"]]
+        skill["bytes"] = sum(Path(f).stat().st_size for f in skill["files"])
+        skill["last_commit"] = git("log", "-1", "--format=%cs", "--", *paths).stdout.strip() or None
+    return [skills[name] for name in sorted(skills)]
+
+
+def ledger_path() -> Path:
+    return state_root() / "ledger.json"
+
+
+def load_ledger() -> dict:
+    path = ledger_path()
+    return load_json(path) if path.is_file() else {"last_finished": None, "skills": {}}
+
+
+# ---------------------------------------------------------------- prepare
+def cmd_prepare(args: list[str]) -> int:
+    only_arg = pop_option(args, "--only")
+    if args:
+        raise DelegationError("usage: skill-tuneup prepare [--only NAME[,NAME...]]")
+    skills = inventory()
+    if not skills:
+        raise DelegationError(f"no skills found under {TOOLKIT_ROOT}")
+    if only_arg:
+        wanted = [n.strip() for n in only_arg.split(",") if n.strip()]
+        unknown = sorted(set(wanted) - {s["name"] for s in skills})
+        if unknown:
+            raise DelegationError(f"unknown skill(s) for --only: {', '.join(unknown)}")
+        skills = [s for s in skills if s["name"] in wanted]
+    ledger = load_ledger()
+    since = (ledger.get("last_finished") or {}).get("date")
+    for skill in skills:
+        skill["last_tuneup"] = (ledger["skills"].get(skill["name"]) or {}).get("date")
+    stamp = dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    root = state_root()
+    root.mkdir(parents=True, exist_ok=True)
+    for attempt in range(100):
+        run_dir = root / (stamp + (f"-{attempt}" if attempt else ""))
+        try:
+            run_dir.mkdir()
+            break
+        except FileExistsError:
+            continue
+    else:
+        raise DelegationError(f"cannot create a run directory under {root}")
+    estimate = {"min": RESEARCH_AGENTS + AGENTS_PER_SKILL[0] * len(skills),
+                "max": RESEARCH_AGENTS + AGENTS_PER_SKILL[1] * len(skills)}
+    write_json(run_dir / "inventory.json", {"skills": skills})
+    write_json(run_dir / "run.json", {
+        "id": run_dir.name, "created_at": now(), "since": since, "toolkit": str(TOOLKIT_ROOT),
+        "git_before": git_state(), "skills": [s["name"] for s in skills], "estimated_agents": estimate,
+    })
+    print(json.dumps({
+        "run_dir": str(run_dir), "run_id": run_dir.name, "since": since, "count": len(skills),
+        "estimated_agents": estimate,
+        "skills": [{k: s[k] for k in ("name", "description", "deprecated", "files")} for s in skills],
+    }, indent=2, ensure_ascii=False))
+    return 0
+
+
+# ---------------------------------------------------------------- record
+def result_errors(result: dict, schema: dict) -> list[str]:
+    name = result.get("skill", "?") if isinstance(result, dict) else "?"
+    errors = [f"{name}: {e}" for e in schema_errors(result, schema)]
+    if errors:
+        return errors
+    if result["probe_count"] != len(result["probes"]):
+        errors.append(f"{name}: probe_count {result['probe_count']} does not match {len(result['probes'])} probes")
+    ids = [c["id"] for c in result["candidates"]]
+    if len(ids) != len(set(ids)):
+        errors.append(f"{name}: duplicate candidate ids")
+    judged = {v["id"] for v in result["audit"]["verdicts"]}
+    if set(ids) - judged:
+        errors.append(f"{name}: no audit verdict for {', '.join(sorted(set(ids) - judged))}")
+    if judged - set(ids):
+        errors.append(f"{name}: audit verdict for unknown candidate {', '.join(sorted(judged - set(ids)))}")
+    for verdict in result["audit"]["verdicts"]:
+        if verdict["verdict"] in ("KNOWN", "PARTIAL") and not (
+                verdict["url"].startswith(("http://", "https://")) and verdict["method"].strip()):
+            errors.append(f"{name}: {verdict['id']} is {verdict['verdict']} without a url and method")
+    stressed = {s["id"] for s in result["stress"]}
+    if set(ids) - stressed:
+        errors.append(f"{name}: no stress test for {', '.join(sorted(set(ids) - stressed))}")
+    for index, experiment in enumerate(result["experiments"]):
+        unknown = set(experiment["candidate_ids"]) - set(ids)
+        if unknown:
+            errors.append(f"{name}: experiment {index + 1} names unknown candidate {', '.join(sorted(unknown))}")
+        if len(experiment["outputs"]) != len(experiment["runs"]):
+            errors.append(f"{name}: experiment {index + 1} has {len(experiment['outputs'])} outputs for {len(experiment['runs'])} runs")
+    return errors
+
+
+def cmd_record(args: list[str]) -> int:
+    results_arg = pop_option(args, "--results")
+    if len(args) != 1:
+        raise DelegationError("usage: skill-tuneup record <run-dir> [--results FILE]")
+    run_dir = Path(args[0]).resolve()
+    run = load_json(run_dir / "run.json")
+    results_path = Path(results_arg).resolve() if results_arg else run_dir / "results.json"
+    data = load_json(results_path)
+    if results_path != run_dir / "results.json":
+        write_json(run_dir / "results.json", data)
+    schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
+    problems: list[str] = []
+    if data.get("run_id") != run["id"]:
+        problems.append(f"results run_id {data.get('run_id')!r} is not {run['id']}")
+    results = data.get("results") if isinstance(data.get("results"), list) else []
+    if not isinstance(data.get("results"), list):
+        problems.append("results.json has no results list")
+    seen: dict[str, dict] = {}
+    for result in results:
+        errors = result_errors(result, schema)
+        problems += errors
+        if not errors:
+            if result["skill"] not in run["skills"]:
+                problems.append(f"{result['skill']}: not a skill of this run")
+            elif result["skill"] in seen:
+                problems.append(f"{result['skill']}: recorded twice")
+            else:
+                seen[result["skill"]] = result
+    missing = [name for name in run["skills"] if name not in seen]
+    if missing:
+        problems.append(f"no valid result for: {', '.join(missing)} (rerun them with prepare --only)")
+    ok = not problems
+    if ok:
+        (run_dir / "skills").mkdir(exist_ok=True)
+        for name, result in seen.items():
+            write_json(run_dir / "skills" / f"{name}.json", result)
+    write_json(run_dir / "record.json", {"ok": ok, "recorded_at": now(), "problems": problems,
+                                         "results_sha256": sha256_file(run_dir / "results.json")})
+    for problem in problems:
+        print(f"FAIL: {problem}")
+    print(f"RECORD OK: {len(seen)} skill(s) in {run_dir}" if ok else f"RECORD FAIL: {run_dir}")
+    return 0 if ok else 1
+
+
+# ---------------------------------------------------------------- finish
+def section_body(text: str, name: str) -> str | None:
+    match = re.search(rf"^## {re.escape(name)}[ \t]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+    return match.group(1).strip() if match else None
+
+
+def summary_table(run_dir: Path, names: list[str]) -> list[str]:
+    rows = ["| skill | hygiene | candidates | KNOWN / PARTIAL / NOT_FOUND | experiments PASS / FAIL / INCONCLUSIVE |",
+            "|---|---|---|---|---|"]
+    for name in names:
+        result = load_json(run_dir / "skills" / f"{name}.json")
+        verdicts = [v["verdict"] for v in result["audit"]["verdicts"]]
+        outcomes = [e["verdict"] for e in result["experiments"]]
+        rows.append(f"| {name} | {len(result['hygiene'])} | {len(result['candidates'])} | "
+                    f"{verdicts.count('KNOWN')} / {verdicts.count('PARTIAL')} / {verdicts.count('NOT_FOUND')} | "
+                    f"{outcomes.count('PASS')} / {outcomes.count('FAIL')} / {outcomes.count('INCONCLUSIVE')} |")
+    return rows
+
+
+def cmd_finish(args: list[str]) -> int:
+    if len(args) != 1:
+        raise DelegationError("usage: skill-tuneup finish <run-dir>")
+    run_dir = Path(args[0]).resolve()
+    run = load_json(run_dir / "run.json")
+    problems = []
+    record = load_json(run_dir / "record.json") if (run_dir / "record.json").is_file() else {}
+    if not record.get("ok"):
+        problems.append("record has not passed")
+    elif sha256_file(run_dir / "results.json") != record.get("results_sha256"):
+        problems.append("results.json changed after record")
+    research = (run_dir / "research.md").read_text(encoding="utf-8") if (run_dir / "research.md").is_file() else ""
+    for name in ("Findings", "Coverage"):
+        if not section_body(research, name):
+            problems.append(f"research.md needs a non-empty '## {name}' section")
+    if research and not re.search(r"https?://", research):
+        problems.append("research.md cites no source URL")
+    synthesis = (run_dir / "synthesis.md").read_text(encoding="utf-8") if (run_dir / "synthesis.md").is_file() else ""
+    for name in SECTIONS:
+        if not section_body(synthesis, name):
+            problems.append(f"synthesis.md needs a non-empty '## {name}' section")
+    after = git_state()
+    if after != run["git_before"]:
+        problems.append(f"toolkit HEAD or git status changed since prepare: before {run['git_before']}, now {after}")
+    if problems:
+        for problem in problems:
+            print(f"FAIL: {problem}")
+        return 1
+
+    finished = now()
+    result = "\n".join([
+        f"# /skill-tuneup {run['id']}",
+        "",
+        f"- skills: {len(run['skills'])}; toolkit HEAD `{run['git_before']['head'][:12]}`; previous run: {run['since'] or 'none'}",
+        "- per-skill pass: break-consensus --solo (Workflow agents cannot launch the Codex worker)",
+        "",
+        *summary_table(run_dir, run["skills"]),
+        "",
+        synthesis.rstrip("\n"),
+        "",
+        "## Research",
+        "",
+        research.rstrip("\n"),
+        "",
+    ])
+    (run_dir / "result.md").write_text(result, encoding="utf-8")
+    run["finished_at"] = finished
+    write_json(run_dir / "run.json", run)
+    ledger = load_ledger()
+    date = finished[:10]
+    ledger["last_finished"] = {"run_id": run["id"], "date": date}
+    for name in run["skills"]:
+        ledger["skills"][name] = {"run_id": run["id"], "date": date}
+    state_root().mkdir(parents=True, exist_ok=True)
+    write_json(ledger_path(), ledger)
+    print(f"FINISH OK: {run_dir / 'result.md'}")
+    return 0
+
+
+# ---------------------------------------------------------------- plan
+def cmd_plan(args: list[str]) -> int:
+    if len(args) != 1:
+        raise DelegationError("usage: skill-tuneup plan <run-dir>")
+    run_dir = Path(args[0]).resolve()
+    run = load_json(run_dir / "run.json")
+    if not run.get("finished_at"):
+        raise DelegationError(f"run {run['id']} has not finished; run skill-tuneup finish first")
+    base = run["git_before"]["head"]
+    if git("merge-base", "--is-ancestor", base, "HEAD").returncode != 0:
+        raise DelegationError(f"HEAD does not contain the inventoried commit {base[:12]}")
+    inventory_skills = {s["name"]: s for s in load_json(run_dir / "inventory.json")["skills"]}
+    changed = []
+    for name in run["skills"]:
+        paths = [str(Path(f).relative_to(TOOLKIT_ROOT)) for f in inventory_skills[name]["files"]]
+        diff = git("status", "--porcelain=v1", "--untracked-files=all", "--", *paths).stdout.strip() or \
+            git("diff", "--name-only", base, "--", *paths).stdout.strip()
+        if diff:
+            changed.append(name)
+    if changed:
+        raise DelegationError(f"skill files changed since the run: {', '.join(changed)}; rerun prepare --only for them")
+    for name in run["skills"]:
+        result = load_json(run_dir / "skills" / f"{name}.json")
+        passed = sorted({cid for e in result["experiments"] if e["verdict"] == "PASS" for cid in e["candidate_ids"]})
+        verdicts = {v["id"]: v for v in result["audit"]["verdicts"]}
+        candidates = {c["id"]: c for c in result["candidates"]}
+        print(f"== {name}: {len(result['hygiene'])} hygiene finding(s), {len(passed)} passed candidate(s)")
+        for finding in result["hygiene"]:
+            print(f"- hygiene [{finding['kind']}] {finding['finding']} | evidence: {finding['evidence']} | fix: {finding['fix']}")
+        for cid in passed:
+            verdict = verdicts[cid]
+            source = f" ({verdict['method']}: {verdict['url']})" if verdict["verdict"] != "NOT_FOUND" else ""
+            print(f"- candidate {cid} [{verdict['verdict']}{source}] {candidates[cid]['mechanism']}")
+    print(f"\nPLAN OK: {run_dir}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    commands = {"prepare": cmd_prepare, "record": cmd_record, "finish": cmd_finish, "plan": cmd_plan}
+    if len(argv) < 2 or argv[1] not in commands:
+        print(__doc__, file=sys.stderr)
+        return 2
+    try:
+        return commands[argv[1]](argv[2:])
+    except (DelegationError, OSError, KeyError, json.JSONDecodeError) as exc:
+        print(f"SKILL-TUNEUP FAIL: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

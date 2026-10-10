@@ -5,3 +5,5 @@ claude	gh-roadmap-run	gh-test-first	each sub-Issue implementation
 claude	gh-roadmap-run	gh-finish	each sub-Issue apply
 claude	gh-roadmap-run	cross-critic	judgment gate with --critic
 claude	grok-digest	cross-critic	deep-dive critique with --critic
+claude	skill-tuneup	break-consensus	per-skill --solo pass (reads its SKILL.md and probe-and-audit.md)
+claude	skill-tuneup	implementation-quality	--apply implementation
