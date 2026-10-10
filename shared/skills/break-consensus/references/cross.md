@@ -10,9 +10,9 @@ Opt-in cross-provider mode. A Codex worker and a read-only Claude worker each ge
 1. Write the brief to a file outside the repository (your scratchpad or `/tmp`): the problem, constraints, what is already known, and what counts as useful. The brief goes to another model provider, so leave out secrets, credentials, and private data. By default the brief is the only input; attach repository excerpts only when the user asks.
 2. Run `~/.claude/bin/break-consensus-cross prepare <brief>`. It copies the brief into a run directory under `~/.local/state/agents-toolkit/break-consensus/`, records its sha256, the `git status` of the current repository, and the hash of the global `~/.codex/AGENTS.md`, checks the route in `divergent-route.env` against the Codex catalog, and prints JSON with `run_dir`, `brief_sha256`, `claude_model`, `prompt_file`, and `schema_file`.
 3. Read `prompt_file` and `schema_file`. In one message, launch both workers:
-   - Bash with `run_in_background: true`: `~/.claude/bin/break-consensus-cross codex <run_dir>`. It runs `codex exec -C <empty temporary directory> --skip-git-repo-check -p toolkit-divergent -s read-only` with the route model and effort, `--json`, and `--output-schema`, and records the model, effort, sandbox, and cwd that Codex actually used.
+   - Bash with `run_in_background: true`: `~/.claude/bin/break-consensus-cross codex <run_dir>`. It runs `codex exec -C <empty temporary directory> --skip-git-repo-check -p toolkit-divergent -s read-only` with the route model and effort, web search disabled, `--json`, and `--output-schema`, and records the model, effort, sandbox, cwd, and web searches of the Codex session.
    - Workflow with the script below and `args` `{"prompt": <prompt_file text>, "model": <claude_model>, "schema": <schema_file JSON>}`. You invoked this skill, so this is the explicit opt-in the Workflow tool requires.
-4. When both have finished, write the Workflow result as JSON to `<run_dir>/claude-output.json` and run `~/.claude/bin/break-consensus-cross collect <run_dir>`. It checks both outputs against the schema and the brief hash, the prompt both workers received, the Codex route, sandbox, and empty cwd, and that `git status` is unchanged, then prints both candidate lists.
+4. When both have finished, write the Workflow result as JSON to `<run_dir>/claude-output.json` and run `~/.claude/bin/break-consensus-cross collect <run_dir>`. It checks both outputs against the schema and the brief hash, the prompt both workers received, the Codex route, sandbox, and empty cwd, that Codex made no web search, and that `git status` is unchanged, then prints both candidate lists.
 5. On the union of candidates, run steps 4–6 of the skill: check prior art, stress-test, and turn survivors into the smallest reversible experiment.
 6. Write `<run_dir>/synthesis.md` with these sections, each non-empty:
    - `## Agreements`: candidates or baseline items both workers produced, matched by mechanism rather than wording.
@@ -63,7 +63,7 @@ const result = await agent(args.prompt, {
   phase: 'Diverge',
   model: args.model,
   schema: args.schema,
-  disallowedTools: ['Bash', 'Edit', 'Write', 'NotebookEdit'],
+  disallowedTools: ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebSearch', 'WebFetch', 'mcp__*'],
 })
 if (!result) throw new Error('divergent-claude returned no output')
 return result

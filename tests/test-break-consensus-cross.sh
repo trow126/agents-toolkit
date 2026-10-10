@@ -25,6 +25,7 @@ cp "$REPO_ROOT"/shared/skills/break-consensus/references/{cross.md,divergent-rou
 CROSS="$TOOLKIT/claude/bin/break-consensus-cross"
 
 export PYTHONDONTWRITEBYTECODE=1
+unset CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL CLAUDE_CODE_SUBAGENT_MODEL_FORCE
 export CODEX_HOME="$SANDBOX/codex-home" XDG_STATE_HOME="$SANDBOX/state" TMPDIR="$SANDBOX/tmp"
 mkdir -p "$CODEX_HOME" "$TMPDIR" "$SANDBOX/stub"
 cp "$REPO_ROOT/codex/profiles/toolkit-divergent.config.toml" "$CODEX_HOME/"
@@ -39,7 +40,7 @@ JSON
 # stub codex: `--version`, and `exec` that records argv, stdin, and the cwd contents, writes a
 # session rollout (model/effort/sandbox/cwd as launched unless STUB_MODEL overrides the model),
 # prints thread.started, and writes the -o output per STUB_OUTPUT (valid | badhash | invalid).
-# STUB_LEAVE=1 leaves a file in the cwd.
+# STUB_LEAVE=1 leaves a file in the cwd. STUB_SEARCH=1 logs a web search in the rollout and the exec events.
 cat > "$SANDBOX/stub/codex" <<'STUB'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "--version" ]]; then echo "codex-cli 0.157.0"; exit 0; fi
@@ -52,7 +53,7 @@ while [[ $# -gt 0 ]]; do
     -C) dir="$2"; shift 2 ;;
     -m) model="$2"; shift 2 ;;
     -s) sandbox="$2"; shift 2 ;;
-    -c) effort="${2#model_reasoning_effort=}"; shift 2 ;;
+    -c) case "$2" in model_reasoning_effort=*) effort="${2#model_reasoning_effort=}" ;; esac; shift 2 ;;
     *) shift ;;
   esac
 done
@@ -64,6 +65,11 @@ jq -cn --arg m "${STUB_MODEL:-$model}" --arg e "$effort" --arg s "$sandbox" --ar
   '{type: "turn_context", payload: {model: $m, effort: $e, sandbox_policy: {type: $s}, cwd: $c}}' \
   > "$CODEX_HOME/sessions/2026/09/25/rollout-2026-09-25T00-00-00-$thread.jsonl"
 echo "{\"type\":\"thread.started\",\"thread_id\":\"$thread\"}"
+if [[ "${STUB_SEARCH:-}" == 1 ]]; then
+  echo '{"type":"response_item","payload":{"type":"web_search_call","status":"completed"}}' \
+    >> "$CODEX_HOME/sessions/2026/09/25/rollout-2026-09-25T00-00-00-$thread.jsonl"
+  echo '{"type":"item.completed","item":{"id":"item_1","type":"web_search"}}'
+fi
 hash="$(sed -n 's/^brief_sha256: //p' "$STUB_PROMPT")"
 case "${STUB_OUTPUT:-valid}" in
   valid) ;;
@@ -137,6 +143,10 @@ mv "$CODEX_HOME/toolkit-divergent.config.toml" "$SANDBOX/profile.toml"
 run "$CROSS" prepare "$BRIEF" --repo "$REPO"
 expect_rc "profile が無ければ拒否する" 1 "profile is not installed"
 mv "$SANDBOX/profile.toml" "$CODEX_HOME/toolkit-divergent.config.toml"
+CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL=sonnet run "$CROSS" prepare "$BRIEF" --repo "$REPO"
+expect_rc "Claude worker の model を上書きする環境変数があれば拒否する" 1 "CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL is set"
+CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 run "$CROSS" prepare "$BRIEF" --repo "$REPO"
+expect_rc "CLAUDE_CODE_SUBAGENT_MODEL_FORCE があっても拒否する" 1 "CLAUDE_CODE_SUBAGENT_MODEL_FORCE is set"
 [[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/break-consensus" 2>/dev/null)" ]] && ok "拒否した prepare は run を作らない" || ng "拒否した prepare が run を作った"
 
 prepare
@@ -162,14 +172,15 @@ fi
 
 # ---- codex
 run "$CROSS" codex "$RUN" --dry-run
-expect_rc "--dry-run は command を示す" 0 "--skip-git-repo-check -p toolkit-divergent -s read-only -m gpt-6-astra -c model_reasoning_effort=medium --json --output-schema"
+expect_rc "--dry-run は command を示す" 0 "--skip-git-repo-check -p toolkit-divergent -s read-only -m gpt-6-astra -c model_reasoning_effort=medium -c 'web_search=\"disabled\"' --json --output-schema"
 if ! jq -e 'has("codex")' "$RUN/run.json" >/dev/null && [[ ! -e "$STUB_ARGV" ]]; then ok "--dry-run は Codex を起動しない"; else ng "--dry-run が Codex を起動した"; fi
 run "$CROSS" codex "$RUN"
 expect_rc "Codex worker を起動する" 0 "codex exec exit 0"
 CWD="$(jq -r .codex.cwd "$RUN/run.json")"
 if grep -qx -- '-s' "$STUB_ARGV" && grep -qx 'read-only' "$STUB_ARGV" && grep -qx -- '--skip-git-repo-check' "$STUB_ARGV" &&
-  grep -qx 'toolkit-divergent' "$STUB_ARGV" && grep -qx -- '--output-schema' "$STUB_ARGV"; then
-  ok "codex exec を read-only、profile、output schema 付きで起動する"
+  grep -qx 'toolkit-divergent' "$STUB_ARGV" && grep -qx -- '--output-schema' "$STUB_ARGV" &&
+  grep -qxF 'web_search="disabled"' "$STUB_ARGV"; then
+  ok "codex exec を read-only、web search 無効、profile、output schema 付きで起動する"
 else
   ng "codex exec の引数が不正: $(tr '\n' ' ' < "$STUB_ARGV")"
 fi
@@ -204,6 +215,7 @@ rm "$REPO/untracked.txt"
 run "$CROSS" collect "$RUN"
 expect_rc "両方の出力が揃えば collect は通る" 0 "COLLECT OK"
 if [[ "$OUT" == *"OK: Codex used gpt-6-astra/medium"* && "$OUT" == *"OK: Codex sandbox was read-only"* &&
+  "$OUT" == *"OK: Codex made 0 web search(es)"* &&
   "$OUT" == *"[changed_principle] Queue forgets on purpose"* && "$OUT" == *"WARN: codex did not use all three mechanisms"* ]]; then
   ok "collect は route、sandbox、両方の候補、mechanism の不足を示す"
 else
@@ -245,6 +257,17 @@ claude_output "$RUN"
 run "$CROSS" collect "$RUN"
 expect_rc "cwd に file が残れば失敗する" 1 "left-behind.txt"
 prepare
+STUB_SEARCH=1 run "$CROSS" codex "$RUN"
+claude_output "$RUN"
+run "$CROSS" collect "$RUN"
+expect_rc "Codex が web search をしたら失敗する（exec の event と rollout の両方を数える）" 1 "FAIL: Codex made 2 web search(es)"
+prepare
+run "$CROSS" codex "$RUN"
+claude_output "$RUN"
+jq 'del(.codex.web_search_events)' "$RUN/run.json" > "$SANDBOX/x" && mv "$SANDBOX/x" "$RUN/run.json"
+run "$CROSS" collect "$RUN"
+expect_rc "web search の記録が無い run は確認できないので失敗する" 1 "cannot confirm that Codex made no web search"
+prepare
 STUB_OUTPUT=badhash run "$CROSS" codex "$RUN"
 claude_output "$RUN"
 run "$CROSS" collect "$RUN"
@@ -263,11 +286,16 @@ if [[ "$(grep -n '\bEdit\b' "${SKILL_FILES[@]}" | grep -vc 'disallowedTools\|Bas
 else
   ng "Edit を指示している: $(grep -n '\bEdit\b' "${SKILL_FILES[@]}")"
 fi
-if grep -qF "disallowedTools: ['Bash', 'Edit', 'Write', 'NotebookEdit']" "$REPO_ROOT/shared/skills/break-consensus/references/cross.md" &&
+if grep -qF "disallowedTools: ['Bash', 'Edit', 'Write', 'NotebookEdit', 'WebSearch', 'WebFetch', 'mcp__*']" "$REPO_ROOT/shared/skills/break-consensus/references/cross.md" &&
   grep -qF 'model: args.model' "$REPO_ROOT/shared/skills/break-consensus/references/cross.md"; then
-  ok "Claude worker は model を route から受け、Bash、Edit、Write、NotebookEdit を除く"
+  ok "Claude worker は model を route から受け、Bash、Edit、Write、NotebookEdit、WebSearch、WebFetch、MCP を除く"
 else
   ng "Claude worker の workflow が不正"
+fi
+if grep -qx 'web_search = "disabled"' "$REPO_ROOT/codex/profiles/toolkit-divergent.config.toml"; then
+  ok "toolkit-divergent profile は user config の web search を無効にする"
+else
+  ng "toolkit-divergent profile が web search を無効にしていない"
 fi
 steps() { sed -n '/^1\. /,/^6\. /p' "$1"; }
 if diff <(steps "${SKILL_FILES[0]}") <(steps "${SKILL_FILES[1]}") >/dev/null; then

@@ -4,6 +4,11 @@
 # with -s read-only in an empty temporary directory. The global ~/.codex/AGENTS.md is still read;
 # the launcher records its hash for the synthesis.
 
+# The worker answers from the brief alone. The user config may enable web search (web_search = "live"),
+# which -s read-only does not stop, so turn it off here; the launcher also passes -c web_search="disabled"
+# and break-consensus-cross collect fails a run whose Codex session logged a web search.
+web_search = "disabled"
+
 developer_instructions = """
 You are the Codex divergent worker for one /break-consensus --cross run. Follow the prompt and these rules:
 - Work only from the brief in the prompt. Do not read, search, create, or modify files, and do not run commands.
