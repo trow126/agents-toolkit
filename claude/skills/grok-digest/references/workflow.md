@@ -73,7 +73,7 @@ Replace 〇〇 with the specific claim, method, or number to check. Show all pro
 
 ## 7. Critic (`--critic` only)
 
-Write the claims and deep-dive answers to a scratchpad document. Leave out private project details, account names, and anything private; `cross-critic` sends the document to another provider. Run `/cross-critic <document>` (default mode) and ask for alternative explanations that look equally convincing and for objections. Follow its workflow to the end: every finding gets 採用 or 不採用 with a reason, and `cross-critic finish` must pass. Put the decision table into the notes' `## 反論` section.
+Write the claims and deep-dive answers to a scratchpad document. Leave out private project details, account names, and anything private; `cross-critic` sends the document to another provider. Run `/cross-critic <document>` (default mode) by reading `~/.claude/skills/cross-critic/SKILL.md` and its references, since the Skill tool refuses it, and ask for alternative explanations that look equally convincing and for objections. Follow its workflow to the end: every finding gets 採用 or 不採用 with a reason, and `cross-critic finish` must pass. Put the decision table into the notes' `## 反論` section.
 
 ## 8. Save and report
 

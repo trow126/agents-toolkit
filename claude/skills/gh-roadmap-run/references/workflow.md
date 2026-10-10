@@ -10,7 +10,7 @@
 ## Iteration detail
 
 - One sub-Issue at a time. The test-first → gate → verify → apply → checklist sequence of one Issue completes before the next starts.
-- Follow the `gh-test-first` skill for the implementation. Its red phase (new tests failing for the expected reason), frozen tests, and gate are required for every sub-Issue; a sub-Issue with no testable criterion (documentation only, configuration) records its manual checks instead and says so in the progress note.
+- Follow the `gh-test-first` skill for the implementation: read `~/.claude/skills/gh-test-first/SKILL.md` and the references it names (the Skill tool refuses it). Its red phase (new tests failing for the expected reason), frozen tests, and gate are required for every sub-Issue; a sub-Issue with no testable criterion (documentation only, configuration) records its manual checks instead and says so in the progress note.
 - Follow `~/.agents/rules/git-workflow.md` and the `gh-finish` skill for the apply step. `--apply` authority for each sub-Issue completed in this run comes from the roadmap-run invocation itself; everything `gh-finish` refuses (push, PR, branch deletion, unrelated changes) stays refused.
 - Checklist update: edit the tracking Issue body with `gh issue edit <tracking> --body-file` after rewriting only the target checkbox; leave every other byte of the body unchanged.
 - Real-runtime checks: when the sub-Issue's success criteria involve external data, network collection, or long-running computation, run the actual command (smoke run, backfill) and read its output before finishing. Background long runs with `Bash(run_in_background=true)` and keep driving or waiting on them; do not declare success from code reading alone.
@@ -22,7 +22,7 @@ A sub-Issue is a gate if its title or body marks it as a user decision（例:【
 
 1. Stop the loop before implementing anything for the gate or any later sub-Issue.
 2. Summarize the decisions the gate needs, with the evidence produced by the completed sub-Issues.
-3. With `--critic`: write the gate's decision material (the gate Issue body, the plan or preregistration it decides on, and the evidence summary) to one file in your scratchpad, run the `cross-critic` skill with `--gate` on it, and present its decision table together with the decisions. The critics criticize; the user decides.
+3. With `--critic`: write the gate's decision material (the gate Issue body, the plan or preregistration it decides on, and the evidence summary) to one file in your scratchpad, run the `cross-critic` skill with `--gate` on it by following `~/.claude/skills/cross-critic/SKILL.md` and its references (the Skill tool refuses it), and present its decision table together with the decisions. The critics criticize; the user decides.
 4. Resume only when the user has made the decision; the resumed run treats the recorded decision as the gate's outcome.
 
 ## Status mode

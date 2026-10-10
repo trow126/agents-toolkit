@@ -9,7 +9,7 @@ argument-hint: "<tracking-issue-number> [--status|--critic]"
 
 Successor of the deprecated `/gh-roadmap-drive`: Claude implements each sub-Issue test-first instead of delegating it to Codex (2026-10 A/B experiments, `docs/eval/sandwich-ab-results.md` and `sandwich-ab-d-results.md` in agents-toolkit).
 
-Read [`references/workflow.md`](references/workflow.md). The per-step contracts are owned by the `gh-test-first`, `gh-finish`, and `cross-critic` skills — load each via the Skill tool at the step that uses it. This skill only adds the loop over a tracking Issue; it never relaxes those skills' rules.
+Read [`references/workflow.md`](references/workflow.md). The per-step contracts are owned by the `gh-test-first`, `gh-finish`, and `cross-critic` skills. Load `gh-finish` via the Skill tool. `gh-test-first` and `cross-critic` set `disable-model-invocation: true`, so the Skill tool refuses them; read their files instead at the step that uses them: `~/.claude/skills/gh-test-first/SKILL.md` and `~/.claude/skills/cross-critic/SKILL.md`, plus the references each one names. This skill only adds the loop over a tracking Issue; it never relaxes those skills' rules.
 
 ## Modes
 
