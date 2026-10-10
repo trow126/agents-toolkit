@@ -67,6 +67,7 @@ Windows の Claude desktop app は WSL の `~/.claude` ではなく `%USERPROFIL
 | `grok-digest` | 配布 | built-in browser(`mcp__Claude_Browser__*`)が desktop app にしかない。helper 呼び出しの WSL 化だけで動く |
 | `cross-critic` | 配布 | `grok-digest --critic` の依存。helper(`run`・`finish`)の WSL 化と run directory の UNC 参照だけで動く |
 | `article-style` | 配布 | 文章規則だけで shell 依存が無く、変換不要 |
+| `gh-roadmap-plan` | 配布 | 会話や資料から計画を起こす起点で desktop app でも使う。git・gh の操作はすべて helper(`gh-roadmap-plan`・`grok-digest projects`)に寄せてあり、WSL 化だけで動く |
 | `gh-*`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
 | `gh-codex-drive`・`gh-roadmap-drive`・`break-consensus` | 除外 | Codex 委任・`--cross` の多段 orchestration が WSL 前提。非推奨 skill も含む |
 | `config-audit`・`model-routing`・`knowledge-audit`・`implementation-quality`・`python-refactor-analysis` | 除外 | WSL の設定・rule(`~/.agents/rules`)・`uv` 環境を前提にし、desktop app 固有の利点が無い |

@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""gh-roadmap-plan — deterministic parts of /gh-roadmap-plan (agents-toolkit).
+
+usage:
+  gh-roadmap-plan templates [--dir DIR]
+  gh-roadmap-plan check --repo OWNER/NAME (--new --dir DIR | --existing)
+  gh-roadmap-plan init --repo OWNER/NAME --dir DIR --readme FILE --gitignore FILE
+                       --message-file FILE [--description TEXT] [--public]
+  gh-roadmap-plan create MANIFEST [--dry-run] [--state FILE]
+
+templates  print the Issue completeness rule and the manual Issue skeletons (umbrella,
+           implementation, investigation), plus DIR/.github/ISSUE_TEMPLATE/* when --dir is given.
+check      read-only preconditions. --new: gh is signed in, OWNER/NAME does not exist on GitHub,
+           and DIR is absent or an empty directory. --existing: the repository exists with Issues
+           enabled; prints its open Issues so the plan does not duplicate them. Exit 2 when a
+           precondition fails, 3 when gh is not signed in.
+init       create DIR, write README.md and .gitignore from the given files, commit them on main
+           with the message from --message-file, create the GitHub repository (private unless
+           --public) from DIR and push that one commit. Re-checks the --new preconditions first.
+create     create the roadmap Issues from MANIFEST (JSON):
+             {"repo": "OWNER/NAME",
+              "parent":   {"key": "roadmap", "title": "...", "body_file": "roadmap.md"},
+              "children": [{"key": "prereg", "title": "...", "body_file": "prereg.md"}, ...]}
+           body_file paths are relative to MANIFEST. In bodies, {{#key}} stands for the Issue
+           number of that key. The parent body must list every child once, in order, as a line
+           "- [ ] {{#key}} ..." (the checklist /gh-roadmap-run reads), and every child body must
+           reference the parent. The parent is created first, then the children in order; then
+           every body is rewritten with the real numbers and the children are attached as GitHub
+           sub-issues in order. Progress is kept in --state (default MANIFEST.state.json), so a
+           rerun after a failure continues without creating an Issue twice; an existing Issue with
+           the same title that the state does not know about stops the run (exit 2).
+           --dry-run validates and prints the plan without any GitHub call.
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+
+KEY_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+PLACEHOLDER_RE = re.compile(r"\{\{#([^}]*)\}\}")
+CHECKLIST_RE = re.compile(r"^\s*- \[ \] \{\{#([a-z0-9-]+)\}\}", re.MULTILINE)
+GATE_MARK = "【判断ゲート】"
+STUB_BODY = "（本文を設定中です。gh-roadmap-plan が直後に置き換えます）"
+BODY_LIMIT = 65536
+RULE = Path("~/.agents/rules/issue-completeness.md").expanduser()
+MANUAL_TEMPLATES = ("backlog_umbrella.md", "implementation.md", "investigation_validation.md")
+
+
+class Fail(Exception):
+    def __init__(self, message: str, code: int = 2):
+        super().__init__(message)
+        self.code = code
+
+
+def run(cmd: list[str], *, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+    proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+    if check and proc.returncode != 0:
+        raise Fail(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr.strip()}", 1)
+    return proc
+
+
+def gh_json(args: list[str]):
+    return json.loads(run(["gh", *args]).stdout or "null")
+
+
+def require_repo(value: str) -> str:
+    if not REPO_RE.fullmatch(value):
+        raise Fail(f"--repo must be OWNER/NAME: {value!r}")
+    return value
+
+
+def require_auth() -> None:
+    if run(["gh", "auth", "status"], check=False).returncode != 0:
+        raise Fail("gh is not signed in (run `gh auth login`)", 3)
+
+
+def repo_info(repo: str) -> dict | None:
+    proc = run(["gh", "repo", "view", repo, "--json", "name,visibility,hasIssuesEnabled,url"], check=False)
+    return json.loads(proc.stdout) if proc.returncode == 0 else None
+
+
+# ---- templates ---------------------------------------------------------------------------------
+def cmd_templates(args) -> None:
+    if not RULE.is_file():
+        raise Fail(f"missing {RULE}; run agents-toolkit bootstrap", 1)
+    files = [RULE]
+    manual = Path("~/.github/ISSUE_TEMPLATE/manual").expanduser()
+    files += [manual / name for name in MANUAL_TEMPLATES if (manual / name).is_file()]
+    if args.dir:
+        repo_templates = Path(args.dir).expanduser() / ".github" / "ISSUE_TEMPLATE"
+        if repo_templates.is_dir():
+            files += sorted(p for p in repo_templates.rglob("*") if p.is_file())
+    for path in files:
+        print(f"==> {path} <==\n{path.read_text(encoding='utf-8').rstrip()}\n")
+
+
+# ---- check / init ------------------------------------------------------------------------------
+def check_new(repo: str, directory: Path) -> dict:
+    require_auth()
+    if repo_info(repo) is not None:
+        raise Fail(f"{repo} already exists on GitHub; use --existing or another name")
+    if directory.exists() and (not directory.is_dir() or any(directory.iterdir())):
+        raise Fail(f"{directory} exists and is not an empty directory")
+    return {"mode": "new", "repo": repo, "dir": str(directory), "ok": True}
+
+
+def check_existing(repo: str) -> dict:
+    require_auth()
+    info = repo_info(repo)
+    if info is None:
+        raise Fail(f"{repo} was not found on GitHub (or gh has no access)")
+    if not info.get("hasIssuesEnabled"):
+        raise Fail(f"{repo} has Issues disabled")
+    issues = gh_json(["issue", "list", "-R", repo, "--state", "open", "--limit", "500",
+                      "--json", "number,title"])
+    return {"mode": "existing", "repo": repo, "url": info.get("url"), "ok": True,
+            "open_issues": sorted(issues, key=lambda i: i["number"])}
+
+
+def cmd_check(args) -> None:
+    repo = require_repo(args.repo)
+    if args.new:
+        if not args.dir:
+            raise Fail("--new needs --dir")
+        result = check_new(repo, Path(args.dir).expanduser())
+    else:
+        result = check_existing(repo)
+    print(json.dumps(result, ensure_ascii=False, indent=1))
+
+
+def cmd_init(args) -> None:
+    repo = require_repo(args.repo)
+    directory = Path(args.dir).expanduser()
+    sources = {"README.md": Path(args.readme), ".gitignore": Path(args.gitignore)}
+    for name, src in sources.items():
+        if not src.is_file() or not src.read_text(encoding="utf-8").strip():
+            raise Fail(f"{name} source is missing or empty: {src}")
+    message = Path(args.message_file)
+    if not message.is_file() or not message.read_text(encoding="utf-8").strip():
+        raise Fail(f"commit message file is missing or empty: {message}")
+    check_new(repo, directory)
+
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, src in sources.items():
+        shutil.copyfile(src, directory / name)
+    run(["git", "init", "-q", "-b", "main"], cwd=directory)
+    run(["git", "add", "README.md", ".gitignore"], cwd=directory)
+    run(["git", "commit", "-q", "-F", str(message.resolve())], cwd=directory)
+    create = ["gh", "repo", "create", repo, "--public" if args.public else "--private",
+              "--source", str(directory), "--push"]
+    if args.description:
+        create += ["--description", args.description]
+    proc = run(create, check=False)
+    if proc.returncode != 0:
+        raise Fail(f"local commit made in {directory}, but `gh repo create` failed; nothing was "
+                   f"pushed:\n{proc.stderr.strip()}", 1)
+    head = run(["git", "rev-parse", "HEAD"], cwd=directory).stdout.strip()
+    remote = run(["git", "ls-remote", "origin", "refs/heads/main"], cwd=directory).stdout.split()
+    if not remote or remote[0] != head:
+        raise Fail(f"{repo} was created but origin/main does not match local HEAD {head}", 1)
+    info = repo_info(repo) or {}
+    print(json.dumps({"repo": repo, "dir": str(directory), "commit": head[:7],
+                      "visibility": info.get("visibility"), "url": info.get("url")},
+                     ensure_ascii=False, indent=1))
+
+
+# ---- create ------------------------------------------------------------------------------------
+def load_manifest(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise Fail(f"cannot read manifest {path}: {exc}")
+    errors: list[str] = []
+    repo = data.get("repo", "")
+    if not isinstance(repo, str) or not REPO_RE.fullmatch(repo):
+        errors.append(f"repo must be OWNER/NAME: {repo!r}")
+    parent, children = data.get("parent"), data.get("children")
+    if not isinstance(parent, dict):
+        errors.append("parent must be an object")
+    if not isinstance(children, list) or not children:
+        errors.append("children must be a non-empty list")
+    if errors:
+        raise Fail("\n".join(errors))
+
+    items, seen = [], set()
+    for role, item in [("parent", parent)] + [("child", c) for c in children]:
+        if not isinstance(item, dict):
+            errors.append(f"{role} entry must be an object: {item!r}")
+            continue
+        key, title, body_file = item.get("key", ""), item.get("title", ""), item.get("body_file", "")
+        if not isinstance(key, str) or not KEY_RE.fullmatch(key):
+            errors.append(f"bad key {key!r} (lowercase letters, digits, '-')")
+        elif key in seen:
+            errors.append(f"duplicate key {key!r}")
+        seen.add(key)
+        if not isinstance(title, str) or not title.strip():
+            errors.append(f"{key}: title is empty")
+        body_path = path.parent / str(body_file)
+        body = ""
+        if not body_file or not body_path.is_file():
+            errors.append(f"{key}: body_file not found: {body_path}")
+        else:
+            body = body_path.read_text(encoding="utf-8")
+            if not body.strip():
+                errors.append(f"{key}: body is empty")
+        items.append({"role": role, "key": key, "title": str(title).strip(), "body": body})
+    if errors:
+        raise Fail("\n".join(errors))
+
+    keys = {i["key"] for i in items}
+    parent_item, child_items = items[0], items[1:]
+    for item in items:
+        for ref in PLACEHOLDER_RE.findall(item["body"]):
+            if ref not in keys:
+                errors.append(f"{item['key']}: unknown placeholder {{{{#{ref}}}}}")
+        if len(item["body"]) > BODY_LIMIT - 1000:
+            errors.append(f"{item['key']}: body is too long for a GitHub Issue")
+    listed = CHECKLIST_RE.findall(parent_item["body"])
+    expected = [c["key"] for c in child_items]
+    if listed != expected:
+        errors.append(f"parent checklist must list the children once each, in order: "
+                      f"found {listed}, expected {expected}")
+    marker = f"{{{{#{parent_item['key']}}}}}"
+    for child in child_items:
+        if marker not in child["body"]:
+            errors.append(f"{child['key']}: body does not reference the parent ({marker})")
+    if errors:
+        raise Fail("\n".join(errors))
+    return {"repo": repo, "items": items}
+
+
+def render(body: str, numbers: dict[str, int]) -> str:
+    return PLACEHOLDER_RE.sub(lambda m: f"#{numbers[m.group(1)]}", body)
+
+
+def save_state(path: Path, state: dict) -> None:
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(path)
+
+
+def cmd_create(args) -> None:
+    manifest_path = Path(args.manifest).expanduser().resolve()
+    plan = load_manifest(manifest_path)
+    repo, items = plan["repo"], plan["items"]
+    if args.dry_run:
+        print(json.dumps({"repo": repo, "dry_run": True, "issues": [
+            {"key": i["key"], "role": i["role"], "title": i["title"],
+             "gate": GATE_MARK in i["title"]} for i in items]}, ensure_ascii=False, indent=1))
+        return
+
+    state_path = Path(args.state).expanduser() if args.state else manifest_path.with_name(
+        manifest_path.name + ".state.json")
+    state = {"repo": repo, "numbers": {}, "edited": [], "linked": []}
+    if state_path.is_file():
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if state.get("repo") != repo:
+            raise Fail(f"state {state_path} belongs to {state.get('repo')}, not {repo}")
+    numbers: dict[str, int] = state["numbers"]
+
+    require_auth()
+    info = repo_info(repo)
+    if info is None or not info.get("hasIssuesEnabled"):
+        raise Fail(f"{repo} is missing or has Issues disabled")
+    existing = gh_json(["issue", "list", "-R", repo, "--state", "all", "--limit", "1000",
+                        "--json", "number,title"])
+    known = set(numbers.values())
+    for item in items:
+        if item["key"] in numbers:
+            continue
+        clash = [i["number"] for i in existing if i["title"] == item["title"] and i["number"] not in known]
+        if clash:
+            raise Fail(f"{item['key']}: an Issue titled {item['title']!r} already exists (#{clash[0]}) "
+                       f"and {state_path} does not record it; add it there or change the title")
+
+    for item in items:
+        if item["key"] in numbers:
+            continue
+        out = run(["gh", "issue", "create", "-R", repo, "--title", item["title"],
+                   "--body", STUB_BODY]).stdout.strip()
+        match = re.search(r"/issues/(\d+)\s*$", out)
+        if not match:
+            raise Fail(f"{item['key']}: cannot read the new Issue number from: {out!r}", 1)
+        numbers[item["key"]] = int(match.group(1))
+        save_state(state_path, state)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for item in items:
+            if item["key"] in state["edited"]:
+                continue
+            body_file = Path(tmp) / f"{item['key']}.md"
+            body_file.write_text(render(item["body"], numbers), encoding="utf-8")
+            run(["gh", "issue", "edit", str(numbers[item["key"]]), "-R", repo, "--body-file", str(body_file)])
+            state["edited"].append(item["key"])
+            save_state(state_path, state)
+
+    parent = items[0]
+    for child in items[1:]:
+        if child["key"] in state["linked"]:
+            continue
+        issue = gh_json(["api", f"repos/{repo}/issues/{numbers[child['key']]}"])
+        run(["gh", "api", "-X", "POST", f"repos/{repo}/issues/{numbers[parent['key']]}/sub_issues",
+             "-F", f"sub_issue_id={issue['id']}"])
+        state["linked"].append(child["key"])
+        save_state(state_path, state)
+
+    linked = [s["number"] for s in gh_json(
+        ["api", f"repos/{repo}/issues/{numbers[parent['key']]}/sub_issues?per_page=100"])]
+    want = [numbers[c["key"]] for c in items[1:]]
+    if linked != want:
+        raise Fail(f"sub-issues of #{numbers[parent['key']]} are {linked}, expected {want}", 1)
+    for item in items:
+        body = gh_json(["issue", "view", str(numbers[item["key"]]), "-R", repo, "--json", "body"])["body"]
+        if "{{#" in body or STUB_BODY in body:
+            raise Fail(f"#{numbers[item['key']]} body was not fully rendered", 1)
+
+    base = info.get("url", f"https://github.com/{repo}")
+    print(json.dumps({"repo": repo, "state": str(state_path), "issues": [
+        {"key": i["key"], "role": i["role"], "number": numbers[i["key"]], "title": i["title"],
+         "gate": GATE_MARK in i["title"], "url": f"{base}/issues/{numbers[i['key']]}"}
+        for i in items]}, ensure_ascii=False, indent=1))
+
+
+# ---- CLI ---------------------------------------------------------------------------------------
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="gh-roadmap-plan", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("templates")
+    p.add_argument("--dir")
+    p = sub.add_parser("check")
+    p.add_argument("--repo", required=True)
+    p.add_argument("--dir")
+    mode = p.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--new", action="store_true")
+    mode.add_argument("--existing", action="store_true")
+    p = sub.add_parser("init")
+    for name in ("--repo", "--dir", "--readme", "--gitignore", "--message-file"):
+        p.add_argument(name, required=True)
+    p.add_argument("--description")
+    p.add_argument("--public", action="store_true")
+    p = sub.add_parser("create")
+    p.add_argument("manifest")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--state")
+    args = parser.parse_args()
+    handlers = {"templates": cmd_templates, "check": cmd_check, "init": cmd_init, "create": cmd_create}
+    try:
+        handlers[args.command](args)
+    except Fail as exc:
+        print(f"gh-roadmap-plan {args.command}: {exc}", file=sys.stderr)
+        return exc.code
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

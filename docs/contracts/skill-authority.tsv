@@ -29,6 +29,9 @@ gh-roadmap-drive	--status	deny	deny	deny	deny	deny	deny	deny	report checklist st
 gh-roadmap-run	default	allow	allow	allow	deny	allow	deny	deny	per sub-Issue gh-test-first implementation in this session then commit local merge close plus one tracking checklist update; no Codex delegation
 gh-roadmap-run	--critic	allow	allow	allow	deny	allow	deny	allow	the default loop plus one cross-critic --gate run per judgment gate; gate material goes to the critic sessions
 gh-roadmap-run	--status	deny	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no implementation critics edits or writes
+gh-roadmap-plan	default	allow	deny	allow	allow	allow	deny	deny	new project: creates the local folder with README.md and .gitignore only, one initial commit, a private repository (public only on request) and pushes that commit; creates the drafted parent and sub-Issues and attaches them as sub-issues; no implementation labels projects or other pushes
+gh-roadmap-plan	--existing	deny	deny	deny	deny	allow	deny	deny	existing repository: creates the drafted parent and sub-Issues and attaches them as sub-issues; no file commit or push
+gh-roadmap-plan	--dry-run	deny	deny	deny	deny	deny	deny	deny	drafts and validates in the scratchpad only; no GitHub or repository writes
 gh-test-first	default	allow	allow	deny	deny	deny	deny	deny	creates or switches the feature branch; writes tests first then the implementation and local test runs; no commit or GitHub write
 cross-critic	default	deny	allow	deny	deny	deny	deny	allow	sends one document to a read-only Codex critic (codex exec -s read-only); writes only its run directory under ~/.local/state; no repository writes
 cross-critic	--gate	deny	allow	deny	deny	deny	deny	allow	adds a read-only Claude critic (claude -p --tools Read,Grep,Glob) that is never the author model; writes only its run directory under ~/.local/state

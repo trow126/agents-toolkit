@@ -33,7 +33,7 @@ cp "$REPO_ROOT/scripts/windows-skills.py" "$REPO/scripts/"
 cp -r "$REPO_ROOT/install" "$REPO/install"
 mkdir -p "$REPO/claude"
 cp -r "$REPO_ROOT/claude/bin" "$REPO_ROOT/claude/skills" "$REPO/claude/"
-cp -r "$REPO_ROOT/shared/skills/article-style" "$REPO/shared/skills/"
+cp -r "$REPO_ROOT/shared/skills/article-style" "$REPO_ROOT/shared/skills/gh-roadmap-plan" "$REPO/shared/skills/"
 BOOT="$REPO/bootstrap.sh"
 
 T="$SANDBOX/win/.claude"

@@ -12,3 +12,4 @@
 grok-digest	claude/skills/grok-digest	grok-digest,private-routing-locate
 cross-critic	claude/skills/cross-critic	cross-critic
 article-style	shared/skills/article-style	-
+gh-roadmap-plan	shared/skills/gh-roadmap-plan	gh-roadmap-plan,grok-digest
