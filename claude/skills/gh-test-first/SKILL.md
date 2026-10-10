@@ -1,6 +1,6 @@
 ---
 name: gh-test-first
-description: Implements one GitHub Issue in this session test-first: acceptance tests (plus causality/leak tests in time-series or quant repos) are written and seen failing before the code; passing them gates /gh-finish. Use when the user invokes /gh-test-first.
+description: "Implements one GitHub Issue in this session test-first: acceptance tests (plus causality/leak tests in time-series or quant repos) are written and seen failing before the code; passing them gates /gh-finish. Use when the user invokes /gh-test-first."
 disable-model-invocation: true
 argument-hint: "<issue-number>"
 ---
