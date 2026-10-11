@@ -8,7 +8,7 @@ Title: `ロードマップ: <goal>` (or the repository's existing convention). S
 
 - **Purpose / 目的**: the goal and the success measure from the brief, and what a negative result means (the roadmap closes with that verdict recorded).
 - **Exact scope / 対象範囲**: repository, data, period, instruments or modules; the decisions made, each with date and who decided; related projects and what is reused from each.
-- **Child work items / 子Issue**: one line per child, in execution order, exactly `- [ ] {{#key}} <short title>` (this is the checklist `/gh-roadmap-run` reads and checks off). After the list, a dependency note (`{{#data}} は {{#scaffold}} の後`, parallel children) and which children are 【判断ゲート】.
+- **Child work items / 子Issue**: one line per child, in execution order, exactly `- [ ] {{#key}} <short title>` (this is the checklist `/gh-roadmap-run` reads and checks off). After the list, a dependency note (`{{#data}} は {{#scaffold}} の後`, parallel children), which children are 【判断ゲート】, and every child's abort line (below). Existing open Issues that the roadmap relies on are listed under the scope, not in this checklist.
 - **Non-goals / 非目標**: from the brief, including what neighbouring projects already cover.
 - **Close conditions / クローズ条件**: all children closed, plus the final verdict written to a named file (for example `docs/research/<topic>/summary.md`) and posted on the parent. Include the negative-result close.
 - **Tracking or verification notes / 追跡または検証メモ**: open items that are not decisions (license terms to confirm, data to wait for), and how progress is tracked (`/gh-roadmap-run {{#roadmap}} --status`).
@@ -25,6 +25,7 @@ Every child body:
 - defines success by the final persisted or user-visible state: files written, rows stored with counts, a report at a named path, a verdict recorded. A command exiting 0 is not success.
 - lists verification commands that can actually be run, including a real smoke run when the child touches external data or long computation.
 - names its non-goals, especially the work that belongs to a later child.
+- data, cost, and baseline children may add one abort line: `中止条件: <observable result fixed before data is seen>` (for example, fewer than N usable rows, or a cost floor above the target edge). It names a result that makes the rest of the roadmap pointless. `/gh-roadmap-run` stops there and shows the result to the user; it never skips ahead on its own.
 
 Research-specific rules:
 
@@ -39,7 +40,7 @@ Judgment gates:
 
 ## Final check before `create`
 
-- Can each child be closed from its body alone?
+- Can each child be closed from its body alone? Check it with a cold read (zero-context validation, https://sharedcontext.ai/skills/external/whykusanagi/zero-context-validation): give each child body, placeholders unresolved, to a fresh read-only context with no brief and no conversation (in Claude Code an `Explore` subagent). Ask for the completion state it would aim for and the first verification command it would run. Revise the body when either differs materially from its own success criterion and commands, or when the reader names a missing fact; probe each body once. Where no fresh context can be started (for example in Codex), skip the cold read and say so in the report.
 - Does every cross-reference use `{{#key}}`, never a guessed number?
 - Are all decisions from the brief recorded in the parent, and every open decision either asked or turned into a gate?
 - Does the parent say how a negative result closes the roadmap?

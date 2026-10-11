@@ -33,6 +33,7 @@ Invoking the loop is the user's single explicit request covering, for each sub-I
 ## Stop conditions
 
 - A judgment gate is next, a dependency is unmet, or an Issue body is ambiguous in a way that changes design, data, or public API.
+- A completed sub-Issue's result meets its `中止条件:` line (written by `/gh-roadmap-plan`). Show the result and the line to the user; do not skip ahead to a verdict sub-Issue on your own.
 - A `gh-test-first` gate, verification, or `gh-finish` check fails and cannot be fixed within the sub-Issue's scope — report; never merge over a failure and never weaken a test.
 - A cross-critic run fails (with `--critic`).
 - Any stop condition of `gh-test-first`, `gh-finish`, or `cross-critic`.
