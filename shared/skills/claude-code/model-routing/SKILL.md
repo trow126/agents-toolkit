@@ -36,8 +36,7 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 
 ## 既存経路が優先
 
-- PR 作成後のレビュー → `/code-review <PR番号>`。PR へのコメント投稿はユーザーの明示指示で `/gh-pr --review-comment`
-- PR 指摘への対応 → `/gh-review`
+- PR 作成後のレビュー → `/code-review <PR番号>`。PR へのコメント投稿はユーザーの明示指示で `/code-review <PR番号> --comment`
 - 計画レビュー → Codex版`plan-review`か`/code-review`
 
 ## ルーティングの検証（モデル自己申告は証明にならない）

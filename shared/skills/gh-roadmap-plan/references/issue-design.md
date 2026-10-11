@@ -1,6 +1,6 @@
 # Issue design for a roadmap
 
-`gh-roadmap-plan templates` prints the completeness rule and the skeletons. Their exact headings are authoritative; this file adds what a roadmap needs on top of them. Write the bodies in the language of the source conversation or documents.
+`gh-roadmap-plan templates` prints the completeness rule (`~/.agents/rules/issue-completeness.md`) and the skeletons. Their exact headings are authoritative; this file adds what a roadmap needs on top of them. Write the bodies in the language of the source conversation or documents.
 
 ## Parent (backlog/umbrella)
 

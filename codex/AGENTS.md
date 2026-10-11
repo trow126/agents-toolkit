@@ -38,11 +38,11 @@
 
 ## GitHub
 
-- Issue本文の作成・更新は`issue-writing` skillとrepo templateをsource of truthにする。
+- Issue本文の作成・更新はrepo templateをsource of truthにする。
 - GitHub操作はGitHub connectorを優先する。create、close、push、PR、comment、resolveを別の外部writeとして扱い、各tool approvalを維持する。
 - `gh` CLIへfallbackする場合も、別操作への承認を推論しない。
 
 ## Runtime
 
 - 実資金・本番運用では`workspace-write`等の絞ったsandboxを推奨する。
-- Claudeへの独立意見は`claude-second-opinion` skillを使う。直接CLIを使う場合は`CLAUDE_STREAM_IDLE_TIMEOUT_MS=900000`を付け、secretを含むdirectoryへ`--add-dir`しない。
+- Claudeへ独立意見をCLIで求める場合は`CLAUDE_STREAM_IDLE_TIMEOUT_MS=900000`を付け、secretを含むdirectoryへ`--add-dir`しない。

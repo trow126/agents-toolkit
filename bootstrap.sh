@@ -100,6 +100,12 @@ STALE_CLAUDE_SKILLS=(
   "gh-index|shared/skills/gh-index"
   "knowledge-audit|shared/skills/knowledge-audit"
   "python-refactor-analysis|shared/skills/python-refactor-analysis"
+  "gh-start|shared/skills/gh-start"
+  "gh-pr|shared/skills/gh-pr"
+  "gh-review|shared/skills/gh-review"
+  "gh-issue|shared/skills/gh-issue"
+  "issue-writing|codex/skills/issue-writing"
+  "config-audit|shared/skills/claude-code/config-audit"
 )
 # 同じ規則の ~/.agents/skills 版。要素は常に "name|旧 source の repo 相対 path"。
 STALE_AGENTS_SKILLS=(
@@ -107,6 +113,14 @@ STALE_AGENTS_SKILLS=(
   "knowledge-audit|shared/skills/knowledge-audit"
   "python-refactor-analysis|shared/skills/python-refactor-analysis"
   "kaggle|codex/skills/kaggle"
+  "gh-start|shared/skills/gh-start"
+  "gh-pr|shared/skills/gh-pr"
+  "gh-review|shared/skills/gh-review"
+  "gh-issue|shared/skills/gh-issue"
+  "issue-writing|codex/skills/issue-writing"
+  "claude-second-opinion|codex/skills/claude-second-opinion"
+  "doctor|codex/skills/doctor"
+  "config-audit|shared/skills/codex/config-audit"
 )
 
 # manifest 1ファイルを読み込み、検証しつつ ENTRY_* 配列へ追加する(fail-fast)

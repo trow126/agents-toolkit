@@ -22,9 +22,6 @@ codex/agents/*
 # 注: codex/skills/.system/ 等の未監査ディレクトリは自動的に除外される
 !codex/skills/
 codex/skills/*
-!codex/skills/claude-second-opinion/
-!codex/skills/doctor/
-!codex/skills/issue-writing/
 
 # rules/ は現在追跡対象なし
 # (issue_completeness_policy.md は shared/rules/issue-completeness.md の codex/AGENTS.md 同期に統合し廃止。

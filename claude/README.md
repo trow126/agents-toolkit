@@ -116,11 +116,11 @@ static test では owner 選択の managed bypass policy、project override、XD
 
 ## Skills
 
-GitHub workflow: `/gh-start`, `/gh-pr`, `/gh-issue`, `/gh-review`, `/branch-cleanup`。PR のレビューは bundled `/code-review`、PR へのレビューコメント投稿は `/gh-pr --review-comment` を使う。local変更、commit、push、PR、commentは各skillのmodeで分離される。
+GitHub workflow: `/gh-roadmap-plan`, `/gh-roadmap-run`, `/gh-test-first`, `/gh-finish`, `/branch-cleanup`。PR のレビューは bundled `/code-review`、PR へのレビューコメント投稿は `/code-review <PR番号> --comment` を使う。local変更、commit、merge、Issue closeは各skillのmodeで分離される。
 
 品質・Git router: `/implementation-quality`, `/git-operations`。
 
-分析・utility: `/break-consensus`（manual only。既定でCodexとread-onlyのClaude workerの候補を併せる。`--solo`はsession内だけ）, `/skill-tuneup`（manual only。全skillを1回で調査・break-consensus・事前登録の実験にかけ、`--apply`で通った項目を実装する）, `/model-routing`, `/config-audit`。`config-audit`はdefault read-onlyで、書き込みには明示modeが必要。
+分析・utility: `/break-consensus`（manual only。既定でCodexとread-onlyのClaude workerの候補を併せる。`--solo`はsession内だけ）, `/skill-tuneup`（manual only。全skillを1回で調査・break-consensus・事前登録の実験にかけ、`--apply`で通った項目を実装する）, `/model-routing`, `/cross-critic`, `/grok-digest`。
 
 ## Secret scanning
 

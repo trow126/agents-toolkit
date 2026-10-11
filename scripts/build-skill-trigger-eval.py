@@ -22,13 +22,9 @@ from pathlib import Path
 CASES = {
     "article-style": ("Zenn に公開する、uv の使い方を紹介する記事の導入部を書いて。", "article-style", []),
     "branch-cleanup": ("PR がリモートでマージされたから、ローカルのブランチを整理して。", "branch-cleanup", ["git-operations"]),
-    "implementation-quality": ("src/parser.py の parse_date が空文字で例外を投げるバグを直して、テストも足して。", "implementation-quality", ["gh-start"]),
-    "git-operations": ("今の変更を stage して、適切なメッセージで commit して。", "git-operations", ["gh-finish", "gh-start"]),
-    "gh-start": ("Issue #42 の実装を始めて。", "gh-start", []),
+    "implementation-quality": ("src/parser.py の parse_date が空文字で例外を投げるバグを直して、テストも足して。", "implementation-quality", ["git-operations"]),
+    "git-operations": ("今の変更を stage して、適切なメッセージで commit して。", "git-operations", ["gh-finish"]),
     "gh-finish": ("Issue #42 が完了したよ。PR は作らずに仕上げて。", "gh-finish", ["git-operations"]),
-    "gh-issue-close": ("Issue #42 を close して。", "gh-issue", ["issue-writing"]),
-    "gh-issue-create": ("issue-body.md の内容で Issue を起票して。", "gh-issue", []),
-    "issue-writing": ("ログイン画面のタイムアウトの不具合について、Issue の本文を下書きして。まだ起票はしない。", "issue-writing", ["gh-issue"]),
     "model-routing": ("さっきの workflow の subagent が、実際にどのモデルで動いたか確認して。", "model-routing", []),
 }
 HIDDEN_OVERRIDES = ("off", "user-invocable-only")

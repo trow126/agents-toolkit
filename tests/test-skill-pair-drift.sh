@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Skill pairs across runtimes (§6.5). The skills kept per runtime (break-consensus, config-audit) may
-# differ only by the reviewed lines in tests/fixtures/skill-pair-drift/<name>.diff, after the
-# invocation prefix (/name, $name) and the reference path (../../name/references/) are normalized.
-# The merged skills (gh-issue, gh-pr, gh-review, gh-start) have one source dir linked into both
-# runtimes, and only their "Invoked as" line names a runtime. No model is called.
+# Skill pairs across runtimes (§6.5). The skills kept per runtime (break-consensus) may differ only
+# by the reviewed lines in tests/fixtures/skill-pair-drift/<name>.diff, after the invocation prefix
+# (/name, $name) and the reference path (../../name/references/) are normalized. Merged skills (one
+# source dir linked into both runtimes, only their "Invoked as" line naming a runtime) are checked
+# when MERGED lists any; the gh-* family that used it was archived in D15. No model is called.
 #
 # After a reviewed change to either copy of a kept pair: bash tests/test-skill-pair-drift.sh --update
 set -euo pipefail
@@ -28,10 +28,10 @@ import sys
 from pathlib import Path
 
 root, fixtures, update = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3] == "1"
-PAIRS = ("break-consensus", "config-audit")
+PAIRS = ("break-consensus",)
 # Same name in both runtimes, different content by design: no drift test.
 EXCLUDED = {"model-routing": "Claude model assignment and Codex agent routing are different procedures"}
-MERGED = ("gh-issue", "gh-pr", "gh-review", "gh-start")
+MERGED = ()
 
 
 def normalize(text, name):

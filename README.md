@@ -20,7 +20,7 @@ AI エージェント設定の一元管理モノレポ(旧 claude-toolkit)。
 | `codex/` | Codex CLI 設定 source | 同上(`~/.codex/` 配下) |
 | `shared/` | エージェント横断の共有ルール・skill・reference正本 | 同上(`~/.agents/` 配下) |
 
-credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。明示的に`config-audit --record`した履歴等は`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`へ書き込まれる。`gh-start`は永続checkpointを作らない。
+credentials・sessions・cache・history 等の runtime データは source tree には入らず、各 vendor の実ディレクトリ(`~/.claude`・`~/.codex` 配下)へ直接書き込まれる。skill が明示 mode で残す履歴等は`${XDG_STATE_HOME:-$HOME/.local/state}/agents-toolkit/<skill-name>/`へ書き込まれる。
 
 ## セットアップ(新マシン)
 
@@ -68,9 +68,9 @@ Windows の Claude desktop app は WSL の `~/.claude` ではなく `%USERPROFIL
 | `cross-critic` | 配布 | `grok-digest --critic` の依存。helper(`run`・`finish`)の WSL 化と run directory の UNC 参照だけで動く |
 | `article-style` | 配布 | 文章規則だけで shell 依存が無く、変換不要 |
 | `gh-roadmap-plan` | 配布 | 会話や資料から計画を起こす起点で desktop app でも使う。git・gh の操作はすべて helper(`gh-roadmap-plan`・`grok-digest projects`)に寄せてあり、WSL 化だけで動く |
-| `gh-*`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
+| `gh-test-first`・`gh-finish`・`gh-roadmap-run`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
 | `break-consensus`・`skill-tuneup` | 除外 | `--cross`・Workflow の多段 orchestration と WSL の toolkit repo が前提 |
-| `config-audit`・`model-routing`・`implementation-quality` | 除外 | WSL の設定・rule(`~/.agents/rules`)を前提にし、desktop app 固有の利点が無い |
+| `model-routing`・`implementation-quality` | 除外 | WSL の設定・rule(`~/.agents/rules`)を前提にし、desktop app 固有の利点が無い |
 
 変換は `scripts/windows-skills.py` が配布のたびに行い、source は二重管理しない。`*.md` の code span・code block 行にある宣言済み helper の呼び出しを WSL 経由に書き換え、先頭に「生成物・手で編集しない」marker、helper を使う SKILL.md には Windows での実行規則の節(Git Bash では `MSYS_NO_PATHCONV=1`、Windows path は `wsl -e wslpath -a` で変換、入力ファイルは BOM なし)を入れる。配布先の各 directory には生成元 commit・生成日時・file hash を持つ `.agents-toolkit-generated.json` を置く。
 

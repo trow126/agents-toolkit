@@ -19,6 +19,14 @@
 | `knowledge-audit` | 2026-10-12 除外（D14）。旧 source `shared/skills/knowledge-audit`。両 runtime で利用実績なし。唯一の読み手だった `shared/rules/self-improvement.md` も削除し、git history にだけ残す |
 | `python-refactor-analysis` | 2026-10-12 除外（D14）。旧 source `shared/skills/python-refactor-analysis`。両 runtime で利用実績なし。CI の pytest step も外した（復元時は `uv run --frozen pytest -q` の step を戻す） |
 | `kaggle` | 2026-10-12 除外（D14）。旧 source `codex/skills/kaggle`（Codex 専用）。利用実績なし。復元時は `.gitignore` の `!codex/skills/kaggle/` allowlist も戻す |
+| `gh-start` | 2026-10-12 除外（owner 決定 D15）。旧 source `shared/skills/gh-start`。Issue 実装は `gh-test-first`。runtime 契約 test は `tests/test-gh-issue-fetch.sh` へ縮小した（gh-start の静的契約は git history にだけ残す） |
+| `gh-pr` | 2026-10-12 除外（D15）。旧 source `shared/skills/gh-pr`。PR へのコメント投稿は `/code-review <PR番号> --comment`（`pr-review-hook.sh` の案内も変更） |
+| `gh-review` | 2026-10-12 除外（D15）。旧 source `shared/skills/gh-review` |
+| `gh-issue` | 2026-10-12 除外（D15）。旧 source `shared/skills/gh-issue`。`claude/bin/gh-issue-fetch.sh` は gh-test-first・gh-roadmap-run・gh-finish が使うので残す |
+| `issue-writing` | 2026-10-12 除外（D15）。旧 source `codex/skills/issue-writing`（両 runtime へ link）。Issue 本文の規則は `~/.agents/rules/issue-completeness.md` と `gh-roadmap-plan templates` が担う。復元時は `.gitignore` の allowlist も戻す |
+| `config-audit` | 2026-10-12 除外（D15）。旧 source `shared/skills/claude-code/config-audit`・`shared/skills/codex/config-audit` と共有の `shared/skills/config-audit/references`。archive 内は `claude-code/`・`codex/`・`references/` に分け、symlink はそのまま解決する。skill-pair drift fixture も `skill-pair-drift.diff` として同梱（復元時は `tests/fixtures/skill-pair-drift/config-audit.diff` へ戻し、test の `PAIRS` に加える） |
+| `claude-second-opinion` | 2026-10-12 除外（D15）。旧 source `codex/skills/claude-second-opinion`（Codex 専用）。Codex から Claude への相談は CLI 直接。CI の `test-ask-claude.sh` step も外した（復元時は戻す） |
+| `doctor` | 2026-10-12 除外（D15）。旧 source `codex/skills/doctor`（Codex 専用）。復元時は `.gitignore` の allowlist も戻す |
 
 `agmsg`（cross-agent messaging skill）は 2026-09-08 に skill 本体ごと削除した（最終利用 2026-06-23、以降 Claude Code / Codex のどちらからも呼ばれていない）。本 archive に退避していた 4 runtime 向け context template も同時に削除し、archive には残していない。
 

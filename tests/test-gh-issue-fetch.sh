@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# test-gh-start-contract.sh — gh-start workflow の実行時契約テスト(2026-07-23 レビュー ATK-001/003)
+# test-gh-issue-fetch.sh — gh-issue-fetch.sh の実行時契約テスト(2026-07-23 レビュー ATK-001/003。gh-test-first・gh-roadmap-run・gh-finish が使う)
 # 1) gh-issue-fetch.sh が fake gh + SCRIPT_DIR 相対パーサーで end-to-end に動く(repo 直接 + bootstrap 済み HOME)
-# 2) gh-start SKILL.md に無条件 Agent 委譲テンプレートがなく、条件付き委譲規約があることを静的検査
+# 2) 旧 issue-parser path が残らず、parse_issue.py が配布対象にあることを静的検査
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,10 +92,9 @@ else
 fi
 
 # =========================================================================
-# 4. 静的契約: 旧パーサー/checkpointなし・default local only・副作用mode分離
+# 4. 静的契約: 旧パーサー path が残らず、パーサーが配布対象にある
 # =========================================================================
-GH_START_SKILL="$REPO_ROOT/shared/skills/gh-start/SKILL.md"
-if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" "$GH_START_SKILL"; then
+if ! grep -q 'skills/issue-parser' "$REPO_ROOT/claude/bin/gh-issue-fetch.sh"; then
   ok "旧 issue-parser パス参照が残っていない"
 else
   ng "旧 issue-parser パス参照が残っている"
@@ -104,37 +103,6 @@ if [[ -f "$REPO_ROOT/claude/bin/parse_issue.py" ]]; then
   ok "parse_issue.py が claude/bin に存在する(配布対象)"
 else
   ng "claude/bin/parse_issue.py が存在しない"
-fi
-if ! grep -q 'subagent_type: "general-purpose"' "$GH_START_SKILL"; then
-  ok "gh-start に無条件 general-purpose 委譲テンプレートがない"
-else
-  ng "gh-start に無条件委譲テンプレートが残っている"
-fi
-if grep -q 'single owner' "$GH_START_SKILL" \
-   && grep -q 'context isolation' "$GH_START_SKILL" \
-   && grep -q 'task length alone is not a reason' "$GH_START_SKILL"; then
-  ok "gh-start が単一 owner 既定 + 条件付き委譲規約を持つ"
-else
-  ng "gh-start の単一 owner / 条件付き委譲規約が見つからない"
-fi
-if grep -q -- '--commit' "$GH_START_SKILL" \
-   && grep -q -- '--sync' "$GH_START_SKILL" \
-   && grep -q 'mutually exclusive' "$GH_START_SKILL" \
-   && grep -q 'Default mode never commits, pushes, creates a PR, comments on GitHub' "$GH_START_SKILL"; then
-  ok "gh-start のcommit/sync権限がdefaultから分離されている"
-else
-  ng "gh-start の副作用mode分離契約が見つからない"
-fi
-if grep -q 'Never read, create, migrate, or delete `.claude/checkpoints` or `.codex/checkpoints`' "$GH_START_SKILL"; then
-  ok "gh-start はlegacy checkpointを読み書き・削除しない"
-else
-  ng "gh-start のcheckpoint廃止契約が見つからない"
-fi
-if awk -F'\t' '$1=="gh-start" && $2=="default" && $3=="allow" && $5=="deny" && $6=="deny" && $7=="deny" {found=1} END{exit !found}' \
-  "$REPO_ROOT/docs/contracts/skill-authority.tsv"; then
-  ok "authority contractがgh-start defaultをlocal write onlyに固定する"
-else
-  ng "authority contractのgh-start default行が不正"
 fi
 
 echo

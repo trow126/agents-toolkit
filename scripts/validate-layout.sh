@@ -1099,6 +1099,8 @@ STALE_PATTERNS=(
   "claude-code/(plan-review|pr-review)|codex/references/python-quality|gpt-5-4-prompting"
   "(ai-engineer|blockchain-security-auditor|code-reviewer|data-engineer|deep-reasoner|model-qa-specialist|solidity-engineer|plan-reviewer)([^-_a-z]|$)"
   "shared/skills/(gh-index|knowledge-audit|python-refactor-analysis)|codex/skills/kaggle|rules/self-improvement"
+  "shared/skills/(gh-start|gh-pr|gh-review|gh-issue|(claude-code/|codex/)?config-audit)([^-_a-z]|$)|codex/skills/(issue-writing|claude-second-opinion|doctor)"
+  "(^|[^a-z/.-])[/$](gh-start|gh-pr|gh-review|gh-issue|issue-writing|config-audit|claude-second-opinion)([^-_a-z]|$)|[$]doctor([^-_a-z]|$)"
 )
 while IFS= read -r f; do
   case "$f" in

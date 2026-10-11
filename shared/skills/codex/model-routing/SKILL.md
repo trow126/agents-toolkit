@@ -23,20 +23,17 @@ named custom agentをspawnする場合はfull-history forkを併用せず、必�
 ## 高リスク判断
 
 - 失敗が反復する・根本原因が不明・競合する複数仮説がある場合も、判断はownerが行う。判断を別のagentへ委任しない
-- 独立した意見が必要な場合だけ、`claude-second-opinion` skill経由でClaudeに相談する。ownerの暫定結論は見せず、問題とcontextだけを渡す
+- 独立した意見が必要な場合だけ、Claude Code CLIでClaudeに相談する（`AGENTS.md`のRuntime規則に従う）。ownerの暫定結論は見せず、問題とcontextだけを渡す
 - ownerが自分の結論とClaudeの回答を統合する（相違点と採否理由を明示）
 - 高リスク変更（アーキテクチャ・データ破壊・公開 API）は、実装後に `codex review`（独立コンテキストの検査）+ deterministic CI で判定する
 
 ## Claude 運用
 
-- `claude-second-opinion` skill（`~/.agents/skills/claude-second-opinion/`）を使い、Claude Code へ相談する
 - 妥当な待機で結果が得られなければownerの判断だけで結論を出し、「peer opinion欠落」と明記する
 - Claude の役割は peer engineer（実装の下請けでもレビュアーでもない）
 
 ## 既存経路が優先
 
-- PR へのレビューコメント投稿 → ユーザーの明示指示で `$gh-pr --review-comment`（`codex review` ベース）
-- PR 指摘への対応 → `$gh-review`
 - 計画レビュー → `$plan-review`（`plan_reviewer`による独立review）
 - generic code/security review → 組み込みの`codex review`（TUIでは`/review`）
 - ドメイン固有の高リスク判断（コントラクト監査・ML品質監査等）: ownerが該当分野の判断基準を明示して判断する

@@ -1,6 +1,6 @@
 ---
 name: gh-finish
-description: Verifies a finished Issue; --apply commits, merges locally, and closes it in one explicit request. Use when the user says an Issue is done and asks to finish it without a PR（「Issue#Nが完了したよ」等）. Not for gh-pr, gh-start --commit, or branch-cleanup.
+description: Verifies a finished Issue; --apply commits, merges locally, and closes it in one explicit request. Use when the user says an Issue is done and asks to finish it without a PR（「Issue#Nが完了したよ」等）. Not for opening a PR, a generic commit (git-operations), or branch-cleanup.
 argument-hint: "<issue-number> [--apply]"
 ---
 

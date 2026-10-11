@@ -3,9 +3,6 @@ article-style	default	deny	deny	deny	deny	deny	deny	deny	public prose guidance o
 branch-cleanup	default	deny	allow	deny	deny	deny	allow	deny	checkout pull and fetch state; delete only verified merged branches or clean worktrees
 break-consensus	default|--cross	deny	allow	deny	deny	deny	deny	allow	default in Claude Code (D13; in Codex the default is --solo); sends the brief to a Codex worker (codex exec -s read-only with web search disabled in an empty directory) and a read-only Claude worker without web or MCP tools; writes only its run directory under ~/.local/state; no repository writes or implementation
 break-consensus	--solo	deny	deny	deny	deny	deny	deny	allow	explores and proposes in this session with fresh-context probes and a blind prior-art auditor; egress is only the auditor's web search queries, nothing is sent to another model provider; no implementation external writes or destructive experiments
-claude-second-opinion	default	deny	allow	deny	deny	deny	deny	allow	writes prompt and candidate result to a protected temporary directory then removes it
-doctor	default	deny	deny	deny	deny	deny	deny	deny	comprehensive read-only checkup before any confirmed repair
-doctor	repair	allow	allow	deny	deny	deny	deny	deny	apply only approved surgical repairs to applicable rules configuration or installation state
 implementation-quality	default	allow	deny	deny	deny	deny	deny	deny	scoped source and test changes only
 git-operations	default	deny	deny	deny	deny	deny	deny	deny	status diff and inspection only
 git-operations	stage	deny	allow	deny	deny	deny	deny	deny	stage reviewed paths only
@@ -13,8 +10,6 @@ git-operations	branch	deny	allow	deny	deny	deny	deny	deny	create or switch the e
 git-operations	commit	deny	deny	allow	deny	deny	deny	deny	commit reviewed staged changes
 git-operations	merge	allow	allow	allow	deny	deny	deny	deny	exact local merge with rollback path
 git-operations	push	deny	deny	deny	allow	deny	deny	deny	push the exact branch and remote
-config-audit	default	deny	deny	deny	deny	deny	deny	deny	read-only report
-config-audit	--record	deny	allow	deny	deny	deny	deny	deny	append one XDG history record
 gh-finish	default	deny	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
 gh-finish	--apply	allow	allow	allow	deny	allow	deny	deny	commit scoped changes locally merge and close one Issue with a comment
 gh-roadmap-run	default	allow	allow	allow	deny	allow	deny	deny	per sub-Issue gh-test-first implementation in this session then commit local merge close plus one tracking checklist update; no Codex delegation
@@ -30,21 +25,5 @@ grok-digest	default	deny	allow	deny	deny	deny	deny	allow	reads the user's Grok h
 grok-digest	--critic	deny	allow	deny	deny	deny	deny	allow	the default flow plus one cross-critic run (default mode) on the deep-dive results with private data left out; the document goes to the critic session
 skill-tuneup	default|--only	deny	allow	deny	deny	deny	deny	allow	shared research agents and per-skill Workflow auditors use web search; Workflow agents read the skill files and cannot run Bash or edit; writes only its run directory and ledger under ~/.local/state/agents-toolkit/skill-tuneup; no repository writes
 skill-tuneup	--apply	allow	deny	deny	deny	deny	deny	deny	implements the hygiene findings and passed candidates printed by skill-tuneup plan for a finished run, with tests; no commit, push, or PR
-gh-start	default	allow	deny	deny	deny	deny	deny	deny	local implementation and tests
-gh-start	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified scoped changes
-gh-start	--sync	deny	deny	deny	deny	allow	deny	deny	one Issue status update
-gh-pr	default	deny	deny	deny	deny	deny	deny	deny	validate and prepare
-gh-pr	--push	deny	deny	deny	allow	deny	deny	deny	push current feature branch
-gh-pr	--create	deny	deny	deny	deny	allow	deny	deny	create one PR
-gh-pr	--review-comment	deny	deny	deny	deny	allow	deny	deny	post one review comment
-gh-review	default	allow	deny	deny	deny	deny	deny	deny	local fixes and tests
-gh-review	--commit	deny	deny	allow	deny	deny	deny	deny	commit previously verified fixes
-gh-review	--push	deny	deny	deny	allow	deny	deny	deny	push current branch
-gh-review	--comment	deny	deny	deny	deny	allow	deny	deny	post or resolve one review response per approval
-gh-issue	create	deny	deny	deny	deny	allow	deny	deny	create one Issue
-gh-issue	close	deny	deny	deny	deny	allow	deny	deny	close one Issue
-gh-issue	retro	deny	deny	deny	deny	deny	deny	deny	in-chat retrospective
-gh-issue	retro --apply	allow	deny	deny	deny	deny	deny	deny	write exact project file
-issue-writing	default	deny	deny	deny	deny	deny	deny	deny	drafting does not authorize creating or updating an Issue
 model-routing	default	deny	deny	deny	deny	deny	deny	deny	advisory owner routing escalation and model verification rules only
 plan-review	default	allow	deny	deny	deny	deny	deny	deny	Codex only; launch one read-only plan_reviewer and save its result under claudedocs/reviews

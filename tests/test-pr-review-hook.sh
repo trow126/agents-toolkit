@@ -31,8 +31,8 @@ else
   ng "PR作成: additionalContext JSON ではない: $HOOK_OUT"
 fi
 ctx="$(jq -r '.hookSpecificOutput.additionalContext // empty' <<< "$HOOK_OUT" 2>/dev/null || true)"
-if [[ "$ctx" == *'/code-review 42'* && "$ctx" == *'/gh-pr --review-comment'* ]]; then
-  ok "PR作成: 有効な skill（/code-review と /gh-pr --review-comment）を案内する"
+if [[ "$ctx" == *'/code-review 42'* && "$ctx" == *'/code-review 42 --comment'* && "$ctx" != *'/gh-pr'* ]]; then
+  ok "PR作成: 有効な skill（/code-review と /code-review --comment）を案内する"
 else
   ng "PR作成: 案内先が不正: $ctx"
 fi

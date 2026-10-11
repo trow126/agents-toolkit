@@ -20,7 +20,7 @@ PR_URL=$(printf '%s' "$STDOUT" | grep -oE "https://github\.com/[^[:space:]]+/pul
 [[ -n "$PR_URL" ]] || exit 0
 PR_NUMBER="${PR_URL##*/}"
 
-CONTEXT="PR #${PR_NUMBER} の作成を検出した（${PR_URL}）。レビューは \`/code-review ${PR_NUMBER}\` で行える。PR へのレビューコメント投稿は、ユーザーの明示指示があるときだけ \`/gh-pr --review-comment\` で行う。"
+CONTEXT="PR #${PR_NUMBER} の作成を検出した（${PR_URL}）。レビューは \`/code-review ${PR_NUMBER}\` で行える。PR へのレビューコメント投稿は、ユーザーの明示指示があるときだけ \`/code-review ${PR_NUMBER} --comment\` で行う。"
 
 jq -n --arg ctx "$CONTEXT" \
   '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
