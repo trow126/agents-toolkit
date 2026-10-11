@@ -19,11 +19,11 @@ Read [`references/workflow.md`](references/workflow.md). The per-step contracts 
 
 ## Authority
 
-Invoking the loop is the user's single explicit request covering, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no work outside the listed sub-Issues.
+Invoking the loop is the user's single explicit request to follow `~/.claude/skills/gh-test-first/SKILL.md` (and, with `--critic`, `~/.claude/skills/cross-critic/SKILL.md`) for the listed sub-Issues, and it covers, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no work outside the listed sub-Issues.
 
 ## Loop (per sub-Issue)
 
-1. Fetch the tracking Issue; parse the ordered checklist and dependency notes. Select the next unchecked sub-Issue whose dependencies are met.
+1. Re-read `references/workflow.md` and `~/.claude/skills/gh-test-first/SKILL.md` with the references it names (after compaction only Skill-tool invocations come back, not files read with Read). Fetch the tracking Issue; parse the ordered checklist and dependency notes. Select the next unchecked sub-Issue whose dependencies are met.
 2. If it is a user decision（【判断ゲート】, 担当: ユーザー, ask-mode 等）, stop the loop; with `--critic`, first run the cross-critic step in the workflow. Present the pending decisions.
 3. Run the `gh-test-first` workflow for the sub-Issue: success criteria, tests written and failing first (with causality tests in time-series or quantitative repos), implementation, and its gate.
 4. Verify: when the success criteria involve real data or runtime behavior, run the real smoke or backfill check and read its output. Run `/code-review` on the diff only when the Issue touches architecture, data destruction, or a public API.
