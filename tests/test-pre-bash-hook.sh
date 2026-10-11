@@ -213,6 +213,11 @@ if [[ "$rc" -eq 2 && "$agent_reason_output" == *"main session"* ]]; then
 else
   ng "Agent block理由に main session ownership 指示がない (exit $rc): $agent_reason_output"
 fi
+if [[ "$agent_reason_output" != *codex-delegate* ]]; then
+  ok "Agent block理由は撤去済みの委任 launcher へ誘導しない（Issue #14）"
+else
+  ng "Agent block理由が codex-delegate へ誘導する: $agent_reason_output"
+fi
 
 CODEX_AGENT='codex:codex-rescue'
 COMPANION='/home/test/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs'
@@ -334,26 +339,35 @@ expect_allow "status / result は許可" "node \"$COMPANION\" status; node \"$CO
 expect_allow "別 segment の -h は本規則の対象外" "node \"$COMPANION\" status; grep -h foo bar"
 expect_allow "-h を含む file 名は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/x-h.md"
 
-# ---- 8. Codex 起動 guard の一般化（D8。launcher は ~/.claude/bin/codex-delegate）----
-DELEGATE='~/.claude/bin/codex-delegate'
-CONTRACT='.git/agents-toolkit/contract-42.json'
-expect_block_agent "subagent からの codex-delegate は block" "general-purpose" "$DELEGATE $CONTRACT"
+# ---- 8. Codex 起動 guard（D8）。Codex へ実装を委任しない（Issue #14）ので launcher は無い ----
+hook_reason() { # <command> [agent_type] — block 理由（stderr）を返す
+  jq -n --arg c "$1" --arg a "${2:-}" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":$c}}
+    + (if $a == "" then {} else {"agent_type": $a} end)' | "$HOOK" 2>&1 >/dev/null || true
+}
 expect_block_agent "Explore からの codex exec は block" "Explore" "codex exec -s read-only -C /tmp/x 'review'"
 rc=0
-jq -n --arg c "$DELEGATE $CONTRACT" '{"hook_event_name":"PreToolUse","tool_name":"Bash","agent_id":"a-1","tool_input":{"command":$c,"run_in_background":true}}' \
+jq -n --arg c "codex exec -s read-only 'review'" '{"hook_event_name":"PreToolUse","tool_name":"Bash","agent_id":"a-1","tool_input":{"command":$c,"run_in_background":true}}' \
   | "$HOOK" >/dev/null 2>&1 || rc=$?
-if [[ "$rc" -eq 2 ]]; then ok "agent_id だけを持つ入力（subagent）の codex-delegate も block"; else ng "agent_id subagent delegate: exit $rc"; fi
-expect_allow_agent_tool_background "main session の codex-delegate（background）は許可" "" "$DELEGATE $CONTRACT"
-expect_block_agent_tool_foreground "main session の codex-delegate（foreground）は block" "" "$DELEGATE $CONTRACT"
-expect_allow "main session の codex-delegate --dry-run は foreground でも許可" "$DELEGATE $CONTRACT --dry-run"
-expect_allow "codex-delegate-preflight は起動ではないので許可" "~/.claude/bin/codex-delegate-preflight $CONTRACT"
+if [[ "$rc" -eq 2 ]]; then ok "agent_id だけを持つ入力（subagent）の codex exec も block"; else ng "agent_id subagent exec: exit $rc"; fi
 expect_block "main session の companion task --background は block" "node \"$COMPANION\" task --background --write \"fix\""
-expect_block "launcher を通さない codex exec（sandbox 指定なし）は block" "codex exec -C /tmp/x - < prompt.md"
-expect_block "launcher を通さない codex exec（workspace-write）は block" "codex exec -p toolkit-implementer -s workspace-write -C /tmp/x - < p.md"
-expect_block "global option の後ろの exec も検出する" "codex -p toolkit-implementer exec --full-auto 'fix'"
+expect_block "書き込み可能な codex exec（sandbox 指定なし）は block" "codex exec -C /tmp/x - < prompt.md"
+expect_block "書き込み可能な codex exec（workspace-write）は block" "codex exec -s workspace-write -C /tmp/x - < p.md"
+expect_block "global option の後ろの exec も検出する" "codex -p some-profile exec --full-auto 'fix'"
 expect_block "read-only に --full-auto を足した exec は block" "codex exec -s read-only --full-auto 'x'"
 expect_allow "main session の codex exec -s read-only は許可（break-consensus --cross）" "codex exec -C /tmp/empty --skip-git-repo-check -p toolkit-divergent -s read-only --json - < brief.md"
 expect_allow "codex の他の subcommand は対象外" "codex --version; codex debug models"
+reason="$(hook_reason "codex exec -s workspace-write -C /tmp/x - < p.md")"
+if [[ -n "$reason" && "$reason" != *codex-delegate* ]]; then
+  ok "書き込み可能な codex exec の block 理由は撤去済み launcher へ誘導しない"
+else
+  ng "書き込み可能な codex exec の block 理由: $reason"
+fi
+reason="$(hook_reason "codex exec -s read-only 'review'" "general-purpose")"
+if [[ -n "$reason" && "$reason" != *codex-delegate* ]]; then
+  ok "subagent からの Codex 起動の block 理由は撤去済み launcher へ誘導しない"
+else
+  ng "subagent からの Codex 起動の block 理由: $reason"
+fi
 CROSS='~/.claude/bin/break-consensus-cross'
 RUN='~/.local/state/agents-toolkit/break-consensus/20260925T000000Z-0123abcd'
 expect_block_agent "subagent からの break-consensus-cross codex は block" "general-purpose" "$CROSS codex $RUN"

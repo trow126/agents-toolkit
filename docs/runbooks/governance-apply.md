@@ -19,10 +19,9 @@
    ```
 
 4. live checkout に branch を fast-forward で取り込む（`git -C ~/agents-toolkit merge --ff-only modernize/phase-7`）。
-5. `~/.claude/settings.json` は通常ファイルのまま残す（manifest から外れたので bootstrap は触らない）。新しい manifest の link（`~/.codex/toolkit-implementer.config.toml` と `~/.codex/toolkit-divergent.config.toml`）は手で作る（live の HOME では `bootstrap.sh --apply` を使わない）。
-6. Codex の `codex -p toolkit-implementer` の `/hooks` で inline hook を trust し、`./scripts/codex-profile-trust.py` で trust を `~/.codex/config.toml` に移す（K11）。
-7. owner が live の `settings.json` を D1 と D9 に合わせる（`model` を `opus`、top-level の `effortLevel` を削除、`modelSettings` の effort はモデルの既定値）。
-8. 確認する。
+5. `~/.claude/settings.json` は通常ファイルのまま残す（manifest から外れたので bootstrap は触らない）。新しい manifest の link（`~/.codex/toolkit-divergent.config.toml`）は手で作る（live の HOME では `bootstrap.sh --apply` を使わない）。
+6. owner が live の `settings.json` を D1 と D9 に合わせる（`model` を `opus`、top-level の `effortLevel` を削除、`modelSettings` の effort はモデルの既定値）。
+7. 確認する。
 
    ```bash
    ./scripts/install-managed-policy.sh --check

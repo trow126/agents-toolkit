@@ -13,6 +13,8 @@
 | `token-efficiency` | `off`。旧 SuperClaude 系の記号圧縮。現行モデル・auto compact で不要 |
 | `x-article-to-markdown` | `off`。X API 仕様変動に依存、利用実績なしの判断済み |
 | `deep-research-mode` | 自動起動のみの行動修飾で、内容は一般助言（現行モデルの既定動作と重複） |
+| `gh-codex-drive` | 2026-10-11 除外（Issue #14）。Codex へ実装を委任しない owner 決定。2026-10 の A/B（`docs/eval/sandwich-ab-results.md`・`sandwich-ab-d-results.md`）で REJECT。後継は `gh-test-first`。launcher・gate（`claude/bin` の委任 4 本）と implementer profile は git history にだけ残す |
+| `gh-roadmap-drive` | 2026-10-11 除外（Issue #14）。同上。後継は `gh-roadmap-run` |
 
 `agmsg`（cross-agent messaging skill）は 2026-09-08 に skill 本体ごと削除した（最終利用 2026-06-23、以降 Claude Code / Codex のどちらからも呼ばれていない）。本 archive に退避していた 4 runtime 向け context template も同時に削除し、archive には残していない。
 

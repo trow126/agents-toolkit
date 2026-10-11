@@ -18,7 +18,7 @@ export PYTHONDONTWRITEBYTECODE=1
 
 REPO="$SANDBOX/repo"
 HOME_CODEX="$SANDBOX/codex-home"
-PROFILE="codex/profiles/toolkit-implementer.config.toml"
+PROFILE="codex/profiles/toolkit-divergent.config.toml"
 mkdir -p "$REPO/codex/profiles" "$HOME_CODEX"
 cp "$REPO_ROOT/$PROFILE" "$REPO/$PROFILE"
 git -C "$REPO" init -q -b main
@@ -26,12 +26,12 @@ git -C "$REPO" -c user.email=fixture@example.invalid -c user.name=Fixture add -A
 git -C "$REPO" -c user.email=fixture@example.invalid -c user.name=Fixture -c commit.gpgsign=false commit -q -m base
 printf 'model = "gpt-6-astra"\n\n[projects."/work/a"]\ntrust_level = "trusted"\n' > "$HOME_CODEX/config.toml"
 
-trust() { # <hash> — what Codex appends after the owner trusts the hook in `codex -p toolkit-implementer`
+trust() { # <hash> — what Codex appends after the owner trusts the hook in `codex -p toolkit-divergent`
   cat >> "$REPO/$PROFILE" <<EOF
 
 [hooks.state]
 
-[hooks.state."/home/u/.codex/toolkit-implementer.config.toml:post_tool_use:0:0"]
+[hooks.state."/home/u/.codex/toolkit-divergent.config.toml:post_tool_use:0:0"]
 trusted_hash = "sha256:$1"
 
 [projects."/home/u/agents-toolkit"]
@@ -58,7 +58,7 @@ run
 expect "moves the trust and restores the profile" 0 "RESTORED: $PROFILE"
 [[ -z "$(git -C "$REPO" status --porcelain)" ]] && ok "profile is back to HEAD" || ng "profile still dirty"
 state="$(toml "$HOME_CODEX/config.toml")"
-if jq -e '.hooks.state["/home/u/.codex/toolkit-implementer.config.toml:post_tool_use:0:0"].trusted_hash == "sha256:aaaa"
+if jq -e '.hooks.state["/home/u/.codex/toolkit-divergent.config.toml:post_tool_use:0:0"].trusted_hash == "sha256:aaaa"
   and .projects["/home/u/agents-toolkit"].trust_level == "trusted" and .projects["/work/a"].trust_level == "trusted"
   and .model == "gpt-6-astra" and (has("tui") | not)' <<< "$state" >/dev/null; then
   ok "config.toml gets the hook and project trust, keeps its own keys, and drops the UI state"
@@ -72,14 +72,14 @@ expect "second run is a no-op" 0 "carry no local Codex state"
 trust bbbb
 run
 expect "re-trust after a hook change" 0 "MOVED"
-if [[ "$(grep -c 'toolkit-implementer.config.toml:post_tool_use:0:0' "$HOME_CODEX/config.toml")" -eq 1 ]] &&
-  jq -e '.hooks.state["/home/u/.codex/toolkit-implementer.config.toml:post_tool_use:0:0"].trusted_hash == "sha256:bbbb"' <<< "$(toml "$HOME_CODEX/config.toml")" >/dev/null; then
+if [[ "$(grep -c 'toolkit-divergent.config.toml:post_tool_use:0:0' "$HOME_CODEX/config.toml")" -eq 1 ]] &&
+  jq -e '.hooks.state["/home/u/.codex/toolkit-divergent.config.toml:post_tool_use:0:0"].trusted_hash == "sha256:bbbb"' <<< "$(toml "$HOME_CODEX/config.toml")" >/dev/null; then
   ok "a new trust hash replaces the old table"
 else
   ng "hook trust table duplicated or stale: $(cat "$HOME_CODEX/config.toml")"
 fi
 
-sed -i 's/You are the implementer/You are an implementer/' "$REPO/$PROFILE"
+sed -i 's/You are the Codex divergent worker/You are a Codex divergent worker/' "$REPO/$PROFILE"
 trust cccc
 cp "$HOME_CODEX/config.toml" "$SANDBOX/before.toml"
 run

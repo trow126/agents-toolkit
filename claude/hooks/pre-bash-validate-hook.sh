@@ -46,7 +46,7 @@ if [[ "$TOOL_NAME" == "Agent" ]]; then
         block "hook input has no non-empty tool_input.subagent_type (fail-closed)"
     fi
     if [[ "$SUBAGENT_TYPE" == "codex:codex-rescue" ]]; then
-        block "codex:codex-rescue Agent 経由の委任を拒否した。10分超過時にCodex processが終了済みAgentへdetachされ、main sessionへ完了通知が届かないため。契約を書き、main sessionから ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で起動して、Claude main sessionをcompletion ownerにすること"
+        block "codex:codex-rescue Agent を拒否した。Codex へ実装を委任しない（Issue #14）。また10分超過時にCodex processが終了済みAgentへdetachされ、main sessionへ完了通知が届かない。read-only の諮問だけ main session から codex exec -s read-only で行うこと"
     fi
     exit 0
 fi
@@ -111,16 +111,13 @@ NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 # - subagent（hook 入力に agent_id または agent_type がある）からは Codex を起動しない。
 #   subagent 内の process は 600 秒後の Bash 自動 background 化で終了済み agent に残り、
 #   完了通知が main session に届かない（2026-09 の codex-rescue で再現）。
-# - main session でも companion の task --background と、launcher を通さない書き込み可能な
-#   codex exec は拒否する。委任は ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で
-#   起動する（--dry-run を除く）。codex exec -s read-only は main だけ許可する。
+# - main session でも companion の task --background と、書き込み可能な codex exec は拒否する。
+#   Codex へ実装を委任しない（owner 決定 2026-10-11、Issue #14）。codex exec -s read-only は main だけ許可する。
 # - break-consensus --cross の Codex worker（~/.claude/bin/break-consensus-cross codex）も Codex の起動として
 #   扱う。main では Claude worker と並行させ完了通知を受け取るため、Bash(run_in_background=true) を必須にする。
-IS_DELEGATE=false
 IS_COMPANION_TASK=false
 IS_EXEC=false
 IS_CROSS_CODEX=false
-printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-delegate([[:space:]]|$)' && IS_DELEGATE=true
 printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])break-consensus-cross[[:space:]]+codex([[:space:]]|$)' && IS_CROSS_CODEX=true
 if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Za-z0-9_.-]|$)' &&
     printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_-])task([^A-Za-z0-9_-]|$)'; then
@@ -128,8 +125,8 @@ if printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex-companion\.mjs([^A-Z
 fi
 printf '%s' "$NORM" | grep -qE '(^|[^A-Za-z0-9_.-])codex([[:space:]]+[^;|&[:space:]]+)*[[:space:]]+exec([[:space:]]|$)' && IS_EXEC=true
 if [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]]; then
-    if [[ "$IS_DELEGATE" == true || "$IS_COMPANION_TASK" == true || "$IS_EXEC" == true || "$IS_CROSS_CODEX" == true ]]; then
-        block "subagent（${AGENT_TYPE:-agent_id=$AGENT_ID}）からの Codex 起動を拒否した。subagent 内の process は完了通知を main session に返せないため、Claude main sessionから ~/.claude/bin/codex-delegate を Bash(run_in_background=true) で起動すること"
+    if [[ "$IS_COMPANION_TASK" == true || "$IS_EXEC" == true || "$IS_CROSS_CODEX" == true ]]; then
+        block "subagent（${AGENT_TYPE:-agent_id=$AGENT_ID}）からの Codex 起動を拒否した。subagent 内の process は完了通知を main session に返せないため、Claude main sessionから起動すること"
     fi
 else
     if [[ "$IS_COMPANION_TASK" == true ]] && printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--background([[:space:]]|$)'; then
@@ -138,12 +135,8 @@ else
     if [[ "$IS_EXEC" == true ]]; then
         if ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])(-s|--sandbox)([[:space:]]+|=)read-only([[:space:]]|$)' ||
             printf '%s' "$NORM" | grep -qE 'workspace-write|danger-full-access|--full-auto|--dangerously-bypass-approvals-and-sandbox|--yolo'; then
-            block "launcher を通さない書き込み可能な codex exec を拒否した。委任は ~/.claude/bin/codex-delegate <contract.json> を使い、read-only の検討だけ codex exec -s read-only を直接使うこと"
+            block "書き込み可能な codex exec を拒否した。Codex へ実装を委任しない（Issue #14）。read-only の検討だけ codex exec -s read-only を使うこと"
         fi
-    fi
-    if [[ "$IS_DELEGATE" == true && "$RUN_IN_BACKGROUND" != true ]] &&
-        ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--dry-run([[:space:]]|$)'; then
-        block "codex-delegate は Bash(run_in_background=true) で起動すること（完了通知を main session が受け取るため）。確認だけなら --dry-run を付ける"
     fi
     if [[ "$IS_CROSS_CODEX" == true && "$RUN_IN_BACKGROUND" != true ]] &&
         ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--dry-run([[:space:]]|$)'; then
@@ -153,7 +146,7 @@ fi
 
 # codex-companion.mjs の subcommand は --help / -h を解釈しない。task / review / adversarial-review では
 # 未知 flag と余分な語が positional として prompt(focus text)になり、Codex 実行が実際に 1 回走る
-# (2026-09-03 に gh-codex-drive 起動前の `task --help` で 3 session が再現)。usage は subcommand なしの
+# (2026-09-03 に Codex 委任の起動前の `task --help` で 3 session が再現)。usage は subcommand なしの
 # `codex-companion.mjs --help` / `help` で得られるため、subcommand 付きの --help / -h と、
 # task|review|adversarial-review 直後の bare `help` を全 session・全 agent で block する。
 # raw command の heuristic なので、prompt 本文に --help を含めたい場合は --prompt-file で渡す。

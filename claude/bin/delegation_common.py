@@ -1,10 +1,8 @@
-"""Shared helpers for Codex delegation: contract/report schemas, git baseline, scope checks, state files.
+"""Shared helpers for the read-only Codex runs: JSON schema subset, JSON files, and the live Codex catalog.
 
-Used by codex-delegate, codex-delegate-preflight, verify-delegation, and delegation-evidence-check
-(agents-toolkit, owner decision D8). Contracts, prompts, results, evidence, the launch history
-(attempts-<id>.json; re-delegation is not capped since D3④ was lifted on 2026-09-30),
-and the active-delegation state live in $(git rev-parse --git-dir)/agents-toolkit/, which the Codex
-workspace-write sandbox cannot write.
+Used by cross-critic, break-consensus-cross, and skill-tuneup (agents-toolkit). Codex is never
+delegated implementation (owner decision 2026-10-11, Issue #14); the launcher, gate, and state helpers
+that served the delegation skills were removed with it and remain only in git history.
 """
 from __future__ import annotations
 
@@ -12,34 +10,7 @@ import hashlib
 import json
 import os
 import re
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
-
-TOOLKIT_ROOT = Path(__file__).resolve().parents[2]
-REFERENCES = TOOLKIT_ROOT / "claude/skills/gh-codex-drive/references"
-CONTRACT_SCHEMA = REFERENCES / "contract.schema.json"
-REPORT_SCHEMA = REFERENCES / "report.schema.json"
-PROMPT_TEMPLATE = REFERENCES / "contract.md"
-POST_EDIT_LINT = TOOLKIT_ROOT / "claude/hooks/lib/post_edit_lint.py"
-PROFILE = "toolkit-implementer"
-ATTEMPT_FILES = ("prompt", "result", "jsonl", "stderr", "evidence")
-
-ALWAYS_PROTECTED = [
-    "**/AGENTS.md", "**/AGENTS.override.md", "**/CLAUDE.md", "**/CLAUDE.local.md",
-    "**/.agents/**", "**/.claude/**", "**/.codex/**",
-]
-LOCKFILES = ["uv.lock", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "poetry.lock", "Cargo.lock", "go.sum"]
-TOOLKIT_PROTECTED = [
-    "claude/CLAUDE*.md", "codex/AGENTS*.md", "shared/rules/**", "claude/rules/**",
-    "claude/hooks/**", "claude/bin/**", "codex/hooks.json", "codex/agents/**", "codex/profiles/**",
-    "claude/skills/gh-codex-drive/**", "claude/skills/gh-finish/**", "claude/skills/gh-roadmap-drive/**",
-    "claude/skills/gh-test-first/**", "claude/skills/gh-roadmap-run/**", "claude/skills/cross-critic/**",
-    "claude/managed-settings.json", "install/manifest.tsv",
-    "docs/reports/accepted-exceptions.md", "docs/contracts/model-routing.tsv",
-    "scripts/validate-layout.sh", ".github/workflows/**",
-]
 
 
 class DelegationError(Exception):
@@ -48,7 +19,7 @@ class DelegationError(Exception):
 
 # ---------------------------------------------------------------- JSON schema (subset)
 def schema_errors(value: object, schema: dict, where: str = "$") -> list[str]:
-    """Validate the JSON Schema subset used by contract/report schemas."""
+    """Validate the JSON Schema subset used by the critic, divergent, and tuneup schemas."""
     errors: list[str] = []
     types = schema.get("type")
     if types is not None:
@@ -115,211 +86,11 @@ def write_json(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
-# ---------------------------------------------------------------- git and state
-def git(repo: Path, *args: str, binary: bool = False) -> str | bytes:
-    result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=False)
-    if result.returncode != 0:
-        raise DelegationError(f"git {' '.join(args)} failed: {result.stderr.decode(errors='replace').strip()}")
-    return result.stdout if binary else result.stdout.decode()
-
-
-def repo_root(start: Path) -> Path:
-    return Path(str(git(start, "rev-parse", "--show-toplevel")).strip())
-
-
-def state_dir(repo: Path) -> Path:
-    return Path(str(git(repo, "rev-parse", "--absolute-git-dir")).strip()) / "agents-toolkit"
-
-
-def state_paths(repo: Path, contract_id: str) -> dict[str, Path]:
-    base = state_dir(repo)
-    return {
-        "dir": base,
-        "contract": base / f"contract-{contract_id}.json",
-        "prompt": base / f"prompt-{contract_id}.md",
-        "result": base / f"result-{contract_id}.json",
-        "jsonl": base / f"exec-{contract_id}.jsonl",
-        "stderr": base / f"exec-{contract_id}.stderr",
-        "evidence": base / f"evidence-{contract_id}.json",
-        "attempts": base / f"attempts-{contract_id}.json",
-        "active": base / "active.json",
-    }
-
-
-def pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
-def active_problem(active: dict, paths: dict) -> str:
-    """Why a new delegation must not start while active.json exists."""
-    contract_id = active.get("contract_id")
-    if "exit_code" in active:
-        return (f"another delegation is active ({contract_id}, codex exec exit {active['exit_code']}); "
-                "verify and finish it, or clear it with ~/.claude/bin/delegation-evidence-check --clear")
-    pid = active.get("pid")
-    if isinstance(pid, int) and not pid_alive(pid):
-        return (f"stale active delegation {contract_id}: its launcher (pid {pid}) stopped before codex exec finished "
-                "(for example, the Claude session ended; claude -p ends with the turn). Inspect the worktree and "
-                f"{paths['result']}, then clear it with ~/.claude/bin/delegation-evidence-check --clear")
-    return f"another delegation is active ({contract_id}" + (f", launcher pid {pid} is running" if pid else "") + ")"
-
-
-def load_attempts(paths: dict) -> list[dict]:
-    """Launch history of a contract (attempts-<id>.json). delegation-evidence-check --clear never
-    removes it, so attempt numbers and the archived *.attempt<n>.* files stay unique per contract."""
-    if not paths["attempts"].exists():
-        return []
-    attempts = load_json(paths["attempts"]).get("attempts")
-    if not isinstance(attempts, list) or not all(isinstance(a, dict) for a in attempts):
-        raise DelegationError(f"{paths['attempts']}: attempts must be a list of objects")
-    return attempts
-
-
-def attempt_file(path: Path, attempt: int) -> Path:
-    return path.with_name(f"{path.stem}.attempt{attempt}{path.suffix}")
-
-
-def archive_attempt(paths: dict, attempt: int) -> None:
-    """Keep the prompt, result, exec logs, and evidence of a finished attempt under .attempt<n> names."""
-    for key in ATTEMPT_FILES:
-        if paths[key].exists():
-            os.replace(paths[key], attempt_file(paths[key], attempt))
-
-
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def untracked(repo: Path) -> dict[str, str]:
-    raw = str(git(repo, "ls-files", "--others", "--exclude-standard", "-z"))
-    return {p: sha256_file(repo / p) for p in raw.split("\0") if p and (repo / p).is_file()}
-
-
-def worktree_tree(repo: Path) -> str:
-    """The working tree as a git tree object: tracked content with uncommitted edits and deletions, plus
-    untracked files that are not ignored. Built in a temporary copy of the index, so the real index is not
-    touched; the blobs land in the object store like any `git add`."""
-    index = Path(str(git(repo, "rev-parse", "--path-format=absolute", "--git-path", "index")).strip())
-    with tempfile.TemporaryDirectory(prefix="agents-toolkit-baseline-") as tmp:
-        temp_index = Path(tmp) / "index"
-        if index.is_file():
-            shutil.copyfile(index, temp_index)
-        env = {**os.environ, "GIT_INDEX_FILE": str(temp_index)}
-        out = b""
-        for args in (["add", "-A", "--", ":/"], ["write-tree"]):
-            result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, env=env, check=False)
-            if result.returncode != 0:
-                raise DelegationError(f"git {' '.join(args)} (snapshot) failed: {result.stderr.decode(errors='replace').strip()}")
-            out = result.stdout
-    return out.decode().strip()
-
-
-def record_baseline(repo: Path) -> dict:
-    return {
-        "head": str(git(repo, "rev-parse", "HEAD")).strip(),
-        "tree": worktree_tree(repo),
-        "status": [line for line in str(git(repo, "status", "--porcelain")).splitlines() if line],
-        "untracked": untracked(repo),
-    }
-
-
-DIFF = ("diff", "--no-renames", "--no-ext-diff", "--no-textconv")
-
-
-def changes_since(repo: Path, baseline: dict) -> dict:
-    """Files and lines changed since the baseline. With the baseline tree, the working tree is compared
-    tree to tree, so edits that predate the delegation are not counted, and a deleted untracked file or a
-    reverted pre-existing edit is. A baseline without a tree (older launcher) is compared against HEAD."""
-    head = str(git(repo, "rev-parse", "HEAD")).strip()
-    base = baseline.get("tree")
-    if not base:
-        return _changes_since_head(repo, baseline, head)
-    if subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{base}^{{tree}}"], capture_output=True, check=False).returncode != 0:
-        raise DelegationError(f"baseline snapshot {base[:12]} is missing from the object store (pruned?); the delegated changes cannot be verified")
-    current = worktree_tree(repo)
-    files = sorted(p for p in str(git(repo, *DIFF, "--name-only", "-z", base, current)).split("\0") if p)
-    lines = 0
-    for row in str(git(repo, *DIFF, "--numstat", base, current)).splitlines():
-        added, deleted, _path = row.split("\t", 2)
-        lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
-    digest = hashlib.sha256(bytes(git(repo, *DIFF, "--binary", base, current, binary=True)))
-    return {"files": files, "lines": lines, "diff_hash": digest.hexdigest(), "head": head}
-
-
-def _changes_since_head(repo: Path, baseline: dict, head: str) -> dict:
-    """Legacy baseline (HEAD and untracked hashes only): edits that predate the delegation count as changes."""
-    base_head = baseline["head"]
-    tracked = [p for p in str(git(repo, *DIFF, "--name-only", "-z", base_head)).split("\0") if p]
-    lines = 0
-    for row in str(git(repo, *DIFF, "--numstat", base_head)).splitlines():
-        added, deleted, _path = row.split("\t", 2)
-        lines += (int(added) if added.isdigit() else 0) + (int(deleted) if deleted.isdigit() else 0)
-    before = baseline.get("untracked") or {}
-    now = untracked(repo)
-    new_untracked = {p: h for p, h in now.items() if before.get(p) != h}
-    deleted_untracked = sorted(p for p in before if p not in now and not (repo / p).exists())
-    for path in new_untracked:
-        try:
-            lines += len((repo / path).read_text(encoding="utf-8", errors="replace").splitlines())
-        except OSError:
-            pass
-    files = sorted(set(tracked) | set(new_untracked) | set(deleted_untracked))
-    digest = hashlib.sha256(bytes(git(repo, *DIFF, "--binary", base_head, binary=True)))
-    for path, value in sorted(new_untracked.items()):
-        digest.update(f"\0{path}\0{value}".encode())
-    for path in deleted_untracked:
-        digest.update(f"\0{path}\0<deleted>".encode())
-    return {"files": files, "lines": lines, "diff_hash": digest.hexdigest(), "head": head}
-
-
-# ---------------------------------------------------------------- path rules
-def glob_regex(pattern: str) -> re.Pattern[str]:
-    """gitignore-style glob: no slash matches at any depth; '**' spans directories; trailing '/' is a prefix."""
-    pattern = pattern.strip()
-    directory = pattern.endswith("/")
-    pattern = pattern.rstrip("/")
-    anchored = "/" in pattern
-    pattern = pattern.lstrip("/")
-    out, i = [], 0
-    while i < len(pattern):
-        if pattern.startswith("**/", i):
-            out.append("(?:.*/)?"); i += 3
-        elif pattern.startswith("**", i):
-            out.append(".*"); i += 2
-        elif pattern[i] == "*":
-            out.append("[^/]*"); i += 1
-        elif pattern[i] == "?":
-            out.append("[^/]"); i += 1
-        else:
-            out.append(re.escape(pattern[i])); i += 1
-    body = "".join(out)
-    prefix = "" if anchored else "(?:.*/)?"
-    suffix = "/.*" if directory else "(?:/.*)?"
-    return re.compile(f"^{prefix}{body}{suffix}$")
-
-
-def matches_any(path: str, patterns: list[str]) -> bool:
-    return any(glob_regex(p).match(path) for p in patterns)
-
-
-def is_toolkit_repo(repo: Path) -> bool:
-    return (repo / "install/manifest.tsv").is_file() and (repo / "docs/contracts/model-routing.tsv").is_file()
-
-
-def protected_patterns(repo: Path, contract: dict) -> list[str]:
-    patterns = list(ALWAYS_PROTECTED) + list(contract.get("protected_paths_extra") or [])
-    if is_toolkit_repo(repo):
-        patterns += TOOLKIT_PROTECTED
-    return patterns
-
-
-# ---------------------------------------------------------------- catalog and preflight
+# ---------------------------------------------------------------- live Codex catalog
 def codex_home() -> Path:
     return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
@@ -335,53 +106,3 @@ def catalog_levels() -> dict[str, list[str]]:
         if isinstance(model, dict) and model.get("slug"):
             levels[model["slug"]] = [l.get("effort") if isinstance(l, dict) else l for l in model.get("supported_reasoning_levels") or []]
     return levels
-
-
-def preflight_errors(contract_path: Path, repo: Path) -> list[str]:
-    try:
-        contract = load_json(contract_path)
-    except DelegationError as exc:
-        return [str(exc)]
-    errors = [f"contract {e}" for e in schema_errors(contract, load_json(CONTRACT_SCHEMA))]
-    if errors:
-        return errors
-    paths = state_paths(repo, contract["id"])
-    if contract_path.resolve() != paths["contract"].resolve():
-        errors.append(f"contract must live at {paths['contract']} (got {contract_path})")
-    route = contract["route"]
-    if route["effort"] == "ultra":
-        errors.append("route effort ultra is not allowed (it auto-delegates to subagents)")
-    levels = catalog_levels()
-    if not levels:
-        errors.append(f"live Codex catalog is missing: {codex_home() / 'models_cache.json'}")
-    elif route["model"] not in levels:
-        errors.append(f"route model {route['model']} is not in the live Codex catalog")
-    elif route["effort"] not in levels[route["model"]]:
-        errors.append(f"route effort {route['effort']} is not supported by {route['model']} (catalog: {', '.join(levels[route['model']])})")
-    profile = codex_home() / f"{PROFILE}.config.toml"
-    if not profile.is_file():
-        errors.append(f"Codex profile missing: {profile}")
-    return errors
-
-
-def render_prompt(contract: dict) -> str:
-    text = PROMPT_TEMPLATE.read_text(encoding="utf-8")
-    match = re.search(r"```text\n(.*?)\n```", text, re.S)
-    if not match:
-        raise DelegationError(f"prompt template block missing in {PROMPT_TEMPLATE}")
-
-    def bullets(values: list[str]) -> str:
-        return "\n".join(f"- {v}" for v in values) or "- None"
-
-    fields = {
-        "goal": contract["goal"],
-        "acceptance_criteria": bullets(contract["acceptance_criteria"]),
-        "scope_paths": bullets(contract["scope_paths"]),
-        "required_checks": bullets(contract["required_checks"]),
-        "diff_budget_files": str(contract["diff_budget"]["files"]),
-        "diff_budget_lines": str(contract["diff_budget"]["lines"]),
-        "allowed_dependency_changes": ", ".join(contract["allowed_dependency_changes"]) or "none",
-        "non_goals": bullets(contract["non_goals"]),
-        "invariants": bullets(contract["invariants"]),
-    }
-    return re.sub(r"\{([a-z_]+)\}", lambda m: fields.get(m.group(1), m.group(0)), match.group(1)) + "\n"

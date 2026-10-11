@@ -85,11 +85,11 @@ fi
 # ---- 実 repo(current checkout)への適用が主要指標で after 状態を示す ----
 out="$("$MEASURE" --repo "$REPO_ROOT")"
 assert_metric "実 repo: full pin 0" "$out" "full_model_pins" "0"
-assert_metric "実 repo: routing 表は17行" "$out" "routing_rows" "17"
+assert_metric "実 repo: routing 表は16行" "$out" "routing_rows" "16"
 assert_metric "実 repo: routing targets 外の model 名は0件" "$out" "model_name_mentions_outside_targets" "0"
 assert_metric "実 repo: 無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "実 repo: learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"
-assert_metric "実 repo: Claude effective skill は24件" "$out" "claude_skills" "24"
+assert_metric "実 repo: Claude effective skill は22件" "$out" "claude_skills" "22"
 assert_metric "実 repo: Codex effective skill は20件" "$out" "codex_skills" "20"
 assert_metric "実 repo: Codex custom agent は2件" "$out" "codex_custom_agents" "2"
 assert_metric "実 repo: active skill entrypoint は150行以内" "$out" "active_skill_entrypoint_over_150_lines" "0"

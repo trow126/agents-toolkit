@@ -81,6 +81,8 @@ declare -A SEEN_TARGETS=()
 STALE_CLAUDE_SKILLS=(
   "deep-research-mode"
   "gh:coderabbit"
+  "gh-codex-drive"
+  "gh-roadmap-drive"
   "gh:index"
   "gh:issue"
   "gh:pr"

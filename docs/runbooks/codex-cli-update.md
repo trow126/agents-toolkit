@@ -4,8 +4,8 @@ Codex CLI の更新は owner が行う。更新すると catalog、既定の eff
 
 ## 1. 更新の前に
 
-1. 実行中の Codex の委任（`/gh-codex-drive`、`/gh-roadmap-drive`）が無いことを確かめる。
-2. codex-plugin-cc の broker と、その子の `codex app-server` を、孤児を含めてすべて停止する。更新前の binary のまま残った broker は、次の委任で旧版の Codex を動かしてしまう。
+1. 実行中の Codex（`/cross-critic`、`/break-consensus` の cross worker）が無いことを確かめる。
+2. codex-plugin-cc の broker と、その子の `codex app-server` を、孤児を含めてすべて停止する。更新前の binary のまま残った broker は、次の起動で旧版の Codex を動かしてしまう。
 
    ```bash
    ps -eo pid,ppid,lstart,args | grep -E "app-server-broker|codex app-server|codex-code-mode-host" | grep -v grep

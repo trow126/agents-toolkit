@@ -1,6 +1,6 @@
 ---
 name: model-routing
-description: Details Claude model assignment, supervision of an explicitly requested Codex delegation, and verification of the model a subagent actually used. Use when verifying routing or diagnosing a routing anomaly. CLAUDE.md「Ownerとrouting」の詳細運用規則。
+description: Details Claude model assignment, the read-only-only use of Codex (it never implements), and verification of the model a subagent actually used. Use when verifying routing or diagnosing a routing anomaly. CLAUDE.md「Ownerとrouting」の詳細運用規則。
 user-invocable: true
 ---
 
@@ -8,7 +8,7 @@ user-invocable: true
 
 CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要十分な最小コストの単一 owner が完遂」であり、以下は例外時にだけ使う。
 
-- 停止条件: model割当の変更や、ユーザーが指示していないCodex委任が必要になったら、実施せずに報告して止まる
+- 停止条件: model割当の変更や、Codexへの実装委任が必要に見えたら、実施せずに報告して止まる
 - 完了条件: 実際に使われたmodelを一次情報（transcript・workflow記録・Codexのexec JSONL）で確認して報告した時点
 
 ## Claude model割当
@@ -27,14 +27,11 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 - `/break-consensus`はユーザーが起動した場合だけ使う。既定で別provider（Codex）のworkerにもbriefを渡す（D13。`--solo`で渡さない）。委任ではなくread-onlyで、実装には移らない
 - 計画・事前登録・amendment・設計・仮説への異系統の批判は、ユーザーが明示した場合だけ`/cross-critic`（重要ゲートは`--gate`）を使う。批判役であり判定役ではない
 
-## Codex 委任（ユーザーの明示指示がある場合だけ）
+## Codex は実装しない
 
-- 委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。Claudeが自分の判断で委任を選ばない
-- `/gh-codex-drive`・`/gh-roadmap-drive`は非推奨（2026-10のA/B実験でREJECT）。後継は`/gh-test-first`・`/gh-roadmap-run`で、起動時に後継を案内する
-- 委任したCodexは実装担当であり、Claudeは委任・監督・検証・最終統合を担当する
-- 起動は`gh-codex-drive`のworkflowに従い、契約を書いてmain sessionから`~/.claude/bin/codex-delegate`を`Bash(run_in_background=true)`で起動する。`codex:codex-rescue` Agentと`/codex:adversarial-review`を委任や諮問の代わりに起動しない
-- 監督はbackground taskの完了通知と`$(git rev-parse --git-dir)/agents-toolkit/`のstate（`result-<N>.json`・`evidence-<N>.json`）で行い、完了判定は`verify-delegation`のevidenceに基づく
-- 検証に失敗したら、契約の範囲で直せる限り同じ条件で再委任する（回数の上限なし）。失敗は毎回報告し、契約の範囲で直せないときは選択肢と推奨をユーザーに示す
+- Codexへ実装を委任しない（owner決定 2026-10-11、Issue #14）。2026-10のA/B実験（`docs/eval/sandwich-ab-results.md`・`sandwich-ab-d-results.md`）で、Codex実装はClaude単独より費用が下がらず時間が3〜6倍だった。実装はClaudeが行い、Issueは`/gh-test-first`・`/gh-roadmap-run`でテスト先行にする
+- Codexを使うのはread-onlyの批評・諮問（`/cross-critic`・`/break-consensus`・`plan-review`）だけで、main sessionから起動する。`codex:codex-rescue` Agentと`/codex:adversarial-review`を諮問の代わりに起動しない
+- ユーザーがCodexでの実装を求めたら、実施せずにこの決定を伝えて止まる
 - 接続・認証に問題があれば `/codex:setup` で確認する
 
 ## 既存経路が優先

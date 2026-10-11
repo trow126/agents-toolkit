@@ -22,9 +22,7 @@ link-dir	shared/skills/claude-code/break-consensus	.claude/skills/break-consensu
 link-dir	shared/skills/codex/break-consensus	.agents/skills/break-consensus
 link-dir	shared/skills/claude-code/config-audit	.claude/skills/config-audit
 link-dir	shared/skills/codex/config-audit	.agents/skills/config-audit
-link-dir	claude/skills/gh-codex-drive	.claude/skills/gh-codex-drive
 link-dir	claude/skills/gh-finish	.claude/skills/gh-finish
-link-dir	claude/skills/gh-roadmap-drive	.claude/skills/gh-roadmap-drive
 link-dir	claude/skills/gh-roadmap-run	.claude/skills/gh-roadmap-run
 link-dir	claude/skills/gh-test-first	.claude/skills/gh-test-first
 link-dir	claude/skills/cross-critic	.claude/skills/cross-critic
@@ -57,7 +55,6 @@ link-dir	codex/agents	.codex/agents
 link-file	codex/AGENTS.md	.codex/AGENTS.md
 link-file	codex/hooks.json	.codex/hooks.json
 link-file	codex/herdr-agent-state.sh	.codex/herdr-agent-state.sh
-link-file	codex/profiles/toolkit-implementer.config.toml	.codex/toolkit-implementer.config.toml
 link-file	codex/profiles/toolkit-divergent.config.toml	.codex/toolkit-divergent.config.toml
 link-dir	shared/rules	.agents/rules
 link-dir	shared/bin	.agents/bin

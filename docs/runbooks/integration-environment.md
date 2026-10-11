@@ -1,6 +1,6 @@
 # Runbook: integration 環境
 
-モデルを呼ぶ試験（`claude -p`、`codex exec`、委任、eval）、候補版の managed policy、hook の検証は、使い捨ての integration 環境だけで行う（近代化改修の指示書 §4.3）。作成、認証、破棄は owner が行う。
+モデルを呼ぶ試験（`claude -p`、`codex exec`、eval）、候補版の managed policy、hook の検証は、使い捨ての integration 環境だけで行う（近代化改修の指示書 §4.3）。作成、認証、破棄は owner が行う。
 
 ## 1. 作る
 
@@ -30,7 +30,6 @@
 5. Windows host の `C:\Program Files\ClaudeCode\managed-settings.json` と `managed-settings.d` が空であることを確かめ、記録する。
 6. Claude Code と Codex に owner がログインする。
 7. `export AGENTS_TOOLKIT_SLACK_NOTIFY=off` を設定する。
-8. `codex -p toolkit-implementer` の `/hooks` で、inline hook を review して trust する（K11）。Codex は trust を profile の config（repo への symlink）に書くので、続けて `./scripts/codex-profile-trust.py` で `~/.codex/config.toml` に移し、profile を HEAD に戻す。live でも同じ手順を踏む。
 
 ## 2. 費用の上限（D12）
 
@@ -40,10 +39,8 @@
 
 ## 3. Phase 4 で行う検証
 
-- 委任を1件行う: 契約 → `codex-delegate` → 完了通知が main session に戻る → `verify-delegation` が evidence を出す → `/code-review`
-- `stopped` を返す fixture（scope の外の変更が必要な題材）
 - 付録 C.1 の Case 11〜13（repo の外での user-level 契約、instructionFiles と discovery の一致、toolkit の clone の中での `claudeMdExcludes`）
-- K3（managed の deny `Agent(codex:codex-rescue)`）、K4、K6（`claude -p "/context"` を num_turns=0 で実行）、K7（委任の成否の記録）、K8（任意）、K11（inline hook が発火して block する）、K17（companion に profile 相当の設定を渡せるか。D8 の再評価）
+- K3（managed の deny `Agent(codex:codex-rescue)`）、K4、K6（`claude -p "/context"` を num_turns=0 で実行）、K8（任意）、K17（companion に profile 相当の設定を渡せるか。D8 の再評価）
 - `scripts/audit-context-runtime.sh` と `scripts/discover-runtime.sh --online`
 
 ## 4. Phase 6 で行う検証（D7）

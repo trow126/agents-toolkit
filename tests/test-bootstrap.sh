@@ -503,6 +503,8 @@ mkdir -p "$HOME13/.claude/skills"
 STALE_NAMES=(
   "deep-research-mode"
   "gh:coderabbit"
+  "gh-codex-drive"
+  "gh-roadmap-drive"
   "gh:index"
   "gh:issue"
   "gh:pr"

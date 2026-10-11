@@ -21,7 +21,7 @@
 - dynamic workflowのanonymous workerはOpusを既定とし、生成時は各anonymous `agent()`のmodel optionに`opus`を明示して、親modelを暗黙継承させない。
 - read-only codebase探索は`Explore`を使い、そのfrontmatterのmodelを尊重する。built-in `general-purpose`は親modelを継承する。
 - 計画reviewはCodex版`plan-review`（ユーザーがCodexで実行する）か`/code-review`を使う。
-- Codexへの委任はユーザーの明示指示（`/gh-codex-drive`・`/gh-roadmap-drive`・文面での委任指示）がある場合だけ行う。両skillは非推奨で、後継は`/gh-test-first`・`/gh-roadmap-run`（Claudeがテスト先行で実装）。高リスク判断・model確認の詳細は`model-routing` skillを使う。
+- Codexへ実装を委任しない。Codexはread-onlyの批評・諮問（`/cross-critic`・`/break-consensus`・`plan-review`）だけに使い、実装はClaudeが行う（Issueは`/gh-test-first`・`/gh-roadmap-run`でテスト先行）。高リスク判断・model確認の詳細は`model-routing` skillを使う。
 
 # private routing
 
@@ -38,4 +38,3 @@
 - `~/.claude/settings.json`をsession内で直接編集せず、project/local settingsへpermission・hook・sandbox policyを追加しない。
 - project/localのsecurity policy driftは`~/agents-toolkit/scripts/check-runtime.sh`と`~/.claude/bin/project-policy-gate`が拒否する。
 - bypassPermissions下ではGit操作がpromptなしで実行されるため、commit・push・外部writeの承認はcore contractに従う。
-- Codex委任は`~/.claude/bin/codex-delegate`をmain sessionから`Bash(run_in_background=true)`で起動する。

@@ -7,7 +7,7 @@ argument-hint: "<issue-number>"
 
 # /gh-test-first
 
-Claude implements the Issue itself; no Codex delegation. This is the successor of the deprecated `/gh-codex-drive`. In the 2026-10 A/B experiments (`docs/eval/sandwich-ab-results.md` and `sandwich-ab-d-results.md` in agents-toolkit), delegating the implementation saved no cost and took 3–6 times longer, while tests written before the implementation and a clear specification raised quality for every implementer; in-process review did not.
+Claude implements the Issue itself; Codex never implements (owner decision 2026-10-11). In the 2026-10 A/B experiments (`docs/eval/sandwich-ab-results.md` and `sandwich-ab-d-results.md` in agents-toolkit), delegating the implementation saved no cost and took 3–6 times longer, while tests written before the implementation and a clear specification raised quality for every implementer; in-process review did not.
 
 **Stop** when the Issue is ambiguous in a way that changes design, data, or public API, on unrelated dirty changes in the scope, or when the new tests cannot be shown failing for the expected reason. **Done** when the frozen tests and the project's checks pass and the report names `/gh-finish <N>` as the follow-up.
 

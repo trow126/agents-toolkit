@@ -5,8 +5,8 @@ usage: scripts/codex-profile-trust.py [--check] [--repo DIR] [--codex-home DIR]
 
 Codex writes hook trust ([hooks.state]), project trust ([projects]), and UI state ([tui]) into
 the config layer of the active profile. The toolkit profiles are symlinks into this repository
-(~/.codex/toolkit-*.config.toml -> codex/profiles/*.config.toml), so trusting the delegation hook
-in `codex -p toolkit-implementer` dirties the checkout. Codex honors the same entries in
+(~/.codex/toolkit-*.config.toml -> codex/profiles/*.config.toml), so trusting a hook or project
+in `codex -p toolkit-divergent` dirties the checkout. Codex honors the same entries in
 $CODEX_HOME/config.toml (verified on the integration host, 2026-09-25), so this script moves the
 hook and project trust there, drops the UI state, and restores each profile from git HEAD.
 

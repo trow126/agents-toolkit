@@ -276,11 +276,11 @@ elif [[ "$FAILURES" -eq "$codex_before" ]]; then
   pass "Codex prompt discovery contains all manifest skills and no superpowers skills"
 fi
 
-# Codex profiles (appendix C.2), checked only when the manifest distributes them. Both must put
-# their developer instructions first and drop the multi-agent instructions. toolkit-implementer
-# (D8) must also drop the skills it disables and the bundled skills; toolkit-divergent (D7) sets
-# [skills] include_instructions=false and must drop the skill list entirely.
-for profile_name in toolkit-implementer toolkit-divergent; do
+# Codex profiles (appendix C.2), checked only when the manifest distributes them. Each must put
+# its developer instructions first, drop the multi-agent instructions, and drop the skills it
+# disables and the bundled skills. toolkit-divergent (D7) sets [skills] include_instructions=false
+# and must drop the skill list entirely. (The implementer profile was removed with Codex delegation, Issue #14.)
+for profile_name in toolkit-divergent; do
   grep -qP "\t\.codex/${profile_name}\.config\.toml\$" "$MANIFEST" || continue
   profile_label="${profile_name#toolkit-}"
   profile_file="$HOME/.codex/${profile_name}.config.toml"
@@ -327,10 +327,8 @@ PYPROFILE
   rm -f "$profile_prompt_file"
   if [[ -n "$profile_problems" ]]; then
     while IFS= read -r problem; do fail "Codex ${profile_label} profile: $problem"; done <<< "$profile_problems"
-  elif [[ "$profile_name" == toolkit-divergent ]]; then
-    pass "Codex divergent profile prompt drops the skill list and multi-agent instructions"
   else
-    pass "Codex implementer profile prompt drops disabled skills and multi-agent instructions"
+    pass "Codex ${profile_label} profile prompt drops the skill list and multi-agent instructions"
   fi
 done
 

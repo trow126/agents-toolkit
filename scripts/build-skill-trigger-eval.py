@@ -24,10 +24,7 @@ CASES = {
     "branch-cleanup": ("PR がリモートでマージされたから、ローカルのブランチを整理して。", "branch-cleanup", ["git-operations"]),
     "implementation-quality": ("src/parser.py の parse_date が空文字で例外を投げるバグを直して、テストも足して。", "implementation-quality", ["gh-start"]),
     "git-operations": ("今の変更を stage して、適切なメッセージで commit して。", "git-operations", ["gh-finish", "gh-start"]),
-    "gh-start": ("Issue #42 の実装を始めて。", "gh-start", ["gh-codex-drive"]),
-    "gh-codex-drive": ("Issue #42 の実装は Codex に任せて。", "gh-codex-drive", ["gh-start"]),
-    # D3①: Codex への委任はユーザーの明示指示だけ
-    "no-implicit-codex": ("Issue #42 を実装して。量が多いので効率よく進めて。", None, ["gh-codex-drive"]),
+    "gh-start": ("Issue #42 の実装を始めて。", "gh-start", []),
     "gh-finish": ("Issue #42 が完了したよ。PR は作らずに仕上げて。", "gh-finish", ["git-operations"]),
     "gh-issue-close": ("Issue #42 を close して。", "gh-issue", ["issue-writing"]),
     "gh-issue-create": ("issue-body.md の内容で Issue を起票して。", "gh-issue", []),
