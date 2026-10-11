@@ -7,15 +7,15 @@
 - LLM 支援の発想はユーザー間で有意に均質化する: Anderson et al., C&C 2024. https://arxiv.org/abs/2402.01536
 - 生成 AI は個人の novelty を上げるが集合的多様性を下げる: Doshi & Hauser, Science Advances 2024. https://www.science.org/doi/10.1126/sciadv.adn5290
 - LLM 研究アイデア生成で 4000 の seed idea 中、非重複はわずか約 200（~5%）: Si, Yang & Hashimoto, ICLR 2025. https://arxiv.org/abs/2409.04109
-- RLHF/alignment が出力多様性を下げる（mode collapse は typicality bias に由来）: Padmakumar & He, ICLR 2024. https://arxiv.org/abs/2309.05196
+- フィードバックで調整したモデルと書くと、書かれた内容の多様性が下がる: Padmakumar & He, ICLR 2024. https://arxiv.org/abs/2309.05196
 - 例示への曝露が発想を例示へ引き寄せる（design fixation）: Jansson & Smith 1991（古典）。「よくある解を列挙してから離れる」の実証的背骨
-- 分布として k 案 + 確率を出させ、裾から取ると多様性が 2-3 倍（Verbalized Sampling）: https://arxiv.org/abs/2510.01171 — 「mode を可視化してから外す」という本 skill の Stage 2 に最も近い公開手法
+- 分布として k 案 + 確率を出させ、裾から取ると創作タスクで多様性が 1.6-2.1 倍（Verbalized Sampling、abstract）。同論文は mode collapse の原因を選好データの typicality bias に求める: https://arxiv.org/abs/2510.01171 — 「mode を可視化してから外す」という本 skill の Stage 2 に最も近い公開手法
 - 注意: 「共通解を列挙して明示的に禁止する」手続きそのものの直接検証研究は見つかっていない（2026-07 時点）。本 skill の独自部分であり、効果は Stage 7 の実験で確認する
 
 ## なぜ「前提破壊」か（Stage 3)
 
 - 直接の統制実験は薄い。最も近い実証は McCaffrey の Generic Parts Technique（Psychological Science 2012、機能固着の除去で洞察問題の解決率 +67%）
-- 操作メニュー（削除/反転/ゼロ/100倍/主体変更/時間逆転/成功失敗入替/解かない/副作用主目的化)は SCAMPER・ラテラルシンキング系の伝統操作を「探索空間の変化を説明できた操作だけ残す」形で厳格化したもの
+- （履歴）旧版の操作メニュー（削除/反転/ゼロ/100倍ほか）は SCAMPER・ラテラルシンキング系の伝統操作を厳格化したもの。現行の手順2はメニューを持たず、assumption inversion を3つの生成機構の1つとして使う
 
 ## なぜ「構造的対応が実在する異分野移植」か（Stage 4）
 
@@ -28,13 +28,12 @@
 
 - frontier LLM は人間より distinct な答えが少ない（NoveltyBench）: https://arxiv.org/abs/2504.05228
 - 単に「もっと出せ」は同一原理の言い換えを量産する。CoT 型の多様化プロンプトで人間集団に近づくがまだ届かない: Meincke, Mollick, Terwiesch 2024. https://arxiv.org/abs/2402.01727
-- persona の付け替えだけでは多様性がほぼ増えない: https://arxiv.org/html/2505.17390 — 原理タグの重複禁止という構造的制約を使う理由
-- 原理タグ quota の直接検証研究はない（本 skill の独自部分）
+- persona を付けると語彙の多様性は上がるが、persona の詳細を足しても上積みは小さい（合成データの語彙多様性で測定）: https://arxiv.org/html/2505.17390 。日常的な persona は多様なサンプリングの手がかりとして働き、CoT と組み合わせると人間より多様なアイデアが出るという報告もある: https://arxiv.org/abs/2602.20408 （どちらも旧版の原理タグ quota の根拠ではなくなった。現行手順に quota はない）
 
 ## なぜ「検索に基づく独立 novelty 監査」か（Stage 6）
 
 - 検索に基づかない LLM の novelty 自己判定は信頼できない: AI Scientist の novelty check の浅さの独立評価 https://arxiv.org/html/2502.14297v3 、LLM-as-judge の限界 https://arxiv.org/pdf/2606.12071
-- retrieval-grounded な比較（広く検索 → 絞る → facet 比較）が現状最良: Idea Novelty Checker, SDP 2025. https://arxiv.org/abs/2506.22026
+- retrieval-grounded な比較（広く検索 → 絞る → facet 比較）の上積みは小さい（最大で約16点）。安価な prompt だけの judge が Idea Novelty Checker（SDP 2025, https://arxiv.org/abs/2506.22026）を約30分の1のコストで上回り、judge は手がかりに敏感（Sternlicht et al., arXiv 2610.02022）。監査の価値は判定の精度ではなく、人が確かめられる URL を集めることにある
 - 特許実務の prior-art search の移植: 語ではなく機能・機構で検索し、分類・引用連鎖で recall を上げ、カバレッジを文書化してから止める（WIPO/USPTO の審査実務）
 
 ## なぜ「反証可能な最小実験」か（Stage 7）
@@ -51,7 +50,8 @@
 
 ## 設計上の限界（明示）
 
-- 「合意列挙 → 封鎖」「原理タグ quota」は直接の実証がない独自手続き。falsifiable: 本 skill の light/standard 実行で、封鎖なし brainstorming と候補の非重複率・採用後の生存率を比較すれば検証できる
+- 「合意列挙 → 封鎖」は直接の実証が薄い手続き。falsifiable: `--solo` / `--cross` の実行で、probe の baseline を封鎖した run と封鎖しない run を比べ、候補の非重複率と stress test の生存率を見れば検証できる
+- cross-provider（既定の `--cross`）は多様性を保証しない。異なるモデルの出力同士も収束する（Artificial Hivemind, NeurIPS 2025 D&B, https://arxiv.org/abs/2510.22954）。両 worker の一致は正しさや非合意の証拠ではない
 - novelty 監査は検索範囲に依存する。「新規らしい」は「調査範囲で未発見」以上を意味しない
 
 ## 2026-10 更新: baseline probe と blind prior-art audit（手順1と4）
@@ -59,7 +59,7 @@
 ### 根拠
 
 - Opus 5.5 は方向づけがないと少数の既定に落ち、「ありがちを避けて」という一般的な指示は既定を別の既定に入れ替えるだけで、避けたいものを具体的に並べたリストが効く。初回の出力を見てリストを伸ばす（Anthropic, Prompting Claude Opus 5.5「Frontend design defaults」）。https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5
-- 出した案をカテゴリ分けしてその外で出させる単純な defixation prompt で独創性が上がるが、モデル間の均質化は残る（IDEAFix, arXiv 2606.00875）。https://arxiv.org/abs/2606.00875
+- 単純な prompt で独創性が上がるが、モデル間の均質化は残る（IDEAFix, arXiv 2606.00875）。「出した案をカテゴリ分けしてその外で出させる」という手法の帰属は abstract では確認できない [unverified: abstract only]。https://arxiv.org/abs/2606.00875
 - LLM judge の novelty 判定は不安定で、「査読者が片方を新規と判断した」と伝えるだけで同じペアの半数以上で判定が反転し、精度が50点以上動く。検索の上積みは小さい（Sternlicht et al., arXiv 2610.02022）。https://arxiv.org/abs/2610.02022
 
 ### 実測（2026-10-11、前回の --cross run の brief 1本、Claude 側のみ）

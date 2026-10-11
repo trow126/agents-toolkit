@@ -4,15 +4,15 @@
 usage:
   break-consensus-cross prepare <brief-file> [--repo DIR]
   break-consensus-cross codex <run-dir> [--dry-run]
-  break-consensus-cross collect <run-dir> [--claude FILE]
+  break-consensus-cross collect <run-dir> --claude-transcript PATH [--claude FILE]
   break-consensus-cross finish <run-dir>
 
 prepare  copy the brief into a new run directory under
          ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/break-consensus/, record its sha256, the
          git status of the repository (when there is one), and the hash of the global Codex
          instructions, check divergent-route.env against the Codex catalog and that no environment
-         variable overrides the Claude worker's model, render the worker prompt, and print JSON for
-         the Claude main session.
+         variable overrides the Claude worker's model, render the worker prompt (the brief inside a
+         tag with a random id), and print JSON for the Claude main session.
 codex    run the Codex worker (from the main session with Bash run_in_background=true):
          codex exec -C <empty temporary directory> --skip-git-repo-check -p toolkit-divergent
          -s read-only -m <model> -c model_reasoning_effort=<effort> -c web_search="disabled" --json
@@ -21,7 +21,9 @@ codex    run the Codex worker (from the main session with Bash run_in_background
          exec events and session rollout).
 collect  validate both outputs (<run>/claude-output.json holds the Claude worker's Workflow result)
          against the schema, the brief hash, the worker prompt, the Codex route and sandbox, that
-         Codex made no web search, and the git status, then print both candidate lists.
+         Codex made no web search, the model the Claude worker actually used (from the `model` of the
+         assistant messages in its transcript: a .jsonl file, or a Workflow transcript directory
+         whose agent-*.jsonl files are read), and the git status, then print both candidate lists.
 finish   check <run>/synthesis.md and the git status again, and write <run>/result.md with the
          synthesis and both raw outputs.
 Nothing here writes to the repository; the run directory is outside it.
@@ -31,6 +33,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shlex
 import shutil
 import subprocess
@@ -51,6 +54,9 @@ SCHEMA_FILE = REFERENCES / "divergent.schema.json"
 PROCEDURE = REFERENCES / "cross.md"
 PROFILE = "toolkit-divergent"
 MAX_BRIEF_BYTES = 64 * 1024
+# The worker prompt wraps the brief in <brief-XXXXXXXX>...</brief-XXXXXXXX> with a random id; a
+# brief that already contains such a tag could close the data block, so prepare refuses it.
+BRIEF_TAG_RE = re.compile(r"</?brief-[0-9a-f]{8}>")
 MECHANISMS = ("assumption_inversion", "structural_transfer", "changed_principle")
 SECTIONS = ("Agreements", "Differences", "Decisions", "Notes")
 # Either variable makes Claude Code ignore agent({model}) with only a log line (2.1.296), so the
@@ -190,6 +196,8 @@ def cmd_prepare(args: list[str]) -> int:
     for pattern in SECRET_PATTERNS:
         if re.search(pattern, text):
             raise DelegationError(f"brief looks like it contains a secret (pattern {pattern}); remove it")
+    if BRIEF_TAG_RE.search(text):
+        raise DelegationError("brief contains a <brief-XXXXXXXX> delimiter tag; remove it")
     repo = find_repo(Path(repo_arg) if repo_arg else Path.cwd())
     if repo is not None and repo in brief.parents:
         raise DelegationError(f"brief must be outside the repository {repo}")
@@ -212,12 +220,15 @@ def cmd_prepare(args: list[str]) -> int:
     else:
         raise DelegationError(f"cannot create a run directory under {root}")
     (run_dir / "brief.md").write_bytes(data)
-    prompt = prompt_template().replace("{{BRIEF_SHA256}}", brief_sha).replace("{{BRIEF}}", text.rstrip("\n"))
+    brief_tag = f"brief-{secrets.token_hex(4)}"
+    prompt = (prompt_template().replace("{{BRIEF_TAG}}", brief_tag).replace("{{BRIEF_SHA256}}", brief_sha)
+              .replace("{{BRIEF}}", text.rstrip("\n")))
     (run_dir / "worker-prompt.md").write_text(prompt, encoding="utf-8")
     write_json(run_dir / "run.json", {
         "id": run_dir.name,
         "created_at": now(),
         "brief_sha256": brief_sha,
+        "brief_tag": brief_tag,
         "prompt_sha256": sha256_file(run_dir / "worker-prompt.md"),
         "route": route,
         "codex_global_instructions": {"codex_home": str(codex_home()), "sha256": global_instructions()},
@@ -377,10 +388,33 @@ def output_errors(output: dict, schema: dict, brief_sha: str) -> list[str]:
     return errors
 
 
+def transcript_models(path: Path) -> list[str]:
+    files = sorted(path.glob("agent-*.jsonl")) if path.is_dir() else [path]
+    if not files or not all(f.is_file() for f in files):
+        raise DelegationError(f"no Claude worker transcript at {path}")
+    models: set[str] = set()
+    for file in files:
+        for line in file.read_text(encoding="utf-8").splitlines():
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            message = entry.get("message") if isinstance(entry, dict) else None
+            if entry.get("type") == "assistant" and isinstance(message, dict) and message.get("model"):
+                if message["model"] != "<synthetic>":
+                    models.add(message["model"])
+    return sorted(models)
+
+
+def model_matches(used: str, alias: str) -> bool:
+    return used == alias or used.startswith(f"claude-{alias}")
+
+
 def cmd_collect(args: list[str]) -> int:
     claude_arg = pop_option(args, "--claude")
+    transcript_arg = pop_option(args, "--claude-transcript")
     if len(args) != 1:
-        raise DelegationError("usage: break-consensus-cross collect <run-dir> [--claude FILE]")
+        raise DelegationError("usage: break-consensus-cross collect <run-dir> --claude-transcript PATH [--claude FILE]")
     run_dir = Path(args[0]).resolve()
     run = load_json(run_dir / "run.json")
     claude_path = run_dir / "claude-output.json"
@@ -433,11 +467,23 @@ def cmd_collect(args: list[str]) -> int:
             checks.append((False, "cannot confirm that Codex made no web search: the run predates the check"))
         else:
             checks.append((searches == 0, f"Codex made {searches} web search(es)"))
+    claude_models: list[str] = []
+    if not transcript_arg:
+        checks.append((False, "cannot confirm the Claude worker's model: pass --claude-transcript"))
+    else:
+        alias = run["route"]["claude_model"]
+        try:
+            claude_models = transcript_models(Path(transcript_arg).expanduser().resolve())
+        except DelegationError as exc:
+            checks.append((False, f"cannot confirm the Claude worker's model: {exc}"))
+        else:
+            checks.append((bool(claude_models) and all(model_matches(m, alias) for m in claude_models),
+                           f"Claude worker used {', '.join(claude_models) or 'no recorded model'} (route {alias})"))
     checks.append(git_unchanged(run))
 
     ok = all(passed for passed, _ in checks)
     write_json(run_dir / "collect.json", {
-        "ok": ok, "checked_at": now(),
+        "ok": ok, "checked_at": now(), "claude_models": claude_models,
         "checks": [{"ok": passed, "check": message} for passed, message in checks],
         "output_sha256": {name: sha256_file(run_dir / f"{name}-output.json")
                           for name in ("codex", "claude") if (run_dir / f"{name}-output.json").is_file()},
