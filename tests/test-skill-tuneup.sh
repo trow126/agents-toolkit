@@ -42,6 +42,11 @@ git -C "$TK" config commit.gpgsign false
 git -C "$TK" add -A && git -C "$TK" commit -q -m base
 
 export PYTHONDONTWRITEBYTECODE=1 XDG_STATE_HOME="$SANDBOX/state"
+# stub claude: prints STUB_CLAUDE_VERSION for --version.
+mkdir -p "$SANDBOX/stub"
+printf '#!/usr/bin/env bash\necho "${STUB_CLAUDE_VERSION:-2.1.296 (Claude Code)}"\n' > "$SANDBOX/stub/claude"
+chmod +x "$SANDBOX/stub/claude"
+export PATH="$SANDBOX/stub:$PATH"
 RC=0; OUT=""
 run() { RC=0; OUT="$("$@" 2>&1)" || RC=$?; }
 expect_rc() { # desc want_rc needle
@@ -51,13 +56,16 @@ expect_rc() { # desc want_rc needle
 # ---- prepare
 run "$TUNE" prepare --only alpha,nope
 expect_rc "--only の未知の skill は拒否する" 1 "unknown skill(s) for --only: nope"
+STUB_CLAUDE_VERSION="2.1.295 (Claude Code)" run "$TUNE" prepare
+expect_rc "disallowedTools を守らない古い Claude Code は拒否する" 1 "older than 2.1.296"
+[[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/skill-tuneup" 2>/dev/null)" ]] && ok "拒否した prepare は run を作らない" || ng "拒否した prepare が run を作った"
 run "$TUNE" prepare
 expect_rc "prepare は run を作る" 0 '"count": 5'
 PREP="$OUT"
 RUN="$(jq -r .run_dir <<< "$PREP")"
 if jq -e '[.skills[].name] == ["alpha","beta","gamma","pair","skill-tuneup"]' <<< "$PREP" >/dev/null &&
-  jq -e '.estimated_agents == {"min": 43, "max": 83}' <<< "$PREP" >/dev/null; then
-  ok "同名の pair は1つの skill にまとめ、推定エージェント数を出す（3 + 5 x 8..16）"
+  jq -e '.estimated_agents == {"min": 38, "max": 88}' <<< "$PREP" >/dev/null; then
+  ok "同名の pair は1つの skill にまとめ、推定エージェント数を出す（3 + 5 x 7..17）"
 else
   ng "prepare の skill 一覧か推定が不正: $PREP"
 fi
@@ -69,7 +77,7 @@ if jq -e --arg ev "$TK/shared/skills/pair/references/evidence.md" '.skills[] | s
 else
   ng "skill の files か deprecated が不正"
 fi
-if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5' "$RUN/run.json" >/dev/null; then
+if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.296"' "$RUN/run.json" >/dev/null; then
   ok "run.json に前回の run（なし）、git status、skill を記録する"
 else
   ng "run.json が不正"
@@ -99,9 +107,11 @@ const agent = async (prompt, opts) => {
   calls.push({ label: opts.label, deny: opts.disallowedTools || [], prompt })
   const kind = opts.label.split(/[ :]/)[0]
   if (opts.label.startsWith('probe 1: gamma')) return null
+  if (opts.label === 'generate: beta') return { hygiene: [], candidates: [] }
   return {
-    probe: '1. a\n2. b', cluster: { clusters: [{ name: 'c1', probes: 3 }] }, layer: { recommendations: ['r1'] },
-    generate: { hygiene: [{ kind: 'outdated', finding: 'f', evidence: 'e', fix: 'x' }], candidates: [C] },
+    probe: '1. a\n2. b', cluster: { clusters: [{ name: 'c1', probes: 3 }] }, layer: { directions: ['d1'], recommendations: ['r1'] },
+    mine: { status: 'found', deviations: [{ file: '/t/s.jsonl', line: 7, quote: 'q', kind: 'skipped_check', summary: 'sm' }], searched: 'se' },
+    generate: { hygiene: [{ kind: 'outdated', effect: 'correct', finding: 'f', evidence: 'e', fix: 'x' }], candidates: [C] },
     audit: { verdicts: [{ id: 'C1', verdict: 'KNOWN', method: 'known method', url: 'https://example.org/k',
       purpose_match: true, mechanism_match: true, implementation_match: false }], searched: 's' },
     design: { stress: [{ id: 'C1', survives: true, reason: 'r' }], experiments: [
@@ -129,6 +139,19 @@ if command -v node >/dev/null; then
   fi
   if jq -e '.missing == ["gamma"] and (.results | length) == 4 and (.results[0].experiments | length) == 2' "$RUN/results.json" >/dev/null; then
     ok "probe が欠けた skill は missing に出し、実験は2件までに切る"
+  else
+    ng "Workflow の結果が不正: $(jq -c '{missing, n: (.results | length)}' "$RUN/results.json")"
+  fi
+  if jq -e '.results[] | select(.skill == "beta") | .stress == [] and .experiments == [] and .audit.searched == "no candidates"' "$RUN/results.json" >/dev/null &&
+    jq -e '[.[] | select(.label | test("^(audit|design): beta"))] | length == 0' "$SANDBOX/calls.json" >/dev/null; then
+    ok "候補が無い skill では監査役も設計役も起動しない"
+  else
+    ng "候補が無い skill で監査か設計が起動した"
+  fi
+  if jq -e '.results[0].mined.status == "found"' "$RUN/results.json" >/dev/null &&
+    jq -e '[.[] | select(.label | startswith("generate: alpha")) | .prompt | contains("/t/s.jsonl:7")] | all' "$SANDBOX/calls.json" >/dev/null &&
+    jq -e '[.[] | select(.label | startswith("mine")) | .deny | (index("Bash") != null and index("WebSearch") != null)] | all' "$SANDBOX/calls.json" >/dev/null; then
+    ok "miner は read-only で、見つけた逸脱を file:line 付きで生成役に渡し、結果に残す"
   else
     ng "Workflow の結果が不正: $(jq -c '{missing, n: (.results | length)}' "$RUN/results.json")"
   fi
@@ -172,6 +195,13 @@ run "$TUNE" finish "$RUN"
 expect_rc "research と synthesis が無ければ finish は失敗する" 1 "research.md needs a non-empty '## Findings' section"
 printf '## Findings\n\n- a fact. https://example.org (2026-10-11)\n\n## Coverage\n\nofficial docs\n' > "$RUN/research.md"
 printf '## Summary\n\ns\n\n## Per skill\n\np\n\n## Not covered\n\nthree probes instead of five\n' > "$RUN/synthesis.md"
+run "$TUNE" finish "$RUN"
+expect_rc "根拠 tag の無い finding は失敗する" 1 "needs exactly one evidence tag"
+printf '## Findings\n\n- a fact. https://example.org (2026-10-11) [agent-opened] [unverified]\n\n## Coverage\n\nofficial docs\n' > "$RUN/research.md"
+run "$TUNE" finish "$RUN"
+expect_rc "根拠 tag が2つある finding も失敗する" 1 "needs exactly one evidence tag"
+printf '## Findings\n\n- a fact. https://example.org (2026-10-11) [unverified: snippet]\n\n## Coverage\n\nofficial docs\n' > "$RUN/research.md"
+printf '## Summary\n\ns\n\n## Per skill\n\np\n\n## Not covered\n\nthree probes instead of five\n' > "$RUN/synthesis.md"
 printf 'x\n' > "$TK/untracked.txt"
 run "$TUNE" finish "$RUN"
 expect_rc "toolkit の git status が変われば失敗する" 1 "changed since prepare"
@@ -196,11 +226,14 @@ fi
 # ---- plan
 run "$TUNE" plan "$RUN"
 expect_rc "plan は PASS の候補と hygiene を示す" 0 "candidate C1 [KNOWN (known method: https://example.org/k)] m"
-[[ "$OUT" == *"- hygiene [outdated] f | evidence: e | fix: x"* ]] && ok "plan は hygiene の指摘を示す" || ng "plan に hygiene が無い: $OUT"
+[[ "$OUT" == *$'hygiene remove or correct (implement):\n- hygiene [outdated] f | evidence: e | fix: x'* ]] && ok "plan は hygiene の指摘を effect ごとに示す" || ng "plan に hygiene が無い: $OUT"
 printf 'changed\n' >> "$TK/shared/skills/pair/references/evidence.md"
 run "$TUNE" plan "$RUN"
 expect_rc "run の後に skill の file が変われば plan は失敗する" 1 "skill files changed since the run: pair"
 git -C "$TK" checkout -q -- shared/skills/pair/references/evidence.md
+for i in $(seq 1 55); do skill "shared/skills/extra$i" "extra$i" "Extra $i."; done
+run "$TUNE" prepare
+expect_rc "Workflow の上限を超えうる数の skill は分割を示して拒否する" 1 "run in batches: --only "
 
 # ---- static contract
 SK="$REPO_ROOT/claude/skills/skill-tuneup/SKILL.md"
@@ -210,11 +243,16 @@ if grep -qx 'disable-model-invocation: true' "$SK" && grep -qF 'ask the user onc
 else
   ng "SKILL.md の契約が不正"
 fi
-if grep -qF '~/.claude/skills/break-consensus/references/probe-and-audit.md' "$SK" &&
-  grep -qF 'three probes instead of five' "$REPO_ROOT/claude/skills/skill-tuneup/references/workflow.md"; then
-  ok "per-skill の手順は break-consensus の probe-and-audit に従い、probe 数の差を記録する"
+WFMD="$REPO_ROOT/claude/skills/skill-tuneup/references/workflow.md"
+PA="$REPO_ROOT/shared/skills/break-consensus/references/probe-and-audit.md"
+LAYER2="$(sed -n 's/^4\. Start one more fresh context.*: "\(First name [^"]*\)".*/\1/p' "$PA")"
+if grep -qF '~/.claude/skills/break-consensus/references/probe-and-audit.md' "$SK" && grep -qF 'frozen `--solo` copy' "$SK" &&
+  [[ -n "$LAYER2" ]] && grep -qF "$LAYER2" "$WFMD" && grep -qF 'Start five fresh contexts' "$PA" &&
+  grep -qF 'three probes instead of five' "$WFMD" && grep -qF "'KNOWN', 'PARTIAL', 'NOT_FOUND'" "$WFMD" &&
+  grep -qF '`KNOWN`' "$PA" && grep -qF '`PARTIAL`' "$PA" && grep -qF '`NOT_FOUND`' "$PA"; then
+  ok "per-skill の手順は break-consensus の probe-and-audit の固定コピーで、2層目の依頼と判定名が一致し、probe 数の差を記録する"
 else
-  ng "break-consensus への依存か probe 数の記録が無い"
+  ng "break-consensus の probe-and-audit と workflow.md が食い違う（2層目: '$LAYER2'）"
 fi
 
 echo

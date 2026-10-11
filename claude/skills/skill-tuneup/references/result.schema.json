@@ -3,7 +3,7 @@
   "description": "One element of results[] returned by the Workflow in workflow.md. skill-tuneup record also checks probe count, verdict evidence, candidate ids, and experiment criteria.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["skill", "probe_count", "probes", "baseline", "hygiene", "candidates", "audit", "stress", "experiments"],
+  "required": ["skill", "probe_count", "probes", "baseline", "mined", "hygiene", "candidates", "audit", "stress", "experiments"],
   "properties": {
     "skill": {"type": "string", "minLength": 1},
     "probe_count": {"type": "integer", "minimum": 3},
@@ -19,10 +19,25 @@
         "second_layer": {"type": "array", "items": {"type": "string", "minLength": 1}}
       }
     },
+    "mined": {
+      "type": "object", "additionalProperties": false, "required": ["status", "deviations", "searched"],
+      "properties": {
+        "status": {"type": "string", "enum": ["found", "none_found", "no_transcripts"]},
+        "deviations": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["file", "line", "quote", "kind", "summary"],
+          "properties": {
+            "file": {"type": "string", "minLength": 1}, "line": {"type": "integer", "minimum": 1},
+            "quote": {"type": "string", "minLength": 1, "maxLength": 300},
+            "kind": {"type": "string", "enum": ["skipped_check", "claimed_not_done", "user_correction"]},
+            "summary": {"type": "string", "minLength": 1}}}},
+        "searched": {"type": "string", "minLength": 1}
+      }
+    },
     "hygiene": {"type": "array", "items": {
-      "type": "object", "additionalProperties": false, "required": ["kind", "finding", "evidence", "fix"],
+      "type": "object", "additionalProperties": false, "required": ["kind", "effect", "finding", "evidence", "fix"],
       "properties": {
         "kind": {"type": "string", "enum": ["outdated", "contract_gap", "bug", "evidence_error", "other"]},
+        "effect": {"type": "string", "enum": ["remove", "correct", "add"]},
         "finding": {"type": "string", "minLength": 1}, "evidence": {"type": "string", "minLength": 1},
         "fix": {"type": "string", "minLength": 1}}}},
     "candidates": {"type": "array", "items": {

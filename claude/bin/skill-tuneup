@@ -11,16 +11,19 @@ prepare  inventory every skill the toolkit ships (shared/skills, shared/skills/{
          claude/skills, codex/skills; same-name entrypoints are one skill), create a run directory
          under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/skill-tuneup/, record the toolkit HEAD
          and git status and the date of the previous finished run, and print JSON with the skills
-         (name, description, deprecated, files) and the estimated number of agents.
+         (name, description, deprecated, files) and the estimated number of agents. Fails when Claude
+         Code is older than 2.1.296 (Workflow agent() disallowedTools) or when the skills could exceed
+         the Workflow limit of 1,000 agents, printing --only batches that fit.
 record   validate <run>/results.json (the Workflow result) against references/result.schema.json and
          the run: every skill present, KNOWN/PARTIAL verdicts with a url and method, a verdict for every
          candidate, a criterion and verdict for every experiment. Writes <run>/skills/<name>.json.
-finish   check research.md, synthesis.md, the recorded results, and that the toolkit HEAD and git status
+finish   check research.md (each finding with exactly one evidence tag), synthesis.md, the recorded
+         results, and that the toolkit HEAD and git status
          are unchanged since prepare (the default mode writes no repository file), then write
          <run>/result.md and update the ledger of finished runs.
 plan     for --apply: check that the run finished and that the skills' files are unchanged since the
-         inventoried HEAD, then print per skill the hygiene findings and the candidates whose
-         experiment passed.
+         inventoried HEAD, then print per skill the hygiene findings, grouped by effect (remove or
+         correct, add), and the candidates whose experiment passed.
 Nothing here writes to the repository.
 """
 import datetime as dt
@@ -48,8 +51,21 @@ SOURCES = (
 )
 PER_RUNTIME_DIRS = {"claude-code", "codex"}
 CONTENT_SUFFIXES = {".md", ".json", ".env", ".yaml", ".yml", ".toml", ".txt"}
-AGENTS_PER_SKILL = (8, 16)  # workflow.md: 3 probes, cluster, layer 2, generator, auditor, designer, 0-2 x (3 runs + judge)
+# workflow.md: 3 probes, cluster, layer 2, miner, generator, then auditor and designer when there are
+# candidates, and 0-2 x (3 runs + judge).
+AGENTS_PER_SKILL = (7, 17)
 RESEARCH_AGENTS = 3
+WORKFLOW_AGENT_LIMIT = 1000  # agents per Workflow run (Claude Code workflows docs)
+# The Workflow script narrows every agent with agent({disallowedTools}), which the agent() reference does
+# not document; 2.1.296 is the first version checked to honor it (and to refuse a spawn it cannot narrow).
+MIN_CLAUDE_VERSION = (2, 1, 296)
+EVIDENCE_TAG = re.compile(r"\[(verified-main|agent-opened|secondary|practitioner|unverified)(?::[^\]]*)?\]")
+HYGIENE_GROUPS = (
+    ("remove", "remove or correct (implement)"),
+    ("correct", None),
+    ("add", "add (implement only when its evidence names the research.md line that mandates it; otherwise needs an experiment)"),
+    (None, "unclassified (recorded before hygiene effects; decide per finding)"),
+)
 MIN_PROBES = 3
 SECTIONS = ("Summary", "Per skill", "Not covered")
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
@@ -152,10 +168,26 @@ def load_ledger() -> dict:
 
 
 # ---------------------------------------------------------------- prepare
+def claude_version() -> str:
+    try:
+        out = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=60)
+    except FileNotFoundError as exc:
+        raise DelegationError("claude is not on PATH; the Workflow needs Claude Code") from exc
+    match = re.match(r"(\d+)\.(\d+)\.(\d+)", out.stdout.strip())
+    if out.returncode != 0 or not match:
+        raise DelegationError(f"cannot read the Claude Code version: {(out.stdout + out.stderr).strip()!r}")
+    if tuple(int(n) for n in match.groups()) < MIN_CLAUDE_VERSION:
+        raise DelegationError(f"Claude Code {match.group(0)} is older than "
+                              f"{'.'.join(map(str, MIN_CLAUDE_VERSION))}, the first version known to honor "
+                              "Workflow agent() disallowedTools")
+    return match.group(0)
+
+
 def cmd_prepare(args: list[str]) -> int:
     only_arg = pop_option(args, "--only")
     if args:
         raise DelegationError("usage: skill-tuneup prepare [--only NAME[,NAME...]]")
+    version = claude_version()
     skills = inventory()
     if not skills:
         raise DelegationError(f"no skills found under {TOOLKIT_ROOT}")
@@ -165,6 +197,12 @@ def cmd_prepare(args: list[str]) -> int:
         if unknown:
             raise DelegationError(f"unknown skill(s) for --only: {', '.join(unknown)}")
         skills = [s for s in skills if s["name"] in wanted]
+    batch = WORKFLOW_AGENT_LIMIT // AGENTS_PER_SKILL[1]
+    if len(skills) > batch:
+        names = [s["name"] for s in skills]
+        batches = "; ".join("--only " + ",".join(names[i:i + batch]) for i in range(0, len(names), batch))
+        raise DelegationError(f"{len(skills)} skills x up to {AGENTS_PER_SKILL[1]} agents can exceed the Workflow "
+                              f"limit of {WORKFLOW_AGENT_LIMIT} agents per run; run in batches: {batches}")
     ledger = load_ledger()
     since = (ledger.get("last_finished") or {}).get("date")
     for skill in skills:
@@ -187,6 +225,7 @@ def cmd_prepare(args: list[str]) -> int:
     write_json(run_dir / "run.json", {
         "id": run_dir.name, "created_at": now(), "since": since, "toolkit": str(TOOLKIT_ROOT),
         "git_before": git_state(), "skills": [s["name"] for s in skills], "estimated_agents": estimate,
+        "claude_version": version,
     })
     print(json.dumps({
         "run_dir": str(run_dir), "run_id": run_dir.name, "since": since, "count": len(skills),
@@ -308,6 +347,9 @@ def cmd_finish(args: list[str]) -> int:
             problems.append(f"research.md needs a non-empty '## {name}' section")
     if research and not re.search(r"https?://", research):
         problems.append("research.md cites no source URL")
+    for line in (section_body(research, "Findings") or "").splitlines():
+        if line.startswith("- ") and len(EVIDENCE_TAG.findall(line)) != 1:
+            problems.append(f"research.md finding needs exactly one evidence tag (references/research.md): {line[:80]}")
     synthesis = (run_dir / "synthesis.md").read_text(encoding="utf-8") if (run_dir / "synthesis.md").is_file() else ""
     for name in SECTIONS:
         if not section_body(synthesis, name):
@@ -377,8 +419,14 @@ def cmd_plan(args: list[str]) -> int:
         verdicts = {v["id"]: v for v in result["audit"]["verdicts"]}
         candidates = {c["id"]: c for c in result["candidates"]}
         print(f"== {name}: {len(result['hygiene'])} hygiene finding(s), {len(passed)} passed candidate(s)")
-        for finding in result["hygiene"]:
-            print(f"- hygiene [{finding['kind']}] {finding['finding']} | evidence: {finding['evidence']} | fix: {finding['fix']}")
+        for effect, title in HYGIENE_GROUPS:
+            group = [f for f in result["hygiene"] if f.get("effect") == effect
+                     or (effect == "remove" and f.get("effect") == "correct")]
+            if not title or not group:
+                continue
+            print(f"hygiene {title}:")
+            for finding in group:
+                print(f"- hygiene [{finding['kind']}] {finding['finding']} | evidence: {finding['evidence']} | fix: {finding['fix']}")
         for cid in passed:
             verdict = verdicts[cid]
             source = f" ({verdict['method']}: {verdict['url']})" if verdict["verdict"] != "NOT_FOUND" else ""

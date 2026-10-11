@@ -8,4 +8,11 @@ Done once per run in the main session, before the Workflow, because every skill 
    - **Research**: peer-reviewed or arXiv work after `since` (or the last 12 months) on agent instructions, skill design, evaluation of skills, and anything the skills' own `evidence` files cite that has been superseded.
    - **Local sources**: the directories in `LOCAL_SOURCES` of `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/skill-tuneup.env` (colon-separated). Skip this agent when the file or the key is absent, and say so in the digest; it is optional.
 3. Each agent returns findings with source URL or path, date, whether it opened the source, and which kinds of skill the finding affects.
-4. Write `<run_dir>/research.md`: a `## Findings` list (one line per fact, source and date at the end, `[unverified]` when the agent only saw a snippet) and a `## Coverage` paragraph (what was searched, what was skipped). Verify the few findings that would change many skills yourself before writing them as fact.
+4. Write `<run_dir>/research.md`: a `## Findings` list and a `## Coverage` paragraph (what was searched, what was skipped). Each finding is one `- ` line with one fact, its source and date at the end, and exactly one evidence tag (`skill-tuneup finish` checks it); split a line that bundles several facts so each can be cited on its own. Tags, optionally with a note after a colon (`[unverified: snippet]`):
+   - `[verified-main]`: you opened the source yourself in the main session.
+   - `[agent-opened]`: a research agent opened the source.
+   - `[secondary]`: an interview, summary, or other secondhand account of an official source.
+   - `[practitioner]`: a practitioner's report or opinion, not an official source or a study.
+   - `[unverified]`: only a search snippet was seen.
+
+   Verify the few findings that would change many skills yourself before writing them as fact.

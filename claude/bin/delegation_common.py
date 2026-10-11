@@ -33,6 +33,8 @@ def schema_errors(value: object, schema: dict, where: str = "$") -> list[str]:
     if isinstance(value, str):
         if len(value) < schema.get("minLength", 0):
             errors.append(f"{where}: must not be empty")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            errors.append(f"{where}: longer than {schema['maxLength']} characters")
         if "pattern" in schema and not re.search(schema["pattern"], value):
             errors.append(f"{where}: does not match {schema['pattern']}")
     if isinstance(value, int) and not isinstance(value, bool) and "minimum" in schema and value < schema["minimum"]:
