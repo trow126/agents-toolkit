@@ -70,7 +70,7 @@ Windows の Claude desktop app は WSL の `~/.claude` ではなく `%USERPROFIL
 | `gh-roadmap-plan` | 配布 | 会話や資料から計画を起こす起点で desktop app でも使う。git・gh の操作はすべて helper(`gh-roadmap-plan`・`grok-digest projects`)に寄せてあり、WSL 化だけで動く |
 | `gh-*`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
 | `break-consensus`・`skill-tuneup` | 除外 | `--cross`・Workflow の多段 orchestration と WSL の toolkit repo が前提 |
-| `config-audit`・`model-routing`・`knowledge-audit`・`implementation-quality`・`python-refactor-analysis` | 除外 | WSL の設定・rule(`~/.agents/rules`)・`uv` 環境を前提にし、desktop app 固有の利点が無い |
+| `config-audit`・`model-routing`・`implementation-quality` | 除外 | WSL の設定・rule(`~/.agents/rules`)を前提にし、desktop app 固有の利点が無い |
 
 変換は `scripts/windows-skills.py` が配布のたびに行い、source は二重管理しない。`*.md` の code span・code block 行にある宣言済み helper の呼び出しを WSL 経由に書き換え、先頭に「生成物・手で編集しない」marker、helper を使う SKILL.md には Windows での実行規則の節(Git Bash では `MSYS_NO_PATHCONV=1`、Windows path は `wsl -e wslpath -a` で変換、入力ファイルは BOM なし)を入れる。配布先の各 directory には生成元 commit・生成日時・file hash を持つ `.agents-toolkit-generated.json` を置く。
 

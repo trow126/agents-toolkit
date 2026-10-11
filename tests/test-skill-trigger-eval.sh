@@ -18,12 +18,12 @@ ng() {
   FAILURES=$((FAILURES + 1))
 }
 
-printf '%s\n' '{"skillOverrides": {"gh-pr": "user-invocable-only", "gh-review": "user-invocable-only", "config-audit": "user-invocable-only", "gh-index": "user-invocable-only", "python-refactor-analysis": "user-invocable-only"}}' > "$SANDBOX/live-like.json"
+printf '%s\n' '{"skillOverrides": {"gh-pr": "user-invocable-only", "gh-review": "user-invocable-only", "gh-start": "user-invocable-only"}}' > "$SANDBOX/live-like.json"
 out="$(python3 "$BUILD" "$SANDBOX/suite" --repo "$REPO_ROOT" --settings "$SANDBOX/live-like.json")"
 included="$(ls "$SANDBOX/suite/skills" | tr '\n' ' ')"
-expected="article-style branch-cleanup gh-finish gh-issue gh-start git-operations implementation-quality issue-writing model-routing "
-if [[ "$included" == "$expected" ]]; then ok "live と同じ skillOverrides なら、モデルが起動できる9個だけを入れる"; else ng "included skills: $included"; fi
-for name in break-consensus knowledge-audit gh-roadmap-run; do
+expected="article-style branch-cleanup gh-finish gh-issue git-operations implementation-quality issue-writing model-routing "
+if [[ "$included" == "$expected" ]]; then ok "live と同じ skillOverrides なら、モデルが起動できる8個だけを入れる"; else ng "included skills: $included"; fi
+for name in break-consensus gh-test-first gh-roadmap-run; do
   if [[ "$out" == *"excluded: $name (manual-only)"* ]]; then ok "$name は manual-only として除く"; else ng "$name not excluded as manual-only: $out"; fi
 done
 if [[ "$out" == *"excluded: gh-pr (skillOverrides user-invocable-only)"* ]]; then ok "skillOverrides の user-invocable-only を除く"; else ng "gh-pr not excluded: $out"; fi
@@ -31,7 +31,7 @@ if jq -e '.name == "atk"' "$SANDBOX/suite/.claude-plugin/plugin.json" >/dev/null
 if [[ ! -e "$SANDBOX/suite/skills/implementation-quality/SKILL.md" ]] || find "$SANDBOX/suite" -type l | grep -q .; then ng "skills are missing or still symlinks"; else ok "skill は symlink を解決して copy する"; fi
 
 cases="$(ls "$SANDBOX/suite/evals" | wc -l)"
-if [[ "$cases" -eq 10 && "$out" == *"cases: 10"* ]]; then ok "case は10件"; else ng "cases: $cases"; fi
+if [[ "$cases" -eq 9 && "$out" == *"cases: 9"* ]]; then ok "case は9件（gh-start は起動できないので飛ばす）"; else ng "cases: $cases"; fi
 bad=""
 for d in "$SANDBOX"/suite/evals/*/; do
   grep -q '^max_turns: 2$' "$d/prompt.md" || bad+=" $(basename "$d"):max_turns"
@@ -39,7 +39,9 @@ for d in "$SANDBOX"/suite/evals/*/; do
 done
 if [[ -z "$bad" ]]; then ok "各 case に prompt（2 turn まで）と grader がある"; else ng "case problems:$bad"; fi
 
-if python3 - "$SANDBOX/suite/evals/gh-start/graders/fires-gh-start.md" <<'PY'
+out="$(python3 "$BUILD" "$SANDBOX/suite2" --repo "$REPO_ROOT" --settings "$SANDBOX/missing.json")"
+if [[ -d "$SANDBOX/suite2/skills/gh-pr" ]]; then ok "settings が無ければ override を適用しない"; else ng "gh-pr missing without settings"; fi
+if python3 - "$SANDBOX/suite2/evals/gh-start/graders/fires-gh-start.md" <<'PY'
 import re, sys
 text = open(sys.argv[1], encoding="utf-8").read()
 pattern = re.search(r"^input_match: '(.*)'$", text, re.M).group(1)
@@ -52,9 +54,6 @@ then
 else
   ng "input_match regex"
 fi
-
-out="$(python3 "$BUILD" "$SANDBOX/suite2" --repo "$REPO_ROOT" --settings "$SANDBOX/missing.json")"
-if [[ -d "$SANDBOX/suite2/skills/gh-pr" ]]; then ok "settings が無ければ override を適用しない"; else ng "gh-pr missing without settings"; fi
 printf '%s\n' '{"skillOverrides": {"gh-start": "off"}}' > "$SANDBOX/start-off.json"
 out="$(python3 "$BUILD" "$SANDBOX/suite3" --repo "$REPO_ROOT" --settings "$SANDBOX/start-off.json")"
 if [[ "$out" == *"skipped case: gh-start (gh-start is not model-invocable here)"* && ! -e "$SANDBOX/suite3/evals/implementation-quality/graders/not-gh-start.md" ]]; then

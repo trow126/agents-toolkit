@@ -1,6 +1,6 @@
 ---
 name: implementation-quality
-description: Loads only the relevant test, error-handling, diagnosis, hygiene, and language rules for a change. Use when implementing, fixing, refactoring, or reviewing code. Not for Python structure reports (python-refactor-analysis) or Git (git-operations).
+description: Loads only the relevant test, error-handling, diagnosis, hygiene, and language rules for a change. Use when implementing, fixing, refactoring, or reviewing code. Not for Git (git-operations).
 ---
 
 # Implementation Quality

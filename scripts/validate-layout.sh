@@ -1098,11 +1098,12 @@ STALE_PATTERNS=(
   "agmsg"
   "claude-code/(plan-review|pr-review)|codex/references/python-quality|gpt-5-4-prompting"
   "(ai-engineer|blockchain-security-auditor|code-reviewer|data-engineer|deep-reasoner|model-qa-specialist|solidity-engineer|plan-reviewer)([^-_a-z]|$)"
+  "shared/skills/(gh-index|knowledge-audit|python-refactor-analysis)|codex/skills/kaggle|rules/self-improvement"
 )
 while IFS= read -r f; do
   case "$f" in
     # measure-metrics.sh は改名前 layout の計測のため、bootstrap.sh は stale link の
-    # cleanup 対象（STALE_CLAUDE_SKILLS）として、旧 path を意図的に参照する
+    # cleanup 対象（STALE_CLAUDE_SKILLS・STALE_AGENTS_SKILLS）として、旧 path を意図的に参照する
     # check-managed-policy.py は削除済み hook の登録を拒否する deny-list として名前を持つ
     docs/* | tests/* | scripts/validate-layout.sh | scripts/measure-metrics.sh | scripts/check-managed-policy.py | bootstrap.sh) continue ;;
   esac

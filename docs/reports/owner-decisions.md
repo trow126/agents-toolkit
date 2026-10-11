@@ -50,6 +50,7 @@
 | P5-Q2 | Codex の explorer | gpt-5.6-terra から gpt-6-luna（medium）に変える（2026-09-26） |
 | P5-Q3 | `--cross` の Claude worker | main が opus になったので、fable に変える（2026-09-26） |
 | RE-1 | Codex の実装担当の route（P5-Q1 を置き換える） | gpt-6.1-sol/xhigh に変える。Codex CLI 0.159.3 の replay eval（T1〜T10、各2回）で gate の成功率は astra/medium と同じ 20/20。T7〜T10 の盲検 review で品質の合計点が最も高く（16.6/20、astra/medium 14.6、sol61/medium 15.3）、credit の見積もりは astra/medium の約1/3、時間は約2.2倍。fallback は gpt-6-astra/medium。`docs/reports/2026-10-01-routing-eval-sol61.md`（2026-10-01） |
+| D14 | 利用実績の無い skill の整理 | 2026-10-12 のskill棚卸しで、Claude の会話ログ（2026-09-13〜10-12）と Codex のセッションログのどちらにも利用が無かった `gh-index`、`knowledge-audit`、`python-refactor-analysis`、`kaggle` を `docs/archive/skills/` へ退避する。読み手が knowledge-audit だけだった `shared/rules/self-improvement.md` も削除する。両 runtime の古い link は `bootstrap.sh` の `STALE_CLAUDE_SKILLS`・`STALE_AGENTS_SKILLS` で検出・除去する。Claude 側では gh-start を `skillOverrides` で user-invocable-only にし、Issue 実装をテスト先行の `/gh-test-first` にそろえる（live の settings は D5 により owner が変更する）（2026-10-12、この作業 session で owner が選択） |
 
 ## 未決定の論点（D）
 

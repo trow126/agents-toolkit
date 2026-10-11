@@ -15,12 +15,16 @@
 | `deep-research-mode` | 自動起動のみの行動修飾で、内容は一般助言（現行モデルの既定動作と重複） |
 | `gh-codex-drive` | 2026-10-11 除外（Issue #14）。Codex へ実装を委任しない owner 決定。2026-10 の A/B（`docs/eval/sandwich-ab-results.md`・`sandwich-ab-d-results.md`）で REJECT。後継は `gh-test-first`。launcher・gate（`claude/bin` の委任 4 本）と implementer profile は git history にだけ残す |
 | `gh-roadmap-drive` | 2026-10-11 除外（Issue #14）。同上。後継は `gh-roadmap-run` |
+| `gh-index` | 2026-10-12 除外（owner 決定 D14）。旧 source `shared/skills/gh-index`。両 runtime で利用実績なし。Issue 計画の起点は `gh-roadmap-plan` |
+| `knowledge-audit` | 2026-10-12 除外（D14）。旧 source `shared/skills/knowledge-audit`。両 runtime で利用実績なし。唯一の読み手だった `shared/rules/self-improvement.md` も削除し、git history にだけ残す |
+| `python-refactor-analysis` | 2026-10-12 除外（D14）。旧 source `shared/skills/python-refactor-analysis`。両 runtime で利用実績なし。CI の pytest step も外した（復元時は `uv run --frozen pytest -q` の step を戻す） |
+| `kaggle` | 2026-10-12 除外（D14）。旧 source `codex/skills/kaggle`（Codex 専用）。利用実績なし。復元時は `.gitignore` の `!codex/skills/kaggle/` allowlist も戻す |
 
 `agmsg`（cross-agent messaging skill）は 2026-09-08 に skill 本体ごと削除した（最終利用 2026-06-23、以降 Claude Code / Codex のどちらからも呼ばれていない）。本 archive に退避していた 4 runtime 向け context template も同時に削除し、archive には残していない。
 
 ## 復元方法
 
-1. 対象ディレクトリを `claude/skills/` へ戻す（`git mv`）
+1. 対象ディレクトリを旧 source（既定は `claude/skills/`。表に旧 source を書いたものはその path）へ戻す（`git mv`）。`bootstrap.sh` の stale link 一覧からも外す
 2. `install/manifest.tsv` に `link-dir` 行を追加する
 3. `./scripts/validate-layout.sh` と `./bootstrap.sh --check` を確認する
 

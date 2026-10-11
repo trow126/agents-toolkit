@@ -97,6 +97,16 @@ STALE_CLAUDE_SKILLS=(
   "x-article-to-markdown"
   "plan-review|shared/skills/claude-code/plan-review"
   "pr-review|shared/skills/claude-code/pr-review"
+  "gh-index|shared/skills/gh-index"
+  "knowledge-audit|shared/skills/knowledge-audit"
+  "python-refactor-analysis|shared/skills/python-refactor-analysis"
+)
+# 同じ規則の ~/.agents/skills 版。要素は常に "name|旧 source の repo 相対 path"。
+STALE_AGENTS_SKILLS=(
+  "gh-index|shared/skills/gh-index"
+  "knowledge-audit|shared/skills/knowledge-audit"
+  "python-refactor-analysis|shared/skills/python-refactor-analysis"
+  "kaggle|codex/skills/kaggle"
 )
 
 # manifest 1ファイルを読み込み、検証しつつ ENTRY_* 配列へ追加する(fail-fast)
@@ -265,24 +275,34 @@ is_legacy_shared_skill_dir() {
   fi
 }
 
-# archive 済み Claude skill の旧 generated symlink かを厳密に判定する。
+# archive 済み skill の旧 generated symlink かを厳密に判定する。
 # 実体が復元済みの link、別 repo、相対 target、通常 file/directory は対象外。
-is_stale_claude_skill_link() {
+is_stale_skill_link() {
   local target_abs="$1" old_source_rel="$2"
   [[ -L "$target_abs" && ! -e "$target_abs" ]] || return 1
   [[ "$(readlink "$target_abs")" == "$REPO_DIR/$old_source_rel" ]]
 }
 
-handle_stale_claude_skill_links() {
+handle_stale_skill_links() {
   local action="$1"
-  local entry skill_name old_source_rel target_abs count=0
+  local entry skills_dir skill_name old_source_rel target_abs count=0
+  local -a candidates=()
 
+  # 要素を "skills dir|name|旧 source" へ正規化する
   for entry in "${STALE_CLAUDE_SKILLS[@]}"; do
     skill_name="${entry%%|*}"
     old_source_rel="claude/skills/$skill_name"
     [[ "$entry" == *"|"* ]] && old_source_rel="${entry#*|}"
-    target_abs="$HOME/.claude/skills/$skill_name"
-    is_stale_claude_skill_link "$target_abs" "$old_source_rel" || continue
+    candidates+=(".claude/skills|$skill_name|$old_source_rel")
+  done
+  for entry in "${STALE_AGENTS_SKILLS[@]}"; do
+    candidates+=(".agents/skills|$entry")
+  done
+
+  for entry in "${candidates[@]}"; do
+    IFS='|' read -r skills_dir skill_name old_source_rel <<< "$entry"
+    target_abs="$HOME/$skills_dir/$skill_name"
+    is_stale_skill_link "$target_abs" "$old_source_rel" || continue
     count=$((count + 1))
     case "$action" in
       check)
@@ -302,7 +322,7 @@ handle_stale_claude_skill_links() {
     esac
   done
 
-  STALE_CLAUDE_SKILL_COUNT="$count"
+  STALE_SKILL_COUNT="$count"
 }
 
 # 1エントリ分の symlink 状態を検証し、apply=true なら実際に symlink を作成する
@@ -400,9 +420,9 @@ run_apply_or_dryrun() {
   local i
   preflight_targets
   if [[ "$apply" == "true" ]]; then
-    handle_stale_claude_skill_links "apply"
+    handle_stale_skill_links "apply"
   else
-    handle_stale_claude_skill_links "dry-run"
+    handle_stale_skill_links "dry-run"
   fi
   for ((i = 0; i < ${#ENTRY_MODE[@]}; i++)); do
     local target="${ENTRY_TARGET[$i]}"
@@ -437,8 +457,8 @@ run_check() {
     fi
   done
 
-  handle_stale_claude_skill_links "check"
-  problems=$((problems + STALE_CLAUDE_SKILL_COUNT))
+  handle_stale_skill_links "check"
+  problems=$((problems + STALE_SKILL_COUNT))
 
   echo
   if [[ "$problems" -eq 0 ]]; then

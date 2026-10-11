@@ -15,13 +15,8 @@ git-operations	merge	allow	allow	allow	deny	deny	deny	deny	exact local merge wit
 git-operations	push	deny	deny	deny	allow	deny	deny	deny	push the exact branch and remote
 config-audit	default	deny	deny	deny	deny	deny	deny	deny	read-only report
 config-audit	--record	deny	allow	deny	deny	deny	deny	deny	append one XDG history record
-knowledge-audit	default	deny	deny	deny	deny	deny	deny	deny	in-chat report
-knowledge-audit	--apply	allow	deny	deny	deny	deny	deny	deny	selected project knowledge files only
 gh-finish	default	deny	deny	deny	deny	deny	deny	deny	verify implementation and preview exact operations; no writes
 gh-finish	--apply	allow	allow	allow	deny	allow	deny	deny	commit scoped changes locally merge and close one Issue with a comment
-gh-index	default	deny	deny	deny	deny	deny	deny	deny	in-chat index
-gh-index	--output	allow	deny	deny	deny	deny	deny	deny	exact repo-local path
-gh-index	--output --force	allow	deny	deny	deny	deny	deny	deny	overwrite the exact existing repo-local file named by --output
 gh-roadmap-run	default	allow	allow	allow	deny	allow	deny	deny	per sub-Issue gh-test-first implementation in this session then commit local merge close plus one tracking checklist update; no Codex delegation
 gh-roadmap-run	--critic	allow	allow	allow	deny	allow	deny	allow	the default loop plus one cross-critic --gate run per judgment gate; gate material goes to the critic sessions
 gh-roadmap-run	--status	deny	deny	deny	deny	deny	deny	deny	report checklist state and evidence only; no implementation critics edits or writes
@@ -51,8 +46,5 @@ gh-issue	close	deny	deny	deny	deny	allow	deny	deny	close one Issue
 gh-issue	retro	deny	deny	deny	deny	deny	deny	deny	in-chat retrospective
 gh-issue	retro --apply	allow	deny	deny	deny	deny	deny	deny	write exact project file
 issue-writing	default	deny	deny	deny	deny	deny	deny	deny	drafting does not authorize creating or updating an Issue
-kaggle	default	deny	allow	deny	deny	deny	deny	deny	read-only listing reports and downloads may write requested local download state
-kaggle	account-write	deny	allow	deny	deny	deny	deny	deny	explicit Kaggle account writes; credential-file creation is local state and external writes are outside these columns
 model-routing	default	deny	deny	deny	deny	deny	deny	deny	advisory owner routing escalation and model verification rules only
 plan-review	default	allow	deny	deny	deny	deny	deny	deny	Codex only; launch one read-only plan_reviewer and save its result under claudedocs/reviews
-python-refactor-analysis	default	allow	deny	deny	deny	deny	deny	deny	write analysis reports under the target repository .analysis directory

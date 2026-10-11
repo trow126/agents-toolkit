@@ -524,6 +524,15 @@ done
 for skill_name in plan-review pr-review; do
   ln -s "$REPO13/shared/skills/claude-code/$skill_name" "$HOME13/.claude/skills/$skill_name"
 done
+# 2026-10-12 archive: shared source は両 runtime、kaggle は Codex だけに配布していた
+STALE_SHARED_NAMES=(gh-index knowledge-audit python-refactor-analysis)
+mkdir -p "$HOME13/.agents/skills"
+for skill_name in "${STALE_SHARED_NAMES[@]}"; do
+  ln -s "$REPO13/shared/skills/$skill_name" "$HOME13/.claude/skills/$skill_name"
+  ln -s "$REPO13/shared/skills/$skill_name" "$HOME13/.agents/skills/$skill_name"
+done
+ln -s "$REPO13/codex/skills/kaggle" "$HOME13/.agents/skills/kaggle"
+ln -s "$REPO13/codex/skills/unknown-archive" "$HOME13/.agents/skills/unknown-archive"
 ln -s "$REPO13/claude/skills/unknown-archive" "$HOME13/.claude/skills/unknown-archive"
 ln -s "$SANDBOX/other-repo/claude/skills/deep-research-mode" "$HOME13/.claude/skills/other-repo"
 printf 'SENTINEL\n' > "$HOME13/.claude/skills/user-file"
@@ -534,6 +543,8 @@ assert_exit_nonzero "旧 broken symlink があると --check は失敗する" "$
 assert_contains "--check は既知のstale linkを列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.claude/skills/deep-research-mode"
 assert_not_contains "--check は未知のbroken linkをtoolkit対象とみなさない" "$out" "stale toolkit symlink: $HOME13/.claude/skills/unknown-archive"
 assert_contains "--check は旧 shared source の stale link を列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.claude/skills/plan-review"
+assert_contains "--check は ~/.agents/skills の stale link を列挙する" "$out" "DRIFT: stale toolkit symlink: $HOME13/.agents/skills/kaggle"
+assert_not_contains "--check は ~/.agents/skills の未知のbroken linkを対象とみなさない" "$out" "stale toolkit symlink: $HOME13/.agents/skills/unknown-archive"
 
 out=""; rc=0
 out="$(run_bootstrap "$REPO13" "$HOME13" "$NO_OVERLAY" --dry-run 2>&1)" || rc=$?
@@ -551,6 +562,12 @@ done
 for skill_name in plan-review pr-review; do
   assert_false "旧 shared source の stale link を除去する: $skill_name" test -L "$HOME13/.claude/skills/$skill_name"
 done
+for skill_name in "${STALE_SHARED_NAMES[@]}"; do
+  assert_false "旧 shared source の stale link を除去する(Claude): $skill_name" test -L "$HOME13/.claude/skills/$skill_name"
+  assert_false "旧 shared source の stale link を除去する(Codex): $skill_name" test -L "$HOME13/.agents/skills/$skill_name"
+done
+assert_false "旧 Codex source の stale link を除去する: kaggle" test -L "$HOME13/.agents/skills/kaggle"
+assert_true "~/.agents/skills の未知のbroken linkは保持する" test -L "$HOME13/.agents/skills/unknown-archive"
 assert_true "未知のbroken linkは保持する" test -L "$HOME13/.claude/skills/unknown-archive"
 assert_true "別repoを指すbroken linkは保持する" test -L "$HOME13/.claude/skills/other-repo"
 assert_eq "通常fileは保持する" "SENTINEL" "$(cat "$HOME13/.claude/skills/user-file")"
