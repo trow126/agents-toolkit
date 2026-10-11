@@ -157,6 +157,8 @@
 | `~/.config/agents-toolkit/eval/sandwich/config-d.json`（追跡しない） | この実験の設定 |
 | `~/eval-sandwich-d/`（追跡しない） | mirror、作業ツリー、`results.jsonl`、盲検 pack |
 
+再現（2026-10-12 追記）: arm D と `selftest` が使う Codex 委任の基盤（launcher・gate・`delegation_common.render_prompt`・implementer profile）は #14 で toolkit から削除した。再現するときは、`git worktree add <dir> d201b05`（#14 の直前）で作った worktree の `claude/bin` を config の `toolkit_bin` にし、その worktree の `codex/profiles/toolkit-implementer.config.toml` を `$CODEX_HOME` に置く。揃っていなければ harness は Codex を呼ぶ前に止まる（#16）。
+
 ## 11. 凍結の記録（2026-10-04、本番の run を 1 つも始める前）
 
 ### 11.1 題材の検証

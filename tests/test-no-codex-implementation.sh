@@ -34,7 +34,7 @@ done
 PATTERN='codex[-]delegate|verify[-]delegation|delegation[-]evidence|gh-codex-drive|gh-roadmap-drive|toolkit-implementer'
 hits="$(git -C "$REPO_ROOT" grep --untracked -nE "$PATTERN" -- . \
   ':!docs/reports' ':!docs/eval' ':!docs/plans' ':!docs/archive' \
-  ':!tests/test-no-codex-implementation.sh' ':!tests/test-bootstrap.sh' || true)"
+  ':!tests/test-no-codex-implementation.sh' ':!tests/test-bootstrap.sh' ':!tests/test-sandwich-ab-harness.sh' || true)"
 unexpected="$(printf '%s\n' "$hits" | grep -vE \
   -e '^bootstrap\.sh:[0-9]+:  "gh-(codex|roadmap)-drive"$' \
   -e '^tests/test-break-consensus-cross\.sh:[0-9]+:.*(grep -nE|ok "break-consensus は実装の経路)' \

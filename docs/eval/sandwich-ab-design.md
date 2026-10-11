@@ -270,6 +270,8 @@
 
 harness は eval 専用の道具なので、`scripts/`（inventory の対象）ではなく `docs/eval/` に置いた。
 
+再現（2026-10-12 追記）: arm B・C が使う Codex 委任の基盤（launcher・gate・implementer profile）は #14 で toolkit から削除した。arm B・C を再現するときは、`git worktree add <dir> d201b05`（#14 の直前）で作った worktree の `claude/bin` を config の `toolkit_bin` にし、その worktree の `codex/profiles/toolkit-implementer.config.toml` を `$CODEX_HOME` に置く。揃っていなければ harness は Codex を呼ぶ前に止まる（#16）。
+
 ## 11. 凍結の記録（2026-10-03、本番の run を 1 つも始める前）
 
 ### 11.1 題材の準備結果

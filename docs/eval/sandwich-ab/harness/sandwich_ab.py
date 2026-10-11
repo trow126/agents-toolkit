@@ -15,6 +15,11 @@ usage:
   sandwich_ab.py blind-pack [--config PATH] [--seed N]          盲検 review の pack を作る
   sandwich_ab.py blind-review [--config PATH] [--dry-run]       pack ごとに、config の blind_reviewers 全員（Opus と Codex）が採点
 
+arm B・C・D と selftest は Codex への実装委任の基盤を使う。基盤は #14 で toolkit から削除したので、再現するときは
+d201b05（#14 の直前）の worktree の claude/bin を toolkit_bin にし、その worktree の
+codex/profiles/toolkit-implementer.config.toml を $CODEX_HOME に置く。揃っていなければ run と selftest は Codex を呼ぶ前に止まり、
+check は warning を出す（#16）。
+
 1 run = 1 題材 × 1 アーム × 1 反復。run ごとに bare mirror から detached worktree を作り、base から始める。
 受け入れテストと隠しテストは採点時だけ作業ツリーの写しに置き、どのアームのプロンプトにも入れない。
 結果は eval_root/results.jsonl に 1 行ずつ追記する。記録済みの rid は飛ばすので再開できる。
@@ -51,6 +56,12 @@ STOP = threading.Event()  # 致命的な基盤エラー（CLI の版の変化な
 VISIBLE_ARMS = {"AP", "D"}
 VISIBLE_DIR = "tests/_acceptance"
 RID_RE = r"S\d+-[A-Za-z0-9]+-r\d+"
+# arm B・C・D と selftest は Codex への実装委任の基盤を使う。基盤は #14 で toolkit から削除した。
+DELEGATION_ARMS = {"B", "C", "D"}
+DELEGATION_BINS = ("codex-delegate", "verify-delegation", "delegation-evidence-check")
+DELEGATION_NAMES = ("render_prompt", "CONTRACT_SCHEMA")
+DELEGATION_REMOVED = ("委任基盤は #14 で削除済み。再現するには d201b05（#14 の直前）の worktree の claude/bin を toolkit_bin にし、"
+                      "その worktree の codex/profiles/toolkit-implementer.config.toml を $CODEX_HOME に置く")
 
 
 # ---------------------------------------------------------------- utilities
@@ -686,6 +697,27 @@ def run_one(cfg: dict, task: dict, arm_id: str, rep: int, dry: bool) -> dict | N
     return rec
 
 
+def delegation_missing(cfg: dict) -> list[str]:
+    """委任基盤のうち欠けているものを返す（空なら揃っている）。delegation_common は実行せず、top-level の定義を見る。"""
+    import ast
+    binp = cfg["toolkit_bin"]
+    missing = [str(binp / n) for n in DELEGATION_BINS if not (binp / n).exists()]
+    dc_path = binp / "delegation_common.py"
+    defined: set[str] = set()
+    if dc_path.exists():
+        for node in ast.parse(dc_path.read_text()).body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                defined.add(node.name)
+            elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                defined.update(t.id for t in targets if isinstance(t, ast.Name))
+    missing += [f"{dc_path}: {n}" for n in DELEGATION_NAMES if n not in defined]
+    prof = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "toolkit-implementer.config.toml"
+    if not prof.exists():
+        missing.append(str(prof))
+    return missing
+
+
 def cli_versions() -> dict:
     return {c: sh([c, "--version"], check=False).stdout.strip() for c in ("claude", "codex")}
 
@@ -700,9 +732,11 @@ def cmd_check(cfg: dict, _a) -> int:
         print("codex:", sh(["codex", "--version"], check=False).stdout.strip())
     if shutil.which("claude"):
         print("claude:", sh(["claude", "--version"], check=False).stdout.strip())
-    prof = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex") / "toolkit-implementer.config.toml"
-    if not prof.exists():
-        problems.append(f"Codex profile missing: {prof} (bootstrap.sh --apply)")
+    missing = delegation_missing(cfg)
+    if missing and DELEGATION_ARMS & set(cfg["arms"]):
+        # arm A・AP だけの実行を妨げないよう、失敗にはしない。arm B・C・D の run と selftest は自分で止まる
+        print(f"WARN: arm B・C・D と selftest は動かない。欠けている委任基盤: {', '.join(missing)}")
+        print(f"WARN: {DELEGATION_REMOVED}")
     for name in ("plan.md", "plan-prompt.md", "solo-prompt.md", "review.md", "review-verdict.schema.json", "blind-review.md",
                  "visible-tests.md", "light-review.md"):
         if not (cfg["templates_dir"] / name).exists():
@@ -741,6 +775,10 @@ def cmd_selftest(cfg: dict, _a) -> int:
        visible なしの契約（前回の arm C の形）にも interface が入る（前回の不具合の回帰検査）。
     2. arm D の制御（gate の反復上限、軽量レビュー 1 回、must_fix の修正依頼 1 回、BLOCKED・stopped の終了）を stub で通す。"""
     import tempfile
+    if missing := delegation_missing(cfg):
+        print(f"FAIL: selftest は arm D の委任基盤を使うが、欠けている: {', '.join(missing)}")
+        print(f"FAIL: {DELEGATION_REMOVED}")
+        return 1
     sys.path.insert(0, str(cfg["toolkit_bin"]))
     import delegation_common as dc
     problems = []
@@ -860,6 +898,10 @@ def cmd_run(cfg: dict, a) -> int:
         done = {json.loads(x)["rid"] for x in results.read_text().splitlines() if x.strip() and "harness_error" not in x}
     tasks = {t["id"]: t for t in load_tasks(cfg)}
     jobs = [j for j in sched if f"{j['task']}-{j['arm']}-r{j['rep']}" not in done and j["task"] in tasks][: a.limit or None]
+    need = sorted({j["arm"] for j in jobs} & DELEGATION_ARMS)
+    if need and (missing := delegation_missing(cfg)):
+        log(f"STOP: arm {','.join(need)} は委任基盤を使うが、欠けている: {', '.join(missing)}。{DELEGATION_REMOVED}")
+        return 1
     vfile = cfg["eval_root"] / "versions.json"
     v0 = cli_versions()
     if vfile.exists() and json.loads(vfile.read_text()) != v0:
