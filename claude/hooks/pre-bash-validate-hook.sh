@@ -111,7 +111,8 @@ NORM=$(printf '%s' "$COMMAND" | tr -d '\042\047')
 # - subagent（hook 入力に agent_id または agent_type がある）からは Codex を起動しない。
 #   subagent 内の process は 600 秒後の Bash 自動 background 化で終了済み agent に残り、
 #   完了通知が main session に届かない（2026-09 の codex-rescue で再現）。
-# - main session でも companion の task --background と、書き込み可能な codex exec は拒否する。
+# - main session でも companion の task --background、書き込み可能な companion task（--write、Issue #15）、
+#   書き込み可能な codex exec は拒否する。
 #   Codex へ実装を委任しない（owner 決定 2026-10-11、Issue #14）。codex exec -s read-only は main だけ許可する。
 # - break-consensus --cross の Codex worker（~/.claude/bin/break-consensus-cross codex）も Codex の起動として
 #   扱う。main では Claude worker と並行させ完了通知を受け取るため、Bash(run_in_background=true) を必須にする。
@@ -131,6 +132,12 @@ if [[ -n "$AGENT_ID" || -n "$AGENT_TYPE" ]]; then
 else
     if [[ "$IS_COMPANION_TASK" == true ]] && printf '%s' "$NORM" | grep -qE '(^|[[:space:]])--background([[:space:]]|$)'; then
         block "companion の task --background を拒否した。完了通知を main session が受け取れるよう、Bash(run_in_background=true) で起動すること"
+    fi
+    # companion の parseArgs は --write と --write=<false 以外> を書き込み可能（workspace-write）とみなす。
+    # pipefail 下で grep -q の早期終了が SIGPIPE で判定を偽にしないよう、token は変数に取ってから見る。
+    WRITE_FLAGS=$(printf '%s' "$NORM" | tr '[:space:]' '\n' | grep -E '^--write(=.*)?$' || true)
+    if [[ "$IS_COMPANION_TASK" == true && -n "$WRITE_FLAGS" ]] && grep -qvx -- '--write=false' <<<"$WRITE_FLAGS"; then
+        block "書き込み可能な companion task（--write）を拒否した。Codex へ実装を委任しない（Issue #14）。read-only の検討だけ --write なしの companion task か codex exec -s read-only を使うこと"
     fi
     if [[ "$IS_EXEC" == true ]]; then
         if ! printf '%s' "$NORM" | grep -qE '(^|[[:space:]])(-s|--sandbox)([[:space:]]+|=)read-only([[:space:]]|$)' ||

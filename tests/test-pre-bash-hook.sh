@@ -247,8 +247,8 @@ expect_block_agent_tool_background \
   "別 agent の Bash run_in_background=true の companion task も block" "general-purpose" \
   "node \"$COMPANION\" task --write \"implement the fix\""
 expect_allow_agent_tool_background \
-  "main session相当の companion Bash background は許可" "" \
-  "node \"$COMPANION\" task --write \"implement the fix\""
+  "main session相当の read-only companion task（Bash background）は許可" "" \
+  "node \"$COMPANION\" task \"review the diff\""
 
 rc=0
 reason_output=$(
@@ -321,7 +321,7 @@ expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 # ---- 7. codex-companion subcommand に --help/-h を渡す事故(2026-09-03: --help が prompt になり Codex 実行が走った) ----
 expect_block "task --help を block" "node \"$COMPANION\" task --help"
 expect_block "task -h を block" "node \"$COMPANION\" task -h"
-expect_block "flag の後ろの --help も block" "node \"$COMPANION\" task --write --model gpt-5.3-codex --help"
+expect_block "flag の後ろの --help も block" "node \"$COMPANION\" task --model gpt-5.3-codex --help"
 expect_block "review --help を block" "node \"$COMPANION\" review --help"
 expect_block "adversarial-review --help を block" "node \"$COMPANION\" adversarial-review --help"
 expect_block "task help(bare) を block" "node \"$COMPANION\" task help"
@@ -331,13 +331,13 @@ expect_block "top-level --help と task --help の複合 command を block" \
 expect_block "~ path の task --help も block" 'node ~/.claude/plugins/cache/openai-codex/codex/1.0.6/scripts/codex-companion.mjs task --help 2>&1 | head -60'
 expect_allow "subcommand なしの --help は許可" "node \"$COMPANION\" --help"
 expect_allow "subcommand なしの help は許可" "node \"$COMPANION\" help"
-expect_allow "task --write --prompt-file は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/prompt.md"
+expect_allow "task --prompt-file は許可" "node \"$COMPANION\" task --prompt-file /tmp/prompt.md"
 expect_allow "codex-route.env の --model / --effort を付けた task は許可" \
-  "node \"$COMPANION\" task --write --model \"\$CODEX_MODEL\" --effort \"\$CODEX_EFFORT\" --prompt-file /tmp/prompt.md"
-expect_allow "task --write \"prompt\" は許可" "node \"$COMPANION\" task --write \"implement the fix\""
+  "node \"$COMPANION\" task --model \"\$CODEX_MODEL\" --effort \"\$CODEX_EFFORT\" --prompt-file /tmp/prompt.md"
+expect_allow "task \"prompt\" は許可" "node \"$COMPANION\" task \"review the diff\""
 expect_allow "status / result は許可" "node \"$COMPANION\" status; node \"$COMPANION\" result task-123"
 expect_allow "別 segment の -h は本規則の対象外" "node \"$COMPANION\" status; grep -h foo bar"
-expect_allow "-h を含む file 名は許可" "node \"$COMPANION\" task --write --prompt-file /tmp/x-h.md"
+expect_allow "-h を含む file 名は許可" "node \"$COMPANION\" task --prompt-file /tmp/x-h.md"
 
 # ---- 8. Codex 起動 guard（D8）。Codex へ実装を委任しない（Issue #14）ので launcher は無い ----
 hook_reason() { # <command> [agent_type] — block 理由（stderr）を返す
@@ -350,6 +350,25 @@ jq -n --arg c "codex exec -s read-only 'review'" '{"hook_event_name":"PreToolUse
   | "$HOOK" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then ok "agent_id だけを持つ入力（subagent）の codex exec も block"; else ng "agent_id subagent exec: exit $rc"; fi
 expect_block "main session の companion task --background は block" "node \"$COMPANION\" task --background --write \"fix\""
+# 書き込み可能な companion task（--write、または --write=<false 以外>）は main session でも block（Issue #15）
+expect_block "main session の companion task --write は block" "node \"$COMPANION\" task --write \"implement the fix\""
+expect_block_agent_tool_background "main session の companion task --write（Bash background）も block" "" \
+  "node \"$COMPANION\" task --write \"implement the fix\""
+expect_block "prompt の後ろの --write も block" "node \"$COMPANION\" task \"implement the fix\" --write"
+expect_block "--write=true は block" "node \"$COMPANION\" task --write=true --prompt-file /tmp/p.md"
+expect_block "--write=<false 以外> は block（companion は false 以外を真とみなす）" "node \"$COMPANION\" task --write=FALSE --prompt-file /tmp/p.md"
+expect_block "quote 分割 --wr\"\"ite は block" "node \"$COMPANION\" task --wr\"\"ite \"implement the fix\""
+expect_block "--model などの flag の後ろの --write も block" \
+  "node \"$COMPANION\" task --model \"\$CODEX_MODEL\" --effort high --write --prompt-file /tmp/p.md"
+expect_allow "--write=false は read-only なので許可" "node \"$COMPANION\" task --write=false --prompt-file /tmp/p.md"
+expect_allow "--write なしの companion task は許可" "node \"$COMPANION\" task --prompt-file /tmp/p.md"
+expect_allow "companion の他の subcommand の --write 以外は対象外" "node \"$COMPANION\" status; node \"$COMPANION\" result task-123"
+reason="$(hook_reason "node \"$COMPANION\" task --write \"implement the fix\"")"
+if [[ "$reason" == *"#14"* && "$reason" == *read-only* && "$reason" != *codex-delegate* ]]; then
+  ok "companion task --write の block 理由は #14 と read-only の代替を示し、撤去済み launcher へ誘導しない"
+else
+  ng "companion task --write の block 理由: $reason"
+fi
 expect_block "書き込み可能な codex exec（sandbox 指定なし）は block" "codex exec -C /tmp/x - < prompt.md"
 expect_block "書き込み可能な codex exec（workspace-write）は block" "codex exec -s workspace-write -C /tmp/x - < p.md"
 expect_block "global option の後ろの exec も検出する" "codex -p some-profile exec --full-auto 'fix'"
