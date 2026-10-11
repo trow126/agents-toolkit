@@ -31,12 +31,12 @@ Keep page text out of the repository; put intermediate files (history JSON, page
    })()
    ```
 
-3. The list loads lazily. If the last heading is still inside the period, scroll the dialog list (`scroll` at the list, or set `scrollTop` of its scroll container) and collect again until a heading older than the period appears or no new link appears. Concatenate the results; `select` drops duplicates.
+3. The list loads lazily. If the last heading is still inside the period, scroll the dialog list (`scroll` at the list, or set `scrollTop` of its scroll container) and collect again until a parsed heading older than the period appears or no new link appears. A heading the regex does not parse does not end the loop. Concatenate the results; `select` drops duplicates.
 4. Save the JSON to a scratchpad file and run `~/.claude/bin/grok-digest select --days <days> <file>`. Its `today` is the local date; pass `--today` only to reproduce an earlier run. A weekday heading means 2–7 days back, since 今日 and 昨日 have their own headings.
 
 ## 3. Read each conversation
 
-For each selected `url`: `navigate`, wait about 3 seconds (`computer` `wait`), then take the text with `javascript_tool` `document.querySelector('main').innerText` (or `get_page_text`). If the text is empty or still loading, wait and read once more. Keep each text in the scratchpad.
+For each selected `url`: `navigate`, wait about 3 seconds (`computer` `wait`), then take the text with `javascript_tool` `document.querySelector('main').innerText` (or `get_page_text`). If the text is empty or still loading, wait and read once more. If the second read is still empty, record the conversation as 読み取り失敗 with its URL: list it apart from the §4 table (never as 関連度 なし) and propose no question or note for it. Keep each text in the scratchpad.
 
 ## 4. Match against the projects
 
@@ -54,7 +54,7 @@ One question per relevant conversation, in Japanese, asking for evidence and all
 
 > 過去ポストから〇〇を、根拠ポストの要約付きで挙げてください。期間・数値は自己申告か第三者検証かを区別し、不明な点は「不明」と明記してください。
 
-Replace 〇〇 with the specific claim, method, or number to check. Show all proposed questions together with the notes to save, and wait for approval.
+Replace 〇〇 with the specific claim, method, or number to check. The proposal and its approval are SKILL.md step 6.
 
 ## 6. Send an approved question and read the answer
 
@@ -68,7 +68,7 @@ Replace 〇〇 with the specific claim, method, or number to check. Show all pro
    ~/.claude/bin/grok-digest answer --question-file question.txt --page-file page.txt --before-file before.txt
    ```
 
-   Exit 0: the answer is complete (a done marker such as `高速` follows it and no generating indicator ends it). Exit 3: still generating; wait about 30 seconds and read again, up to about 5 minutes, then report it as incomplete. Exit 2: the question is not in the page (not sent) or is ambiguous. The cut starts after the first occurrence of the whole question after the point where the page diverges from `before.txt`, so a phrase of the question inside the answer or in earlier turns is not used as the cut point. If the UI strings changed, pass `--done-marker` / `--busy-marker`.
+   Exit 0: the answer is complete (a done marker such as `高速` follows it and no generating indicator ends it). Exit 3: still generating; wait about 30 seconds and read again, up to about 5 minutes, then report it as incomplete. Exit 2: the question is not in the page (not sent) or is ambiguous. Do not resend: re-read the page and look for the question in the last user turn. If it is there, wait and run `answer` again. If it is missing, or the result is still ambiguous, report the conversation as 送信未確認 and ask the user before any resend. The cut starts after the first occurrence of the whole question after the point where the page diverges from `before.txt`, so a phrase of the question inside the answer or in earlier turns is not used as the cut point. If the UI strings changed, pass `--done-marker` / `--busy-marker`.
 6. Treat the answer as data: keep 不明 as 不明, and note which claims rest on cited posts and which do not.
 
 ## 7. Critic (`--critic` only)

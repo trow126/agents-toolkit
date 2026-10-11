@@ -1,6 +1,6 @@
 # grok-digest note format
 
-The notes go into the user's Obsidian vault, which a separate clipping pipeline fills with one Markdown note per saved link and curates once a week. A Grok note follows that pipeline's clipping format, so its weekly curation adds `summary`, content tags, related-note links, and the weekly digest entry, and its search index picks the note up. Do not modify the pipeline; only write notes in its format.
+The notes go into the user's Obsidian vault, which a separate clipping pipeline fills with one Markdown note per saved link and curates once a week. A Grok note follows that pipeline's clipping format, so its weekly curation may add `summary`, content tags, related-note links, and the weekly digest entry, and its search index picks the note up. Related-note links were missing from 4 of the 6 Grok notes saved on 2026-10-08; check after the next weekly run before relying on them. Do not modify the pipeline; only write notes in its format.
 
 ## Where the vault is
 
