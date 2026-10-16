@@ -172,7 +172,34 @@ fi
 # 変数経由のパターンも代入側の literal が自己一致し得るため対象にする（過剰側に倒す）。
 # 一覧（pgrep -af X）も自分の shell が出て「まだ動いている」と誤判断させるため対象にする。
 # バッククォートは command 位置に数えない（gh comment 本文の Markdown `pgrep -af x` を誤検出するため）。
-PGREP_SEGMENTS=$(printf '%s\n' "$NORM" | grep -oE \
+# heredoc の本文は、shell（bash/sh/zsh/dash/ksh）へ渡すものだけを検査する。commit message や
+# cat > file・python - の本文は実行される shell command ではないため除外する。here-string（<<<）は heredoc ではない。
+PGREP_SCAN=$(printf '%s\n' "$NORM" | awk '
+    n > 0 {
+        line = $0
+        if (strip[cur]) sub(/^\t+/, "", line)
+        if (line == delim[cur]) { cur++; if (cur > n) n = 0 }
+        next
+    }
+    {
+        print
+        rest = $0; keep = 0; m = 0
+        while (match(rest, /<<-?[ \t]*\\?[A-Za-z_][A-Za-z0-9_]*/)) {
+            pre = substr(rest, 1, RSTART - 1)
+            tok = substr(rest, RSTART, RLENGTH)
+            rest = substr(rest, RSTART + RLENGTH)
+            if (pre ~ /<$/) continue
+            seg = pre
+            sub(/.*[;&|(]/, "", seg)
+            if (seg ~ /(^|[ \t\/])(bash|sh|zsh|dash|ksh)([ \t]|$)/) keep = 1
+            m++
+            strip[m] = (tok ~ /^<<-/)
+            sub(/^<<-?[ \t]*\\?/, "", tok)
+            delim[m] = tok
+        }
+        if (m > 0 && !keep) { n = m; cur = 1 }
+    }') || block "failed to strip heredoc bodies for pgrep check (fail-closed)"
+PGREP_SEGMENTS=$(printf '%s\n' "$PGREP_SCAN" | grep -oE \
     '(^|[;&|(!]|(while|until|if|then|do|else|xargs|exec|nohup|time)[[:space:]])[[:space:]]*([^[:space:];&|()`]*/)?(pgrep|pkill)([[:space:]]+[^;&|()`[:space:]]+)*' ||
     true)
 while IFS= read -r seg; do

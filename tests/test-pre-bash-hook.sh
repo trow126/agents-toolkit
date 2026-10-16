@@ -414,6 +414,31 @@ expect_allow "-f なしの pgrep は許可" 'pgrep -x python3; pkill -TERM uv'
 expect_allow "PID 待ちは許可" 'while kill -0 "$PID" 2>/dev/null; do sleep 5; done'
 expect_allow "文字列中の pgrep -f は対象外" 'grep -n "pgrep -f" notes.md'
 expect_allow "Markdown のバッククォート内の pgrep -af は対象外" "gh issue comment 3 --body \"確認: \`pgrep -af 'ollama serve'\` が空\""
+expect_allow "commit message の heredoc 本文は対象外" "git commit -q -F - <<'EOF'
+fix(hooks): block self-matching patterns
+
+Wait loops (\`while pgrep -f X\`, \`until ! pgrep -f X\`) never end.
+; pkill -f X kills its own shell.
+EOF
+git log --oneline -1"
+expect_allow "cat > file と python - の heredoc 本文は対象外" "cat > notes.md <<EOF
+while pgrep -f x; do sleep 1; done
+EOF
+python3 - <<'PY'
+print('pkill -f y')
+PY"
+expect_allow "<<- の tab 付き終端も認識する" "$(printf 'cat <<-EOF\n\twhile pgrep -f x; do :; done\n\tEOF\necho ok')"
+expect_block "heredoc 終了後の pgrep -f は block" "cat > f <<'EOF'
+text
+EOF
+while pgrep -f x >/dev/null; do sleep 1; done"
+expect_block "shell へ渡す heredoc 本文は block" "bash <<'EOF'
+while pgrep -f x >/dev/null; do sleep 1; done
+EOF"
+expect_block "here-string は heredoc とみなさない" 'grep -q x <<< "$v"
+pgrep -f y'
+expect_block "終端のない heredoc の前の行は検査する" "pkill -f y; cat <<EOF
+body"
 reason="$(hook_reason 'pgrep -f foo')"
 if [[ "$reason" == *"[t]ransport"* && "$reason" == *run_in_background* ]]; then
   ok "pgrep -f の block 理由は括弧と完了通知への切り替えを示す"
