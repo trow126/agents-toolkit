@@ -399,6 +399,28 @@ expect_allow "break-consensus-cross prepare / collect / finish は Codex を起�
 expect_block "block device への書き込みを block" 'echo x > /dev/sda'
 expect_block "mkfs を block" 'mkfs.ext4 /dev/sda1'
 
+# ---- 7. pgrep -f / pkill -f の自己一致（2026-10 の待機ループ停止） ----
+expect_block "while pgrep -f の待機ループを block" 'while pgrep -f "transport a1-run" >/dev/null; do sleep 30; done'
+expect_block "until ! pgrep -f の待機ループを block" 'until grep -q DONE x.log && ! pgrep -f "grid-lab coverage" >/dev/null; do sleep 15; done'
+expect_block "pkill -f を block" 'pkill -INT -f "scripts/fetch_bars.py" ; tail -5 log'
+expect_block "pgrep -af の一覧も block" 'pgrep -af keiba-preview-repro | head'
+expect_block "--full も block" 'pgrep --full "foo bar"'
+expect_block "パス指定の pkill -f も block" '/usr/bin/pkill -f worker.py'
+expect_block "コマンド置換の中も block" 'ps -o pid= -p $(pgrep -f "x y")'
+expect_block "変数経由のパターンも block" 'P="foo bar"; pgrep -f "$P"'
+expect_allow "括弧付きの pgrep -f は許可" 'while pgrep -f "[t]ransport a1-run" >/dev/null; do sleep 30; done'
+expect_allow "括弧付きの pkill -f は許可" 'pkill -INT -f "[s]cripts/fetch_bars.py"'
+expect_allow "-f なしの pgrep は許可" 'pgrep -x python3; pkill -TERM uv'
+expect_allow "PID 待ちは許可" 'while kill -0 "$PID" 2>/dev/null; do sleep 5; done'
+expect_allow "文字列中の pgrep -f は対象外" 'grep -n "pgrep -f" notes.md'
+expect_allow "Markdown のバッククォート内の pgrep -af は対象外" "gh issue comment 3 --body \"確認: \`pgrep -af 'ollama serve'\` が空\""
+reason="$(hook_reason 'pgrep -f foo')"
+if [[ "$reason" == *"[t]ransport"* && "$reason" == *run_in_background* ]]; then
+  ok "pgrep -f の block 理由は括弧と完了通知への切り替えを示す"
+else
+  ng "pgrep -f の block 理由: $reason"
+fi
+
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "PASS: all assertions succeeded"

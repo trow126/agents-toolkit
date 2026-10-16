@@ -164,6 +164,29 @@ if printf '%s' "$NORM" | grep -qE 'codex-companion\.mjs[[:space:]]+(task|review|
     block "codex-companion.mjs の task/review/adversarial-review に bare help を渡すと prompt として Codex 実行が走る。usage は subcommand なしの codex-companion.mjs --help を使うこと"
 fi
 
+# pgrep -f / pkill -f の自己一致。Bash tool はコマンド全文を `bash -c "... eval '<command>'"` で
+# 実行するため、括弧なしのパターンは包んでいる shell 自身にも一致する。待機ループ
+# （while pgrep -f X / until ! pgrep -f X）は終わらず、pkill -f は自分の shell を kill する
+# （2026-10 に grid-lab で 4.5 時間と無期限の停止、learnings.md の pkill は 4 session で再発）。
+# command 位置の pgrep/pkill で -f（--full）を使い、引数に `[` を含まないものを block する。
+# 変数経由のパターンも代入側の literal が自己一致し得るため対象にする（過剰側に倒す）。
+# 一覧（pgrep -af X）も自分の shell が出て「まだ動いている」と誤判断させるため対象にする。
+# バッククォートは command 位置に数えない（gh comment 本文の Markdown `pgrep -af x` を誤検出するため）。
+PGREP_SEGMENTS=$(printf '%s\n' "$NORM" | grep -oE \
+    '(^|[;&|(!]|(while|until|if|then|do|else|xargs|exec|nohup|time)[[:space:]])[[:space:]]*([^[:space:];&|()`]*/)?(pgrep|pkill)([[:space:]]+[^;&|()`[:space:]]+)*' ||
+    true)
+while IFS= read -r seg; do
+    [[ -n "$seg" ]] || continue
+    ARGS=$(printf '%s' "$seg" | sed -E 's/^.*(pgrep|pkill)//')
+    FULL=false
+    for tok in $ARGS; do
+        [[ "$tok" =~ ^-[A-Za-z]*f[A-Za-z]*$ || "$tok" == "--full" ]] && FULL=true
+    done
+    if [[ "$FULL" == true && "$ARGS" != *"["* ]]; then
+        block "pgrep -f / pkill -f の括弧なしパターンは、このコマンドを実行する bash -c 自身にも一致する（待機ループが終わらない、自分の shell を kill する）。先頭1文字を括弧で囲む（pgrep -f \"[t]ransport a1-run\"）か、PID で待つ（while kill -0 \$PID）。処理の完了待ちは Bash(run_in_background=true) の完了通知を使う"
+    fi
+done <<<"$PGREP_SEGMENTS"
+
 # Block writes to block devices
 if printf '%s' "$NORM" | grep -qE '(>|of=)\s*/dev/sd'; then
     block "write to block device detected in command"
