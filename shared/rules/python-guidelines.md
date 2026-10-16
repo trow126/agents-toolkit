@@ -17,6 +17,8 @@
 
 - async ループでは `except Exception:` の前に `except asyncio.CancelledError: raise` を置く。ポーリングの while/sleep より Event を使う
 - ProcessPool は Linux fork デッドロック防止のため `multiprocessing.get_context("spawn")` を明示し、ワーカー内は `n_jobs=1` に制限する
+- multiprocessing を使うコードは stdin（`python -` の heredoc）で渡さず、ファイルから実行する (理由: spawn / forkserver（3.14 の Linux 既定）のワーカーは `__main__` を読めずに落ち、Pool が再生成を繰り返して終わらない)
+- LightGBM を読み込んだ後に pyarrow（`pd.read_parquet`）を使う処理は、`OMP_NUM_THREADS=1` を付けるか parquet を先に読む (理由: 出力を終えた後の終了処理で futex 待ちのまま止まる。lightgbm 4.6.0 / pyarrow 24.0.0 で再現)
 - 並列 chunk/ワーカー実行時は `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1` や n_jobs 制限でスレッド数を明示制限する (理由: torch/BLAS は既定で全コア分のスレッドを作り、プロセス並列との積で CPU が飽和する。複数プロジェクトで独立に再発)
 - PEP 758 (Python 3.14+): `except A, B, C:` は括弧なしで有効な現行構文であり Python 2 構文ではない。ruff format は括弧を削除する
 

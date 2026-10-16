@@ -97,7 +97,7 @@ active_skill_entrypoint_max_lines: 76
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
 shared_rules_always_on_bytes: 1441
-shared_rules_on_demand_bytes: 11038
+shared_rules_on_demand_bytes: 12069
 hook_scripts: 6
 hook_registrations: 8
 shared_rules: 9
