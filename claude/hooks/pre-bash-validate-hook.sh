@@ -197,32 +197,80 @@ strip_heredoc_bodies() {
     }'
 }
 
-# shell の直接起動。managed policy の deny（Bash(bash *) / Bash(sh *) / Bash(zsh *) / Bash(dash *)）は
-# && や ; でつないだ一部に当たるだけでコマンド全体を拒否するが、拒否文にはルール名が出ない。
-# 2026-10 に kaizen-lab で `cd ... && bash -n x.sh && grep ...` が続けて拒否され、agent が
-# 「Bash がすべて拒否される」と誤診して作業を止めた。deny と同じ形を先に block し、理由と代替を返す。
-# deny は quote の中を見ないため、NORM ではなく raw command から quote 内の文字列を除いて検査する
-# （grep -E 'a|sh |b' の引数を shell 起動と誤検出しない）。
-# command 位置は行頭・区切り（; & | ( !）・then/do/else の直後とする（バッククォートは pgrep と同じ理由で除く）。
-# deny は環境変数の代入と timeout/time/nice/nohup/stdbuf を外して照合するため、それらの前置きも許す
-# （`VAR=x bash x.sh`・`timeout 5 bash -c ...` が実 session で deny された）。
-SHELL_SCAN=$(printf '%s\n' "$COMMAND" | strip_heredoc_bodies | awk -v q="'" '
+# managed policy の Bash deny ルールの事前照合。runtime は && や ; でつないだ一部が deny に当たるだけで
+# コマンド全体を拒否するが、拒否文にはルール名が出ない。2026-10 に kaizen-lab で `cd ... && bash -n x.sh`
+# が続けて拒否され、agent が「Bash がすべて拒否される」と誤診して作業を止めた（#18）。`rm -rf` の
+# 絶対 path による一時物の片付けや sudo でも同じく推測での再試行が出ていた（#19）。
+# install 済み policy の source（hook の sibling の managed-settings.json）から Bash(...) ルールを読み、
+# 同じ形を先に block して、当たったルール・該当部分・代替を返す。
+#
+# 部分コマンドへの分割（awk）: quote の外の ; & | ( ) と改行で分ける。quote の中では分けず、quote
+# 記号だけ外して中身を残す（ba""sh は bash として照合し、grep -E 'a|sh |b' は分割しない）。
+# redirect の & （2>&1・>&2・&>）では分けない。heredoc 本文は strip_heredoc_bodies で除く。
+SEGMENTS=$(printf '%s\n' "$COMMAND" | strip_heredoc_bodies | awk -v q="'" '
+    BEGIN { out = "" }
     {
-        out = ""; len = length($0)
+        len = length($0)
         for (i = 1; i <= len; i++) {
             c = substr($0, i, 1)
-            if (st == "s") { if (c == q) st = ""; continue }
-            if (st == "d") { if (c == "\\") i++; else if (c == "\"") st = ""; continue }
+            if (st != "") {
+                if (st == "d" && c == "\\") { out = out substr($0, i + 1, 1); i++; continue }
+                if ((st == "s" && c == q) || (st == "d" && c == "\"")) { st = ""; continue }
+                out = out (c ~ /[;&|()]/ ? " " : c)
+                continue
+            }
             if (c == "\\") { out = out substr($0, i, 2); i++; continue }
             if (c == q) { st = "s"; continue }
             if (c == "\"") { st = "d"; continue }
+            if (c == "&" && (substr($0, i - 1, 1) ~ /[<>]/ || substr($0, i + 1, 1) == ">")) { out = out c; continue }
+            if (c ~ /[;&|()]/) { print out; out = ""; continue }
             out = out c
         }
-        print out
-    }') || block "failed to strip heredoc bodies and quotes for shell invocation check (fail-closed)"
-if printf '%s\n' "$SHELL_SCAN" | grep -qE \
-    '(^|[;&|(!]|(then|do|else)[[:space:]])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((timeout|time|nice|nohup|stdbuf)([[:space:]]+(-[^[:space:]]+|[0-9][^[:space:]]*))*[[:space:]]+)*(bash|sh|zsh|dash)([[:space:]]|$)'; then
-    block "bash/sh/zsh/dash の起動は managed policy の deny（Bash(bash *) など）に当たり、&& や ; でつないだ一部でもコマンド全体が拒否される。Bash tool 自体は使える。構文チェックは bash -n ではなく shellcheck -S error <file> を使い、bash -c で包まずにコマンドを直接書くこと"
+        if (st == "") { print out; out = "" } else out = out " "
+    }
+    END { if (out != "") print out }') ||
+    block "failed to split command into subcommands for managed deny check (fail-closed)"
+
+# 照合（jq）: runtime と同じく、先頭の ! と制御語・環境変数の代入・timeout/time/nice/nohup/stdbuf を外す
+# （`VAR=x bash x.sh`・`timeout 5 bash -c ...` が実 session で deny された）。
+# 変数は展開しない。`S=/tmp/x; rm -rf $S/y` は runtime の判定が一定せず（2026-09-26〜10-20 の
+# transcript で19件中6件だけ deny）、展開して block すると runtime が通すコマンドまで止めるため。
+# ルールの * は任意の文字列、末尾の " *" は語の境界（`bash *` は bash 単独にも一致する）とみなす。
+MANAGED_SETTINGS="$HOOK_DIR/../managed-settings.json"
+[[ -r "$MANAGED_SETTINGS" ]] || block "managed-settings.json is missing or unreadable: $MANAGED_SETTINGS (fail-closed)"
+DENY_HIT=$(printf '%s\n' "$SEGMENTS" | jq -Rnr --slurpfile s "$MANAGED_SETTINGS" '
+    def esc: gsub("(?<c>[.^$+?()\\[\\]{}|\\\\])"; "\\\(.c)");
+    def rule_rx:
+        if endswith(" *") then "^" + (.[:-2] | esc | gsub("\\*"; ".*")) + "( .*)?$"
+        else "^" + (esc | gsub("\\*"; ".*")) + "$" end;
+    def strip_prefix:
+        (sub("^(!|if|then|do|else|elif|while|until)\\s+"; "")
+         | sub("^[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+"; "")
+         | sub("^(timeout|time|nice|nohup|stdbuf)(\\s+(-\\S+|[0-9]\\S*))*\\s+"; "")) as $next
+        | if $next == . then . else $next | strip_prefix end;
+    [$s[0].permissions.deny[]
+     | select(type == "string" and startswith("Bash(") and endswith(")"))
+     | .[5:-1] | {rule: ., rx: rule_rx}] as $rules
+    | first(inputs
+        | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "")
+        | strip_prefix | gsub("\\s+"; " ") as $cmd
+        | $rules[] | select(.rx as $rx | $cmd | test($rx))
+        | "\(.rule)\t\($cmd)") // empty') ||
+    block "failed to match command against managed deny rules (fail-closed)"
+if [[ -n "$DENY_HIT" ]]; then
+    DENY_RULE=${DENY_HIT%%$'\t'*}
+    DENY_SEG=${DENY_HIT#*$'\t'}
+    case "$DENY_RULE" in
+        bash\ * | sh\ * | zsh\ * | dash\ *)
+            DENY_HINT="構文チェックは bash -n ではなく shellcheck -S error <file> を使い、bash -c で包まずにコマンドを直接書くこと" ;;
+        rm\ -rf\ *)
+            DENY_HINT="scratchpad の一時物は session 専用なので消さずに残してよい。それ以外の削除が必要なら、対象を示してユーザーに依頼すること" ;;
+        sudo\ *)
+            DENY_HINT="root 権限が要る操作は、ユーザーに ! sudo ... で実行してもらうよう依頼すること" ;;
+        *)
+            DENY_HINT="この操作が必要なら、ユーザーに実行を依頼すること" ;;
+    esac
+    block "managed policy の deny Bash($DENY_RULE) に当たる（該当部分: $DENY_SEG）。&& や ; でつないだ一部でもコマンド全体が拒否され、runtime の拒否文にはルール名が出ない。Bash tool 自体は使える。$DENY_HINT"
 fi
 
 # pgrep -f / pkill -f の自己一致。Bash tool はコマンド全文を `bash -c "... eval '<command>'"` で

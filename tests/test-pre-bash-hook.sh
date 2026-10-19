@@ -283,8 +283,10 @@ expect_allow "無関係な command は許可" 'echo hello'
 expect_allow "偽陽性回帰: jq の .env accessor + dotted filename は許可" 'jq -r ".env | keys" settings.json'
 expect_allow "偽陽性回帰: ls .env.local(existence check)は許可" 'ls .env.local'
 # 偽陽性回帰(2026-09-26): 12 件中 11 件が template と jq accessor の非読み取りだった。
-expect_allow "偽陽性回帰: cat .env.example は許可" 'cat .env.example'
-expect_allow "偽陽性回帰: nested template(config/.env.sample)は許可" 'head config/.env.sample'
+# template の cat/head は .env 層では許可するが、managed deny の Bash(cat .env*)・Bash(head **/.env*) に
+# 当たり runtime が拒否する（2026-10-20 に cat .env.example の拒否を確認、#19）。deny 照合層で block する。
+expect_block "template の cat .env.example は managed deny で block" 'cat .env.example'
+expect_block "nested template の head config/.env.sample は managed deny で block" 'head config/.env.sample'
 expect_allow "偽陽性回帰: < .env.template は許可" 'wc -l < .env.template'
 expect_allow "偽陽性回帰: jq の括弧内 .env accessor + reader は許可" "jq '{envKeys:(.env|keys)}' settings.json | head"
 expect_allow "偽陽性回帰: jq の (.env // {}) と dotted key は許可" "cat x.json; jq '(.env // {}), (.env.DISABLE_UPDATES != null)' s.json"
@@ -477,6 +479,37 @@ if [[ "$reason" == *"managed policy"* && "$reason" == *"shellcheck"* && "$reason
   ok "shell 起動の block 理由は deny ルールと shellcheck を示す"
 else
   ng "shell 起動の block 理由: $reason"
+fi
+
+# ---- 9. managed deny 全般の事前照合（#19） ----
+expect_block "rm -rf の絶対 path を block" 'rm -rf /tmp/claude-1000/x/scratchpad/out'
+expect_block "&& の後ろの rm -rf の絶対 path を block" 'ls /tmp && rm -rf /tmp/a /tmp/b && echo done'
+expect_block "rm -rf ~ を block" 'rm -rf ~'
+expect_block "rm -rf data を block" 'rm -rf data/raw'
+expect_block "sudo を block" 'sudo -n true 2>&1 && echo SUDO_OK'
+expect_block "git push --force を block" 'git fetch && git push --force origin main'
+expect_block "git reset --hard を block" 'git reset --hard HEAD~1'
+expect_block "wget を block" 'wget -q https://example.com/x'
+expect_block "nc を block" 'echo hi | nc localhost 80'
+expect_block "deny 対象の uv run python scripts を block" 'uv run python scripts/scraping/fetch.py'
+expect_allow "相対 path の rm -rf は許可" 'cd /tmp/claude-1000/x/scratchpad && rm -rf out'
+# 変数経由は runtime の判定が一定しない（19件中6件だけ deny）ため、展開せず照合しない。
+expect_allow "変数経由の rm -rf は展開しない" 'S=/tmp/claude-1000/x/scratchpad; rm -rf $S/out && mkdir -p $S/out'
+expect_allow "rm -r（-f なし）は対象外" 'rm -r /tmp/claude-1000/x/scratchpad/out'
+expect_allow "quote 内の rm -rf / は対象外" 'git commit -m "docs: never run rm -rf / here"'
+expect_allow "redirect の 2>&1 で分割しない" 'ls /tmp 2>&1 | head -1; echo x >&2'
+expect_allow "git push（--force なし）は許可" 'git push origin master'
+reason="$(hook_reason 'ls /tmp/x && timeout 5 rm -rf /tmp/x/out')"
+if [[ "$reason" == *"Bash(rm -rf /*)"* && "$reason" == *"該当部分: rm -rf /tmp/x/out）"* && "$reason" == *"scratchpad"* ]]; then
+  ok "rm -rf の block 理由はルール名・前置きを外した部分コマンド・代替を示す"
+else
+  ng "rm -rf の block 理由: $reason"
+fi
+reason="$(hook_reason 'sudo apt-get install -y jq')"
+if [[ "$reason" == *"Bash(sudo *)"* && "$reason" == *"! sudo"* ]]; then
+  ok "sudo の block 理由はルール名とユーザーへの依頼を示す"
+else
+  ng "sudo の block 理由: $reason"
 fi
 
 echo
