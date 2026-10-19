@@ -164,17 +164,12 @@ if printf '%s' "$NORM" | grep -qE 'codex-companion\.mjs[[:space:]]+(task|review|
     block "codex-companion.mjs の task/review/adversarial-review に bare help を渡すと prompt として Codex 実行が走る。usage は subcommand なしの codex-companion.mjs --help を使うこと"
 fi
 
-# pgrep -f / pkill -f の自己一致。Bash tool はコマンド全文を `bash -c "... eval '<command>'"` で
-# 実行するため、括弧なしのパターンは包んでいる shell 自身にも一致する。待機ループ
-# （while pgrep -f X / until ! pgrep -f X）は終わらず、pkill -f は自分の shell を kill する
-# （2026-10 に grid-lab で 4.5 時間と無期限の停止、learnings.md の pkill は 4 session で再発）。
-# command 位置の pgrep/pkill で -f（--full）を使い、引数に `[` を含まないものを block する。
-# 変数経由のパターンも代入側の literal が自己一致し得るため対象にする（過剰側に倒す）。
-# 一覧（pgrep -af X）も自分の shell が出て「まだ動いている」と誤判断させるため対象にする。
-# バッククォートは command 位置に数えない（gh comment 本文の Markdown `pgrep -af x` を誤検出するため）。
-# heredoc の本文は、shell（bash/sh/zsh/dash/ksh）へ渡すものだけを検査する。commit message や
+# command 位置の検査（shell 起動・pgrep -f）の前処理。stdin の heredoc 本文を除く。
+# heredoc の本文は、shell（bash/sh/zsh/dash/ksh）へ渡すものだけを残す。commit message や
 # cat > file・python - の本文は実行される shell command ではないため除外する。here-string（<<<）は heredoc ではない。
-PGREP_SCAN=$(printf '%s\n' "$NORM" | awk '
+# 終端記号の quote（<<'EOF' / <<"EOF"）は quote 正規化前の入力のために受け付ける。
+strip_heredoc_bodies() {
+    awk '
     n > 0 {
         line = $0
         if (strip[cur]) sub(/^\t+/, "", line)
@@ -184,7 +179,7 @@ PGREP_SCAN=$(printf '%s\n' "$NORM" | awk '
     {
         print
         rest = $0; keep = 0; m = 0
-        while (match(rest, /<<-?[ \t]*\\?[A-Za-z_][A-Za-z0-9_]*/)) {
+        while (match(rest, /<<-?[ \t]*\\?[\047"]?[A-Za-z_][A-Za-z0-9_]*[\047"]?/)) {
             pre = substr(rest, 1, RSTART - 1)
             tok = substr(rest, RSTART, RLENGTH)
             rest = substr(rest, RSTART + RLENGTH)
@@ -194,11 +189,52 @@ PGREP_SCAN=$(printf '%s\n' "$NORM" | awk '
             if (seg ~ /(^|[ \t\/])(bash|sh|zsh|dash|ksh)([ \t]|$)/) keep = 1
             m++
             strip[m] = (tok ~ /^<<-/)
-            sub(/^<<-?[ \t]*\\?/, "", tok)
+            sub(/^<<-?[ \t]*\\?[\047"]?/, "", tok)
+            sub(/[\047"]$/, "", tok)
             delim[m] = tok
         }
         if (m > 0 && !keep) { n = m; cur = 1 }
-    }') || block "failed to strip heredoc bodies for pgrep check (fail-closed)"
+    }'
+}
+
+# shell の直接起動。managed policy の deny（Bash(bash *) / Bash(sh *) / Bash(zsh *) / Bash(dash *)）は
+# && や ; でつないだ一部に当たるだけでコマンド全体を拒否するが、拒否文にはルール名が出ない。
+# 2026-10 に kaizen-lab で `cd ... && bash -n x.sh && grep ...` が続けて拒否され、agent が
+# 「Bash がすべて拒否される」と誤診して作業を止めた。deny と同じ形を先に block し、理由と代替を返す。
+# deny は quote の中を見ないため、NORM ではなく raw command から quote 内の文字列を除いて検査する
+# （grep -E 'a|sh |b' の引数を shell 起動と誤検出しない）。
+# command 位置は行頭・区切り（; & | ( !）・then/do/else の直後とする（バッククォートは pgrep と同じ理由で除く）。
+# deny は環境変数の代入と timeout/time/nice/nohup/stdbuf を外して照合するため、それらの前置きも許す
+# （`VAR=x bash x.sh`・`timeout 5 bash -c ...` が実 session で deny された）。
+SHELL_SCAN=$(printf '%s\n' "$COMMAND" | strip_heredoc_bodies | awk -v q="'" '
+    {
+        out = ""; len = length($0)
+        for (i = 1; i <= len; i++) {
+            c = substr($0, i, 1)
+            if (st == "s") { if (c == q) st = ""; continue }
+            if (st == "d") { if (c == "\\") i++; else if (c == "\"") st = ""; continue }
+            if (c == "\\") { out = out substr($0, i, 2); i++; continue }
+            if (c == q) { st = "s"; continue }
+            if (c == "\"") { st = "d"; continue }
+            out = out c
+        }
+        print out
+    }') || block "failed to strip heredoc bodies and quotes for shell invocation check (fail-closed)"
+if printf '%s\n' "$SHELL_SCAN" | grep -qE \
+    '(^|[;&|(!]|(then|do|else)[[:space:]])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((timeout|time|nice|nohup|stdbuf)([[:space:]]+(-[^[:space:]]+|[0-9][^[:space:]]*))*[[:space:]]+)*(bash|sh|zsh|dash)([[:space:]]|$)'; then
+    block "bash/sh/zsh/dash の起動は managed policy の deny（Bash(bash *) など）に当たり、&& や ; でつないだ一部でもコマンド全体が拒否される。Bash tool 自体は使える。構文チェックは bash -n ではなく shellcheck -S error <file> を使い、bash -c で包まずにコマンドを直接書くこと"
+fi
+
+# pgrep -f / pkill -f の自己一致。Bash tool はコマンド全文を `bash -c "... eval '<command>'"` で
+# 実行するため、括弧なしのパターンは包んでいる shell 自身にも一致する。待機ループ
+# （while pgrep -f X / until ! pgrep -f X）は終わらず、pkill -f は自分の shell を kill する
+# （2026-10 に grid-lab で 4.5 時間と無期限の停止、learnings.md の pkill は 4 session で再発）。
+# command 位置の pgrep/pkill で -f（--full）を使い、引数に `[` を含まないものを block する。
+# 変数経由のパターンも代入側の literal が自己一致し得るため対象にする（過剰側に倒す）。
+# 一覧（pgrep -af X）も自分の shell が出て「まだ動いている」と誤判断させるため対象にする。
+# バッククォートは command 位置に数えない（gh comment 本文の Markdown `pgrep -af x` を誤検出するため）。
+PGREP_SCAN=$(printf '%s\n' "$NORM" | strip_heredoc_bodies) ||
+    block "failed to strip heredoc bodies for pgrep check (fail-closed)"
 PGREP_SEGMENTS=$(printf '%s\n' "$PGREP_SCAN" | grep -oE \
     '(^|[;&|(!]|(while|until|if|then|do|else|xargs|exec|nohup|time)[[:space:]])[[:space:]]*([^[:space:];&|()`]*/)?(pgrep|pkill)([[:space:]]+[^;&|()`[:space:]]+)*' ||
     true)

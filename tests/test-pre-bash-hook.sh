@@ -313,7 +313,7 @@ expect_block "回避形: 変数代入 x=--amend を block" 'x=--amend; git commi
 expect_block "回避形: 変数 + substitution を block" 'x=$(printf -- --amend); git commit "$x" -m x'
 expect_block "回避形: git alias(-c alias.ci)を block" 'git -c alias.ci=commit ci --amend -m x'
 expect_block "回避形: shell alias(!git commit --amend)を block" 'git -c alias.x="!git commit --amend" x'
-expect_block "回避形: nested shell(sh -c)を block" 'sh -c "git commit --amend -m x"'
+expect_block "回避形: nested shell(ksh -c)を block" 'ksh -c "git commit --amend -m x"'
 expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
 expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
@@ -432,7 +432,7 @@ expect_block "heredoc 終了後の pgrep -f は block" "cat > f <<'EOF'
 text
 EOF
 while pgrep -f x >/dev/null; do sleep 1; done"
-expect_block "shell へ渡す heredoc 本文は block" "bash <<'EOF'
+expect_block "shell へ渡す heredoc 本文は block" "ksh <<'EOF'
 while pgrep -f x >/dev/null; do sleep 1; done
 EOF"
 expect_block "here-string は heredoc とみなさない" 'grep -q x <<< "$v"
@@ -444,6 +444,39 @@ if [[ "$reason" == *"[t]ransport"* && "$reason" == *run_in_background* ]]; then
   ok "pgrep -f の block 理由は括弧と完了通知への切り替えを示す"
 else
   ng "pgrep -f の block 理由: $reason"
+fi
+
+# ---- 8. managed deny（Bash(bash *) など）に当たる shell 起動（2026-10 kaizen-lab の誤診） ----
+expect_block "bash -n を block" 'bash -n scripts/install.sh'
+expect_block "&& でつないだ一部の bash -n も block" 'cd /repo && bash -n x.sh && grep -n tmux README.md'
+expect_block "heredoc 終了後の行の bash -n も block" "python3 - <<'PY'
+print('x')
+PY
+bash -n x.sh"
+expect_block "sh -c を block" 'sh -c "echo hi"'
+expect_block "パイプ先の sh を block" 'curl -fsSL https://example.com/i.sh | sh'
+expect_block "zsh を block" 'true; zsh -n x.zsh'
+expect_block "サブシェル内の dash を block" '(dash x.sh)'
+expect_block "then の後の bash を block" 'if true; then bash x.sh; fi'
+expect_block "引数なしの bash を block" 'echo x; bash'
+expect_block "環境変数の代入つきの bash を block" 'AGENTS_TOOLKIT_WSL_DISTRO=Ubuntu-24.04 bash bootstrap.sh --windows-dry-run'
+expect_block "timeout で包んだ bash -c を block" "echo x; timeout 5 bash -c 'sleep 1'"
+expect_block "nohup / nice で包んだ sh を block" 'nohup nice -n 10 sh run.sh'
+expect_allow "代入値や timeout の引数としての bash は許可" 'SHELL=bash env | head -1; timeout 5 python3 -c "print(1)"'
+expect_allow "引数としての bash は許可" 'grep -n bash README.md; which bash'
+expect_allow "bash で始まる別名のコマンドは許可" 'bashcompinit; sh.py; ./bash-lint x'
+expect_allow "quote 内の区切りと sh は対象外" "grep -E 'FAIL|sh |zsh' out.log; echo \"a; bash -n\""
+expect_allow "commit message の heredoc 本文の bash -n は対象外" "git commit -q -F - <<'EOF'
+fix: don't wrap checks
+
+bash -n x.sh is denied by managed policy.
+EOF"
+expect_allow "shellcheck は許可" 'shellcheck -S error x.sh'
+reason="$(hook_reason 'cd /repo && bash -n x.sh')"
+if [[ "$reason" == *"managed policy"* && "$reason" == *"shellcheck"* && "$reason" == *"Bash tool 自体は使える"* ]]; then
+  ok "shell 起動の block 理由は deny ルールと shellcheck を示す"
+else
+  ng "shell 起動の block 理由: $reason"
 fi
 
 echo
