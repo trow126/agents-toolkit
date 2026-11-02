@@ -103,7 +103,7 @@ hook_registrations: 11
 shared_rules: 9
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 219
+inventory_audited_elements: 220
 review_progress_retrospective_mechanisms: 7
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
