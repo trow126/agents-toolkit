@@ -20,7 +20,7 @@ When the source is the conversation, use only what was said or shown in it. Do n
 ## §2 Survey
 
 - Run `~/.claude/bin/grok-digest projects` to list the repositories under home with their README heads. Read the ones whose purpose overlaps the goal (same market, data source, or method).
-- For each overlapping project, record: what it already answered (results, verdicts), what can be reused (modules, data caches, tests), and whether the new work belongs there instead. A finished, preregistered study is not reopened; new work goes to a new project and links to it.
+- For each overlapping project, record: what it already answered (results, verdicts), what can be reused (modules, data caches, tests), and whether the new work belongs there instead. A finished, preregistered study is not reopened. New work goes to a new project and links to it, unless the new work needs that project's held-out data, base modules or data caches. Then the placement is a §3 question (merge into that project or not), asked with the coupling named.
 - Reused code is copied or ported in a scaffold sub-Issue with the source path and commit named; never depend on another project's working tree.
 - With `--existing`: read the README, docs, the structure of the modules the change touches, the tests, and the open Issues from `check --existing`. A planned child that duplicates an open Issue is not created and not put in the checklist (the manifest can only create new Issues): list that Issue by number under the parent's scope, say which part of the roadmap it covers, and note in the dependency note any child that waits for it.
 - With `--existing`, use the repository's `.github/ISSUE_TEMPLATE` when `templates --dir <repo>` shows one.
@@ -30,7 +30,7 @@ When the source is the conversation, use only what was said or shown in it. Do n
 Ask before drafting when the answer changes what the children say: target (market, symbol, pair, module), data source, venue or account, scope boundary, budget, or whether to merge into an existing project. Drafting first and rewriting every body afterwards (grid-lab 2026-10-10: data source and currency pair decided after 10 Issues existed) is the failure to avoid.
 
 - Ask all of them in one batch, each with at most 3 realistic options, the recommended one first with its reason.
-- A decision that can only be made with evidence the roadmap itself produces (go/no-go after a backtest, choosing a venue after measuring costs) is not asked now. It becomes a child titled with 【判断ゲート】, whose body lists the options, the evidence it waits for, and the criteria. `/gh-roadmap-run` stops there.
+- A decision that can only be made with evidence the roadmap itself produces (go/no-go after a backtest, choosing a venue after measuring costs) is not asked now. It becomes a child titled with 【判断ゲート】 (body per issue-design.md, Judgment gates). `/gh-roadmap-run` stops there.
 - Defaults that need no question: private repository, kebab-case name in the style of the user's existing projects, Python with uv when the related projects use it. State each default in the report.
 
 ## §4 Order and size of the children
@@ -46,4 +46,3 @@ Ask before drafting when the answer changes what the children say: target (marke
 - One file per body in the scratchpad (`issues/<key>.md`) and `issues/manifest.json`; the helper usage (`gh-roadmap-plan --help`) defines the schema.
 - Keys are short lowercase names (`prereg`, `scaffold`, `data`); the parent key is `roadmap`.
 - `create --dry-run` validates the placeholders, the parent checklist order, and the parent reference in every child. `create` prints the numbers and URLs; build the report from that output, not from the plan.
-- If `create` fails midway, do not create Issues by hand. Fix the cause and rerun; the state file `manifest.json.state.json` records what exists.

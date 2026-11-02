@@ -79,6 +79,10 @@
         "judge_prompt": {"type": "string", "minLength": 1},
         "outputs": {"type": "array", "items": {"type": "string"}},
         "verdict": {"type": "string", "enum": ["PASS", "FAIL", "INCONCLUSIVE"]},
-        "verdict_reason": {"type": "string", "minLength": 1}}}}
+        "verdict_reason": {"type": "string", "minLength": 1},
+        "judges": {"type": "array", "items": {
+          "type": "object", "additionalProperties": false, "required": ["wording", "verdict", "reason"],
+          "properties": {"wording": {"type": "string", "minLength": 1},
+            "verdict": {"type": "string", "enum": ["PASS", "FAIL", "INCONCLUSIVE"]}, "reason": {"type": "string"}}}}}}}
   }
 }

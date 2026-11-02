@@ -44,7 +44,7 @@ git -C "$TK" add -A && git -C "$TK" commit -q -m base
 export PYTHONDONTWRITEBYTECODE=1 XDG_STATE_HOME="$SANDBOX/state"
 # stub claude: prints STUB_CLAUDE_VERSION for --version.
 mkdir -p "$SANDBOX/stub"
-printf '#!/usr/bin/env bash\necho "${STUB_CLAUDE_VERSION:-2.1.296 (Claude Code)}"\n' > "$SANDBOX/stub/claude"
+printf '#!/usr/bin/env bash\necho "${STUB_CLAUDE_VERSION:-2.1.305 (Claude Code)}"\n' > "$SANDBOX/stub/claude"
 chmod +x "$SANDBOX/stub/claude"
 export PATH="$SANDBOX/stub:$PATH"
 RC=0; OUT=""
@@ -56,16 +56,16 @@ expect_rc() { # desc want_rc needle
 # ---- prepare
 run "$TUNE" prepare --only alpha,nope
 expect_rc "--only の未知の skill は拒否する" 1 "unknown skill(s) for --only: nope"
-STUB_CLAUDE_VERSION="2.1.295 (Claude Code)" run "$TUNE" prepare
-expect_rc "disallowedTools を守らない古い Claude Code は拒否する" 1 "older than 2.1.296"
+STUB_CLAUDE_VERSION="2.1.304 (Claude Code)" run "$TUNE" prepare
+expect_rc "step を飛ばす・resume で再実行する古い Claude Code は拒否する" 1 "older than 2.1.305"
 [[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/skill-tuneup" 2>/dev/null)" ]] && ok "拒否した prepare は run を作らない" || ng "拒否した prepare が run を作った"
 run "$TUNE" prepare
 expect_rc "prepare は run を作る" 0 '"count": 5'
 PREP="$OUT"
 RUN="$(jq -r .run_dir <<< "$PREP")"
 if jq -e '[.skills[].name] == ["alpha","beta","gamma","pair","skill-tuneup"]' <<< "$PREP" >/dev/null &&
-  jq -e '.estimated_agents == {"min": 38, "max": 88}' <<< "$PREP" >/dev/null; then
-  ok "同名の pair は1つの skill にまとめ、推定エージェント数を出す（3 + 5 x 7..17）"
+  jq -e '.estimated_agents == {"min": 38, "max": 108}' <<< "$PREP" >/dev/null; then
+  ok "同名の pair は1つの skill にまとめ、推定エージェント数を出す（3 + 5 x 7..21）"
 else
   ng "prepare の skill 一覧か推定が不正: $PREP"
 fi
@@ -77,7 +77,7 @@ if jq -e --arg ev "$TK/shared/skills/pair/references/evidence.md" '.skills[] | s
 else
   ng "skill の files か deprecated が不正"
 fi
-if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.296"' "$RUN/run.json" >/dev/null; then
+if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.305"' "$RUN/run.json" >/dev/null; then
   ok "run.json に前回の run（なし）、git status、skill を記録する"
 else
   ng "run.json が不正"
@@ -108,6 +108,9 @@ const agent = async (prompt, opts) => {
   const kind = opts.label.split(/[ :]/)[0]
   if (opts.label.startsWith('probe 1: gamma')) return null
   if (opts.label === 'generate: beta') return { hygiene: [], candidates: [] }
+  if (opts.label === 'run 1/a: skill-tuneup') return null
+  if (opts.label === 'judge 2/2: skill-tuneup') return { verdict: 'FAIL', reason: 'other wording' }
+  if (opts.label === 'reword 2: pair') throw new Error('reword failed')
   return {
     probe: '1. a\n2. b', cluster: { clusters: [{ name: 'c1', probes: 3 }] }, layer: { directions: ['d1'], recommendations: ['r1'] },
     mine: { status: 'found', deviations: [{ file: '/t/s.jsonl', line: 7, quote: 'q', kind: 'skipped_check', summary: 'sm' }], searched: 'se' },
@@ -118,7 +121,7 @@ const agent = async (prompt, opts) => {
       { candidate_ids: ['C1'], hypothesis: 'h', criterion: 'c', runs: [{ label: 'a', prompt: 'p1' }, { label: 'b', prompt: 'p2' }], judge_prompt: 'j' },
       { candidate_ids: ['C1'], hypothesis: 'h2', criterion: 'c2', runs: [{ label: 'a', prompt: 'p3' }], judge_prompt: 'j2' },
       { candidate_ids: ['C1'], hypothesis: 'h3', criterion: 'c3', runs: [{ label: 'a', prompt: 'p4' }], judge_prompt: 'j3' }] },
-    run: 'output', judge: { verdict: 'PASS', reason: 'r' },
+    run: 'output', reword: { wordings: ['w2', 'w3'] }, judge: { verdict: 'PASS', reason: 'r' },
   }[kind]
 }
 const result = await (async () => {
@@ -131,7 +134,7 @@ open(sys.argv[2], "w", encoding="utf-8").write(harness)
 PY
 if command -v node >/dev/null; then
   printf 'digest\n' > "$SANDBOX/research.txt"
-  jq --arg id "$(jq -r .run_id <<< "$PREP")" --rawfile r "$SANDBOX/research.txt" '{runId: $id, research: $r, skills: .skills}' <<< "$PREP" > "$SANDBOX/args.json"
+  jq --arg id "$(jq -r .run_id <<< "$PREP")" --rawfile r "$SANDBOX/research.txt" '{runId: $id, research: $r, priorResearch: "older-digest-line", skills: .skills}' <<< "$PREP" > "$SANDBOX/args.json"
   if node "$WF" "$SANDBOX/args.json" "$RUN/results.json" "$SANDBOX/calls.json"; then
     ok "Workflow script は mock の agent() で最後まで動く"
   else
@@ -169,6 +172,29 @@ if command -v node >/dev/null; then
   else
     ng "監査・判定・run の prompt が契約と合わない"
   fi
+  if jq -e '.results[0].experiments | map(.verdict == "PASS" and (.judges | length) == 3 and (.judges | map(.wording)) == [.judge_prompt, "w2", "w3"]) | all' "$RUN/results.json" >/dev/null &&
+    jq -e '[.[] | select(.label | test("^judge 1/[0-9]: alpha"))] | length == 3' "$SANDBOX/calls.json" >/dev/null; then
+    ok "各実験は元の判定 prompt と言い換え2つの3回で判定し、全員一致なら PASS"
+  else
+    ng "判定の ensemble が不正: $(jq -c '.results[0].experiments | map({verdict, judges})' "$RUN/results.json")"
+  fi
+  ST="$(jq -c '.results[] | select(.skill == "skill-tuneup") | .experiments | map({verdict, verdict_reason})' "$RUN/results.json")"
+  if [[ "$ST" == '[{"verdict":"INCONCLUSIVE","verdict_reason":"run(s) returned no output; not judged"},{"verdict":"INCONCLUSIVE","verdict_reason":"judges disagreed: PASS / FAIL / PASS"}]' ]] &&
+    jq -e '[.[] | select(.label | test("^judge 1/[0-9]: skill-tuneup"))] | length == 0' "$SANDBOX/calls.json" >/dev/null; then
+    ok "出力の無い run がある実験は判定せず INCONCLUSIVE、判定が割れたら INCONCLUSIVE"
+  else
+    ng "空の run か判定の不一致の扱いが不正: $ST"
+  fi
+  if jq -e '.results[] | select(.skill == "pair") | .experiments | length == 2 and .[1].verdict == "INCONCLUSIVE" and .[1].verdict_reason == "experiment failed: no result" and (.[1].runs | length) == 1' "$RUN/results.json" >/dev/null; then
+    ok "失敗した実験も消さず INCONCLUSIVE として残す"
+  else
+    ng "失敗した実験が結果から消えた"
+  fi
+  if jq -e '[.[] | select(.label | startswith("generate")) | .prompt | contains("older-digest-line")] | all' "$SANDBOX/calls.json" >/dev/null; then
+    ok "前回の digest を生成役に渡す"
+  else
+    ng "priorResearch が生成役に届かない"
+  fi
 else
   ng "node が無いので Workflow script を検査できない"
 fi
@@ -183,6 +209,9 @@ expect_rc "url の無い KNOWN は失敗する" 1 "is KNOWN without a url and me
 jq '.results[0].experiments[0].verdict = "MAYBE"' "$SANDBOX/full.json" > "$SANDBOX/bad.json"
 run "$TUNE" record "$RUN" --results "$SANDBOX/bad.json"
 expect_rc "未定義の判定は失敗する" 1 "must be one of"
+jq '.results[0].experiments[0].outputs[0] = ""' "$SANDBOX/full.json" > "$SANDBOX/bad.json"
+run "$TUNE" record "$RUN" --results "$SANDBOX/bad.json"
+expect_rc "出力の無い run を含む PASS は失敗する" 1 "is PASS with a run that returned no output"
 jq '.results[0].audit.verdicts = []' "$SANDBOX/full.json" > "$SANDBOX/bad.json"
 run "$TUNE" record "$RUN" --results "$SANDBOX/bad.json"
 expect_rc "監査の判定が無い候補は失敗する" 1 "no audit verdict for C1"
@@ -210,7 +239,7 @@ run "$TUNE" plan "$RUN"
 expect_rc "finish 前の plan は失敗する" 1 "has not finished"
 run "$TUNE" finish "$RUN"
 expect_rc "finish は result を書く" 0 "FINISH OK"
-if grep -qF '| pair | 1 | 1 | 1 / 0 / 0 | 2 / 0 / 0 |' "$RUN/result.md" && grep -qF 'three probes instead of five' "$RUN/result.md" &&
+if grep -qF '| pair | 1 | 1 | 1 / 0 / 0 | 1 / 0 / 1 |' "$RUN/result.md" && grep -qF 'three probes instead of five' "$RUN/result.md" &&
   jq -e --arg id "$(basename "$RUN")" '.last_finished.run_id == $id and .skills.alpha.run_id == $id' "$XDG_STATE_HOME/agents-toolkit/skill-tuneup/ledger.json" >/dev/null; then
   ok "result に skill ごとの集計と synthesis を書き、ledger を更新する"
 else

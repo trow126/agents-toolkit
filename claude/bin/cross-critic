@@ -2,7 +2,7 @@
 """cross-critic — run the read-only critics of /cross-critic and check the synthesis (agents-toolkit).
 
 usage:
-  cross-critic run <document> --author MODEL [--gate] [--repo DIR] [--timeout SEC] [--dry-run]
+  cross-critic run <document> --author MODEL [--gate] [--repo DIR] [--withhold HEADING]... [--timeout SEC] [--dry-run]
   cross-critic finish <run-dir>
 
 run     copy the document into a new run directory under
@@ -13,10 +13,13 @@ run     copy the document into a new run directory under
         CLAUDE_GATE_MODEL unless --author names that model, then CLAUDE_ALT_MODEL. Both children run
         through `bash -lc` (codex and claude are on PATH only in a login shell) with
         AGENTS_TOOLKIT_SLACK_NOTIFY=off. Validates both outputs, checks that git status is unchanged,
-        and writes findings.json and synthesis.template.md.
+        and writes findings.json and synthesis.template.md. --withhold (repeatable) removes the
+        Markdown section with that exact heading text (to the next heading of the same or a higher
+        level) from the copy sent to the critics; document_sha256 is then the hash of that sent copy,
+        and each critic must return a non-empty `reconstruction` of the decision from the rest.
 finish  check <run>/synthesis.md against findings.json (every finding ID covered, source, priority,
-        and an adopt/reject decision with a reason per row), check git status again, and write
-        <run>/result.md.
+        and an adopt/reject decision with a reason per row; with --withhold also a non-empty
+        `## Divergences` section), check git status again, and write <run>/result.md.
 Nothing here writes to the repository. Critics criticize; they never judge.
 """
 import datetime as dt
@@ -82,6 +85,13 @@ def pop_option(args: list[str], name: str) -> str | None:
     if not value or value.startswith("--"):
         raise DelegationError(f"{name} needs a value")
     return value
+
+
+def pop_options(args: list[str], name: str) -> list[str]:
+    values = []
+    while name in args:
+        values.append(pop_option(args, name))
+    return values
 
 
 def pop_flag(args: list[str], name: str) -> bool:
@@ -283,7 +293,49 @@ def claude_result(stdout: str) -> dict:
     raise DelegationError("claude -p printed no result event")
 
 
-def output_errors(output: object, document_sha: str) -> list[str]:
+HEADING = re.compile(r"^(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$")
+FENCE = re.compile(r"^[ \t]*(```|~~~)")
+
+
+def withhold_sections(text: str, headings: list[str]) -> tuple[str, str]:
+    """Remove each named Markdown section (heading line to the next heading of the same or a higher
+    level, outside code fences). Every heading must match exactly one heading line."""
+    lines = text.splitlines(keepends=True)
+    found: list[tuple[int, int, str]] = []  # (line index, level, heading text)
+    fence = False
+    for index, line in enumerate(lines):
+        if FENCE.match(line):
+            fence = not fence
+            continue
+        match = None if fence else HEADING.match(line.rstrip("\n"))
+        if match:
+            found.append((index, len(match.group(1)), match.group(2).strip()))
+    drop: set[int] = set()
+    for heading in headings:
+        hits = [i for i, (_line, _level, name) in enumerate(found) if name == heading.strip()]
+        if len(hits) != 1:
+            raise DelegationError(f"--withhold {heading!r} matches {len(hits)} heading(s) in the document; "
+                                  "it must match exactly one")
+        start, level, _name = found[hits[0]]
+        end = next((line for line, lvl, _n in found[hits[0] + 1:] if lvl <= level), len(lines))
+        drop.update(range(start, end))
+    sent = "".join(line for i, line in enumerate(lines) if i not in drop)
+    withheld = "".join(line for i, line in enumerate(lines) if i in drop)
+    if not sent.strip():
+        raise DelegationError("--withhold removes the whole document")
+    return sent, withheld
+
+
+def reconstruction_rule(headings: list[str]) -> str:
+    if not headings:
+        return "No section was withheld from this copy: return an empty string."
+    names = ", ".join(f"\"{h}\"" for h in headings)
+    return (f"The sections {names} were withheld from this copy. From the remaining premises, state the "
+            "decision or conclusion you would reach and why, as a short explanation of at most 5 sentences. "
+            "Do not guess the withheld text; criticize the premises as usual in findings.")
+
+
+def output_errors(output: object, document_sha: str, withheld: bool = False) -> list[str]:
     schema = json.loads(SCHEMA_FILE.read_text(encoding="utf-8"))
     if not isinstance(output, dict):
         return ["output is not a JSON object"]
@@ -292,6 +344,8 @@ def output_errors(output: object, document_sha: str) -> list[str]:
         return errors
     if output["document_sha256"] != document_sha:
         errors.append(f"document_sha256 {output['document_sha256']!r} does not match the document ({document_sha})")
+    if withheld and not output["reconstruction"].strip():
+        errors.append("reconstruction is empty although sections were withheld")
     for index, finding in enumerate(output["findings"]):
         empty = [k for k, v in finding.items() if isinstance(v, str) and not v.strip()]
         if empty:
@@ -353,10 +407,11 @@ def finish_codex(run: dict, run_dir: Path, rc: int | None) -> dict:
     except DelegationError as exc:
         result["errors"].append(f"codex output: {exc}")
         return result
-    result["errors"] += [f"codex output: {e}" for e in output_errors(output, run["document_sha256"])]
+    result["errors"] += [f"codex output: {e}" for e in output_errors(output, run["document_sha256"], bool(run.get("withheld")))]
     result["ok"] = not result["errors"]
     if result["ok"]:
         result["findings"] = output["findings"]
+        result["reconstruction"] = output["reconstruction"]
     return result
 
 
@@ -389,10 +444,11 @@ def finish_claude(run: dict, run_dir: Path, rc: int | None) -> dict:
             result["errors"].append(f"claude output is not JSON: {exc}")
             return result
     write_json(run_dir / "claude-output.json", output if isinstance(output, dict) else {"invalid": output})
-    result["errors"] += [f"claude output: {e}" for e in output_errors(output, run["document_sha256"])]
+    result["errors"] += [f"claude output: {e}" for e in output_errors(output, run["document_sha256"], bool(run.get("withheld")))]
     result["ok"] = not result["errors"]
     if result["ok"]:
         result["findings"] = output["findings"]
+        result["reconstruction"] = output["reconstruction"]
     return result
 
 
@@ -410,8 +466,10 @@ def write_findings(run: dict, run_dir: Path, results: dict[str, dict]) -> dict:
         model = run["route"]["codex_model"] if key == "codex" else run["claude"]["model"]
         findings = [dict(f, id=f"{prefix}{i}") for i, f in enumerate(res.get("findings") or [], 1)]
         critics.append({"key": key, "label": label(model), "model": model, "prefix": prefix,
-                        "ok": res["ok"], "errors": res["errors"], "findings": findings})
-    data = {"run_id": run["id"], "document_sha256": run["document_sha256"], "critics": critics}
+                        "ok": res["ok"], "errors": res["errors"], "findings": findings,
+                        "reconstruction": res.get("reconstruction", "")})
+    data = {"run_id": run["id"], "document_sha256": run["document_sha256"], "critics": critics,
+            "withheld": run.get("withheld", [])}
     write_json(run_dir / "findings.json", data)
     rows = ["# cross-critic synthesis", "",
             f"Document: `{run['document_name']}` (sha256 `{run['document_sha256'][:12]}`).", "",
@@ -421,6 +479,14 @@ def write_findings(run: dict, run_dir: Path, results: dict[str, dict]) -> dict:
             rows.append(f"| {f['id']} | [{f['kind']}] {cell(f['target'], 80)}: {cell(f['claim'])} | "
                         f"{critic['label']} | {PRIORITY[f['severity']]} |  |  |")
     rows += ["", "## Notes", ""]
+    if run.get("withheld"):
+        rows += ["## Divergences", "",
+                 "<!-- Compare each critic's reconstruction below with the withheld sections (withheld.md). "
+                 "List every material divergence and what you will check or change because of it, "
+                 "or say why there is none. -->", ""]
+        for critic in critics:
+            rows += [f"- {critic['label']} reconstruction: {cell(critic['reconstruction'], 600)}"]
+        rows += [""]
     (run_dir / "synthesis.template.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
     return data
 
@@ -429,16 +495,22 @@ def cmd_run(args: list[str]) -> int:
     author = pop_option(args, "--author")
     repo_arg = pop_option(args, "--repo")
     timeout_arg = pop_option(args, "--timeout")
+    withhold = pop_options(args, "--withhold")
     gate = pop_flag(args, "--gate")
     dry_run = pop_flag(args, "--dry-run")
     if len(args) != 1 or args[0].startswith("--") or not author:
         raise DelegationError("usage: cross-critic run <document> --author MODEL [--gate] [--repo DIR] "
-                              "[--timeout SEC] [--dry-run]")
+                              "[--withhold HEADING]... [--timeout SEC] [--dry-run]")
     timeout = int(timeout_arg) if timeout_arg and timeout_arg.isdigit() and int(timeout_arg) > 0 else None
     if timeout_arg and timeout is None:
         raise DelegationError("--timeout must be a positive integer")
     document = Path(args[0]).resolve()
     data, text = read_document(document)
+    original_sha = sha256_bytes(data)
+    withheld_text = ""
+    if withhold:
+        text, withheld_text = withhold_sections(text, withhold)
+        data = text.encode("utf-8")
     repo = find_repo(Path(repo_arg).resolve() if repo_arg else Path.cwd())
     if repo_arg and repo is None:
         raise DelegationError(f"--repo is not inside a git repository: {repo_arg}")
@@ -452,12 +524,13 @@ def cmd_run(args: list[str]) -> int:
     document_sha = sha256_bytes(data)
     run = {"author": author, "gate": gate, "route": route, "document_sha256": document_sha,
            "document_name": document.name, "workdir": str(workdir),
-           "claude": None}
+           "claude": None, "withheld": withhold, "original_sha256": original_sha}
     if gate:
         model, why = choose_claude_model(route, author)
         run["claude"] = {"model": model, "why": why}
     prompt = (prompt_template().replace("{{DOCUMENT_SHA256}}", document_sha)
-              .replace("{{DOCUMENT_NAME}}", document.name).replace("{{DOCUMENT}}", text.rstrip("\n")))
+              .replace("{{DOCUMENT_NAME}}", document.name).replace("{{RECONSTRUCTION_RULE}}", reconstruction_rule(withhold))
+              .replace("{{DOCUMENT}}", text.rstrip("\n")))
     if dry_run:
         print("DRY RUN (cwd " + str(workdir) + "):")
         print("  " + " ".join(shlex.quote(c) for c in login_shell(codex_command(run, Path("<run>")))) + " < prompt.md")
@@ -471,6 +544,9 @@ def cmd_run(args: list[str]) -> int:
     run["created_at"] = now()
     run["git_before"] = git_state(str(repo)) if repo else None
     (run_dir / "document.md").write_bytes(data)
+    if withhold:
+        (run_dir / "original.md").write_bytes(document.read_bytes())
+        (run_dir / "withheld.md").write_text(withheld_text, encoding="utf-8")
     (run_dir / "prompt.md").write_text(prompt, encoding="utf-8")
     write_json(run_dir / "run.json", run)
 
@@ -608,6 +684,12 @@ def cmd_finish(args: list[str]) -> int:
     errors = synthesis_errors(text, findings)
     checks.append((not errors, "synthesis covers every finding with source, priority, decision, and reason"
                    + ("".join(f"\n  - {e}" for e in errors))))
+    if findings.get("withheld"):
+        body = re.search(r"^## Divergences[ \t]*\n(.*?)(?=^## |\Z)", text, re.M | re.S)
+        content = re.sub(r"<!--.*?-->", "", body.group(1), flags=re.S).strip() if body else ""
+        content = "\n".join(line for line in content.splitlines() if not re.match(r"^- \S+ reconstruction:", line)).strip()
+        checks.append((bool(content), "## Divergences records each material divergence between the withheld "
+                       "sections and the reconstructions (or why there is none)"))
     checks.append(git_unchanged(run))
     ok = all(passed for passed, _ in checks)
     for passed, message in checks:
@@ -615,6 +697,12 @@ def cmd_finish(args: list[str]) -> int:
     if not ok:
         return 1
     parts = [text.rstrip("\n"), "", "## Raw critic outputs", ""]
+    if findings.get("withheld"):
+        parts += ["## Withheld sections and reconstructions", "", "### Withheld text", "", "```markdown",
+                  (run_dir / "withheld.md").read_text(encoding="utf-8").rstrip("\n"), "```", ""]
+        for critic in findings["critics"]:
+            parts += [f"### {critic['key']} critic ({critic['label']}) reconstruction", "",
+                      critic.get("reconstruction") or "(none)", ""]
     for critic in findings["critics"]:
         parts += [f"### {critic['key']} critic ({critic['label']})", "", "```json",
                   json.dumps(critic["findings"], ensure_ascii=False, indent=2), "```", ""]

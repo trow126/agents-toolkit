@@ -42,6 +42,7 @@ generic `default`・`worker`への委任はこれらの代替ではない。
 
 ## ルーティングの検証（モデル自己申告は証明にならない）
 
+- 実測したsession log・設定値がこのskillや公式docsの記述と食い違う場合は実測を優先し、食い違った記述をstale候補として報告する
 - session logの`session_meta.source.subagent.thread_spawn`で対象childとparentを特定し、childの`turn_context.model`・`turn_context.effort`を確認する。message本文は検証に使わない
 - routing異常時は`~/.codex/config.toml`の`[agents]` default、custom agent file、spawn時の明示値、CLI overrideの順に確認する
 - `max_concurrent_threads_per_session`を使う。`max_threads`はlegacy aliasであり、`max_depth`はV1でのみ有効、V2では無視される

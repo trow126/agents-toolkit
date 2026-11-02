@@ -51,7 +51,7 @@
 ## 設計上の限界（明示）
 
 - 「合意列挙 → 封鎖」は直接の実証が薄い手続き。falsifiable: `--solo` / `--cross` の実行で、probe の baseline を封鎖した run と封鎖しない run を比べ、候補の非重複率と stress test の生存率を見れば検証できる
-- cross-provider（既定の `--cross`）は多様性を保証しない。異なるモデルの出力同士も収束する（Artificial Hivemind, NeurIPS 2025 D&B, https://arxiv.org/abs/2510.22954）。両 worker の一致は正しさや非合意の証拠ではない
+- cross-provider（既定の `--cross`）は多様性を保証しない。異なるモデルの出力同士も収束する（Artificial Hivemind, NeurIPS 2025 D&B, https://arxiv.org/abs/2510.22954）。両 worker の一致は正しさや非合意の証拠ではない。同じ結果は 23 model・13 言語でも再現し（arXiv 2610.16755）、reasoning を有効にすると model 間の一致が増える（arXiv 2610.41691）[agent-opened, abstract only]
 - novelty 監査は検索範囲に依存する。「新規らしい」は「調査範囲で未発見」以上を意味しない
 
 ## 2026-10 更新: baseline probe と blind prior-art audit（手順1と4）

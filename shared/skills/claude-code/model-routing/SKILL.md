@@ -15,9 +15,10 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 
 - mainはlead/advisorとして長期的な方針決定と統合を担当する（modelはCLAUDE.mdのlead）
 - exact-name overrideの`Explore`はfrontmatterのmodelを使い、read-only codebase探索だけを担当する
-- dynamic workflowのanonymous workerは、生成scriptの各`agent()`のmodel optionにCLAUDE.mdのworker modelを明示する。dynamic workflow専用のglobal default keyはないため、親modelの暗黙継承に依存しない
+- dynamic workflowのanonymous workerは、生成scriptの各`agent()`のmodel optionにCLAUDE.mdのworker modelを明示する。`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL`は全workflow agentを1つのmodelに揃えるため設定せず、各`agent()`のmodel optionで明示して親modelの暗黙継承に依存しない
 - built-in `general-purpose`はmain modelを継承する
-- `CLAUDE_CODE_SUBAGENT_MODEL`はsubagentの既定値として扱われ、全体の上書きには`_FORCE`付きの指定が要る。model割当はCLAUDE.mdとagent frontmatterで管理するため、どちらも設定しない
+- fork subagent（`subagent_type: "fork"`）は`claude -p`・Agent SDK・desktop・VS Codeで既定有効（`CLAUDE_CODE_FORK_SUBAGENT=0`で無効）。親contextを引き継ぐため割当の対象に含め、実modelはそのtranscriptで確認する
+- `CLAUDE_CODE_SUBAGENT_MODEL`はsubagentの既定値として扱われ、全体の上書きには`_FORCE`付きの指定が要る。model割当はCLAUDE.mdとagent frontmatterで管理するため、これらと`CLAUDE_CODE_SUBAGENT_EFFORT`（他に指定がないときのsubagent effort）・`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL`は設定しない
 
 ## 独立した検査と計画review
 
@@ -41,7 +42,12 @@ CLAUDE.md「Ownerとrouting」を補完する詳細手順。既定は「必要�
 
 ## ルーティングの検証（モデル自己申告は証明にならない）
 
+- 実測したtranscript・設定値がこのskillや公式docsの記述と食い違う場合は実測を優先し、食い違った記述をstale候補として報告する
 - エージェント起動表示の model 欄
-- transcript（`~/.claude/projects/` の JSONL にある assistant メッセージの `model` フィールド）
+- transcript（`~/.claude/projects/` の JSONL にある assistant メッセージの `model` フィールド）。その agent の全 assistant 行の `model` の異なり値を数え、1種類のときだけ検証済みとする。2種類以上は途中のfallbackかresume時の切替として別に分類して報告する（served modelを全行で集計する既知の方法: https://yurukusa.github.io/cc-safe-setup/claude-code-which-model-served.html）
+- Claude Code 2.1.316未満のtranscriptで、再開後のnested subagentだけがmain modelに変わっている場合は既知の不具合（v2.1.316で修正）として記録し、設定層の異常と区別する
 - dynamic workflowは`~/.claude/projects/<project>/<session>/workflows/wf_*.json`の`workflowProgress[].model`を確認する。`defaultModel`はlead modelを示し、workerの実modelの証明にはならない
-- routing 異常時は `CLAUDE_CODE_SUBAGENT_MODEL` 系の環境変数を最初に確認する（既定値として、または`_FORCE`付きで全体の上書きとして効く）
+- routing 異常時は次の順に確認する。設定されたmodelは親の実modelの証拠にならない
+  1. 親sessionのtranscriptにある実model（fallbackを含む）
+  2. `CLAUDE_CODE_SUBAGENT_MODEL`（既定値として、または`_FORCE`付きで全体の上書きとして効く）・`CLAUDE_CODE_SUBAGENT_EFFORT`・`CLAUDE_CODE_WORKFLOW_SUBAGENT_MODEL`
+  3. agent frontmatter、または`agent()`のmodel option

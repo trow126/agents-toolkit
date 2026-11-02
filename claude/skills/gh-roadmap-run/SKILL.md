@@ -19,7 +19,7 @@ Read [`references/workflow.md`](references/workflow.md). The per-step contracts 
 
 ## Authority
 
-Invoking the loop is the user's single explicit request to follow `~/.claude/skills/gh-test-first/SKILL.md` (and, with `--critic`, `~/.claude/skills/cross-critic/SKILL.md`) for the listed sub-Issues, and it covers, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no work outside the listed sub-Issues.
+Invoking the loop is the user's single explicit request to follow `~/.claude/skills/gh-test-first/SKILL.md` (and, with `--critic`, `~/.claude/skills/cross-critic/SKILL.md`) for the listed sub-Issues, and it covers, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update; and, at reconciliation, one checklist update for each sub-Issue already closed on GitHub but unchecked. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no work outside the listed sub-Issues.
 
 ## Loop (per sub-Issue)
 

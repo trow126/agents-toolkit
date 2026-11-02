@@ -16,8 +16,8 @@ Use the smallest relevant rule set:
 | Markdown is edited | `~/.agents/rules/markdown-rules.md` |
 | A recurring environment or CLI failure is directly relevant | `~/.agents/rules/learnings.md` |
 
-Before editing, state the concrete success condition and inspect the surrounding implementation and tests. Keep the change scoped, implement the complete requested behavior, and fail loudly when required inputs or invariants are missing.
+Before the first Edit or Write call, state the concrete success condition in a message to the user, then inspect the surrounding implementation and tests. Keep the change scoped, implement the complete requested behavior, and fail loudly when required inputs or invariants are missing.
 
 After editing, run the narrowest deterministic checks that prove the behavior, then the repository gates required by the affected surface. Report executed checks and any remaining unverified item.
 
-This skill does not authorize commit, push, external writes, memory updates, or deletion of pre-existing artifacts.
+This skill does not authorize commit, merge, push, PR, external writes, updates to memory, shared rules, or learnings files, or deletion of pre-existing artifacts.

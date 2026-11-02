@@ -5,7 +5,7 @@
 1. Reject empty or non-numeric Issue identifiers and unknown flags.
 2. Confirm the intended Git repository and no unresolved merge or rebase. On `main`/`master`, create and switch to `issue-<N>` (or the existing branch for that Issue). Stop only if the current branch clearly belongs to another Issue's work in progress.
 3. Inspect `git status --short --branch`. Unrelated or overlapping dirty changes are never staged, reset, or rewritten.
-4. Fetch the Issue through `~/.claude/bin/gh-issue-fetch.sh`. Fail on a missing or closed Issue unless the user asked to continue closed work.
+4. Fetch the Issue only through `~/.claude/bin/gh-issue-fetch.sh`, again for each Issue of a `/gh-roadmap-run`; do not read it with `gh issue view` or `gh api`. If the helper fails, stop. Fail on a missing or closed Issue unless the user asked to continue closed work.
 5. Read the project instructions, the code the Issue touches, and its existing tests. Use the project's test framework, layout, and naming; apply the relevant `implementation-quality` rules.
 
 ## Specification
@@ -18,14 +18,14 @@
 
 Treat the repository as time-series or quantitative when the Issue or the code works with time-indexed data: prices, ticks, bars, signals, features, labels, rolling or expanding windows, resampling, backtests, forecasts, or walk-forward evaluation. When unsure, treat it as one.
 
-For every function the Issue adds or changes whose output row `t` must depend only on input up to `t` (or `t − horizon` for labels with a forward window), write the three tests of [`causality-tests.md`](causality-tests.md): prefix invariance, future perturbation, and sensitivity. They are acceptance tests like the others: written before the implementation and frozen.
+For every function the Issue adds or changes whose output row `t` must depend only on input up to `t` (or `t + horizon` for labels with a forward window of `horizon` rows, so a perturbation after a cut may change only rows from `cut − horizon` on), write the three tests of [`causality-tests.md`](causality-tests.md): prefix invariance, future perturbation, and sensitivity. They are acceptance tests like the others: written before the implementation and frozen.
 
 ## Red
 
 - Write tests and fixtures only. No implementation file changes in this phase (an empty module the import needs is the only exception, and it must stay empty).
 - Run the new tests. Acceptable red: an assertion failure, or `ImportError`/`AttributeError` for an interface the Issue introduces. Not acceptable: a syntax error, a fixture that fails to build, or a failure unrelated to the criterion. Fix the test until the failure is the expected one.
 - For a bug fix, the test must reproduce the bug against the current code.
-- Record the command, the summary of failures, and `sha256sum <test files>`.
+- Run the project's formatter and lint autofix on the new test files, re-run them to confirm the same red, then record the command, the summary of failures, and `sha256sum <test files>`.
 
 ## Green
 
@@ -37,7 +37,7 @@ For every function the Issue adds or changes whose output row `t` must depend on
 All of these must hold; any failure stops the run with the output shown:
 
 1. The new tests pass.
-2. The project's relevant test suite and lint pass (the same commands `gh-finish` will run).
+2. The project's relevant test suite and lint pass (the same commands `gh-finish` will run), without adding paths, patterns, or thresholds to an existing test's exclusion or allow list. When an existing test flags the new code or tests, stop and report it before any `/gh-finish` step.
 3. `sha256sum` of the frozen test files matches the record, or each change is listed with its reason and its re-shown red.
 4. In a time-series or quantitative repository, the causality tests exist for every affected function and pass.
 5. The diff contains only Issue-attributable changes.

@@ -22,10 +22,10 @@ It never commits, pushes, merges, creates PRs, or writes to GitHub. Completion i
 ## Required behavior
 
 1. Verify the Issue number, repository, and worktree. Work on a feature branch: on `main`/`master`, create and switch to `issue-<N>` (or that Issue's existing branch) without asking.
-2. Fetch the Issue via `~/.claude/bin/gh-issue-fetch.sh`. Write the success criteria as a numbered list and map each to the test(s) that will check it. List criteria no test can check as manual checks.
+2. Fetch the Issue only via `~/.claude/bin/gh-issue-fetch.sh <N>`, again for each Issue of a `/gh-roadmap-run`; do not read it with `gh issue view` or `gh api`. If the helper fails, stop. Write the success criteria as a numbered list and map each to the test(s) that will check it. List criteria no test can check as manual checks.
 3. Decide whether the repository is time-series or quantitative (see the workflow). If it is, add causality tests (prefix invariance, future perturbation, sensitivity) for every function the Issue adds or changes whose output is indexed by time.
 4. Red: write only tests (and fixtures). Run them. Every new test must fail for the expected reason: an assertion, or the missing interface the Issue names. A collection error from a typo or a broken fixture is not red. A test that already passes means the criterion is already met or the test is too weak; report it or strengthen it.
-5. Freeze: record the red output and `sha256sum` of each new or changed test file.
+5. Freeze: after formatting the test files, record the red output and `sha256sum` of each new or changed test file.
 6. Green: implement the minimum that satisfies the Issue and the tests. Do not edit frozen tests to make them pass. If a test is wrong, stop implementing, say why, fix the test, and show the fixed test failing against the pre-implementation code before continuing (record the new hash).
-7. Gate: the new tests, the project's relevant suite, and lint pass; the frozen hashes match or each change is listed with its reason. A failing gate stops the run; never skip, weaken, or delete a test to pass it.
+7. Gate: the new tests, the project's relevant suite, and lint pass; the frozen hashes match, or each change is listed with its reason and the changed test is shown failing again against the pre-implementation code. A failing gate stops the run; never skip, weaken, or delete a test to pass it, and that includes adding paths, patterns, or thresholds to an existing test's exclusion or allow list. When an existing test flags the new code or tests, stop and report it before any `/gh-finish` step.
 8. Report: the criterion → test map, red and green results, the frozen hashes, changed paths, manual checks, remaining risk, and the exact follow-up `/gh-finish <N>`.

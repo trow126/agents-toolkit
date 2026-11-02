@@ -15,12 +15,12 @@ If a fresh context cannot be started, or the runtime refuses the spawn with thos
 ## Blind prior-art audit (step 4)
 
 1. Rewrite every candidate as three short lines of similar length: purpose, mechanism, implementation. Drop its title, generation mechanism, predicted benefit, and any word that claims novelty or non-consensus.
-2. Start one fresh context with web search and give it only the rewritten candidates and the one-paragraph problem context. Do not tell it where the candidates came from or how they were judged.
+2. Start one fresh context with web search and give it only the rewritten candidates and the one-paragraph problem context. Do not tell it where the candidates came from or how they were judged. In Claude Code, run it as a Workflow `agent()` or as an Agent with a named non-fork `subagent_type`; never use `subagent_type: "fork"`, because a fork inherits this conversation.
 3. Ask it, for each candidate, to search by the mechanism in generic words and by any established method name it suspects, and to return one verdict:
    - `KNOWN`: substantially the same thing exists. Needs a source URL it opened or saw in results, the method name, and purpose / mechanism / implementation match (yes or no each).
    - `PARTIAL`: the same purpose or the same mechanism with a different core, with the same evidence.
    - `NOT_FOUND`: nothing found in this search. Never "novel".
 4. Treat the verdicts this way in steps 5 and 6, and record what the audit searched so the reader can see its coverage:
    - `KNOWN` with both mechanism and implementation matching: not a non-consensus candidate. List it separately as "known method to adopt here", with its source.
-   - `PARTIAL`, or `KNOWN` with only the purpose matching: stays a candidate, with the facet that differs from the source named.
+   - `PARTIAL`, or `KNOWN` where mechanism or implementation does not match: stays a candidate, with each facet that differs from the source named.
    - `NOT_FOUND`: stays a candidate.

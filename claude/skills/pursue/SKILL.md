@@ -7,7 +7,7 @@ argument-hint: "<problem, optionally with its completion condition> [--budget N]
 
 # /pursue
 
-**Done** when the completion check passes on a fresh run and you have reported the result. **Stop** early and report when the budget is spent or a stop condition below applies. Never stop to ask for approval between attempts.
+**Done** when the completion check passes on a fresh run and you have reported the result. **Stop** early and report when the budget is spent or a stop condition below applies. Never stop to ask for approval between attempts. This does not cover a decision the user or the project's Issues reserve for the user: that is the "information only the user has" stop condition, so do not pick a provisional answer for it.
 
 The built-in `/goal` cannot run under the managed `allowManagedHooksOnly`. Instead, the managed Stop hook `pursue-stop-hook.sh` runs the registered check whenever you try to end your turn and blocks the stop (exit 2) while it fails, up to the budget. Its message is a fact about the check, not a suggestion.
 
@@ -25,9 +25,9 @@ Do this once and without questions, then state the contract in five lines (probl
 
 1. **Completion check**: use the user's condition when given. Otherwise derive a deterministic one from the repository: an existing test, a reproduction script, or a measurable command. When none exists, write the smallest failing test or repro first and show that it fails. Ask the user only when no machine-checkable condition can be stated, then stop.
 2. **Scope**: the files the problem plausibly involves. Needing anything beyond that is a stop condition.
-3. **Run Issue** (skip with `--no-issue`): write the contract (problem, completion check, scope, budget, the absolute path of `pursue-log.md`) to a scratchpad file and run `~/.claude/bin/pursue-issue start --title '<project>: <problem in one line>' --body-file <file>` (add `--issue N` when given). Keep the printed `run` number. If it fails, report the error and stop; the user can rerun with `--no-issue`.
-4. **Register**: from the project directory, run `~/.claude/bin/pursue-goal set --check '<check command>' --max-stops <N>` (add `--timeout <seconds>`, at most 540, for slow checks; default 300). The check must be a command the Bash pre-tool gate accepts; it runs at the git root. If registration fails, report the error and stop: do not continue without enforcement.
-5. **Log**: create `pursue-log.md` in the session scratchpad directory. Read it before every new hypothesis.
+3. **Log**: create `pursue-log.md` in the session scratchpad directory. Read it before every new hypothesis.
+4. **Run Issue** (skip with `--no-issue`): write the contract (problem, completion check, scope, budget, the absolute path of `pursue-log.md`) to a scratchpad file and run `~/.claude/bin/pursue-issue start --title '<project>: <problem in one line>' --body-file <file>` (add `--issue N` when given). Keep the printed `run` number. If it fails, including when the project has no GitHub remote or Issues are disabled, report the error and stop; do not create, configure, or change a repository to make it work. The user can rerun with `--no-issue`.
+5. **Register**: from the project directory, run `~/.claude/bin/pursue-goal set --check '<check command>' --max-stops <N>` (add `--timeout <seconds>`, at most 540, for slow checks; default 300). The check must be a command the Bash pre-tool gate accepts; it runs at the git root. If registration fails, report the error and stop: do not continue without enforcement.
 
 ## Loop
 
@@ -39,7 +39,7 @@ Do this once and without questions, then state the contract in five lines (probl
 
 Never repeat a refuted hypothesis. After two attempts that yield no new information, change the approach: re-read primary sources (code, official docs, real logs), widen what you observe, or question the assumption shared by the failed hypotheses. Read-only exploration may go to an `Explore` subagent.
 
-Issue updates are progress reporting, not enforcement. If a `pursue-issue` command fails mid-run, write the failure and the unsent entry to the log, keep going, and list it in the report; never drop it silently. Post no Issue comments: the sub-issue list and each Issue's body are the record.
+Issue updates are progress reporting, not enforcement. If a `pursue-issue` command fails mid-run, write the failure and the unsent entry to the log, keep going, and list it in the report; never drop it silently.
 
 ## Stop conditions
 
@@ -48,15 +48,15 @@ Issue updates are progress reporting, not enforcement. If a `pursue-issue` comma
 - The fix needs an out-of-scope change, a destructive operation, a dependency addition, or a settings, hook, or policy change.
 - The next step needs information only the user has.
 
-For the last two, run `~/.claude/bin/pursue-goal clear --reason '<reason>'` before reporting; the reason goes to the history. Never clear the goal only to escape a failing check. When the check passes, the Stop hook closes the goal itself.
+For the last two, run `~/.claude/bin/pursue-goal clear --reason '<condition>: <the blocked step or the question for the user>'` before reporting, where `<condition>` is `out-of-scope` or `user-only-info`; the reason goes to the history. A failing check, a weak result, or wanting more data later is neither: keep working until the budget is spent. Never clear the goal only to escape a failing check. When the check passes, the Stop hook closes the goal itself.
 
-Before the report, give every open hypothesis Issue a verdict, then run `~/.claude/bin/pursue-issue finish --issue <run> --outcome done|not-done|abandoned --body-file <file>` with the report. `done` closes the run Issue. Use `abandoned` (closed as not planned) when the check can no longer pass, for example a consumed one-shot holdout, or when the user says the problem will not be resumed; say why in the report. `not-done` leaves it open for a later attempt; such a run can be finished again as `done` or `abandoned` once the user decides.
+(Skip with `--no-issue`; record the outcome in `pursue-log.md` instead.) Before the report, give every open hypothesis Issue a verdict, then run `~/.claude/bin/pursue-issue finish --issue <run> --outcome done|not-done|abandoned --body-file <file>` with the report. `done` closes the run Issue. Use `abandoned` (closed as not planned) when the check can no longer pass, for example a one-shot holdout with no evaluation slots left, or when the user says the problem will not be resumed; say why in the report. `not-done` leaves it open for a later attempt; such a run can be finished again as `done` or `abandoned` once the user decides.
 
 ## Never
 
 - Commit, push, open a PR, or write to an external service other than the run and hypothesis Issues through `pursue-issue`.
 - Put secrets, credentials, personal data, or raw private data in an Issue body; summarize results instead. Issues are as visible as the repository.
-- Edit, close, or comment on the run and hypothesis Issues by hand.
+- Edit, close, or comment on the run and hypothesis Issues by hand; the sub-issue list and each Issue's body are the record.
 - Weaken, skip, or rewrite the completion check or existing tests to make them pass, or `set --replace` a weaker check.
 - Edit or delete the goal state under `~/.local/state/agents-toolkit/pursue/` by hand.
 - Hide a failure behind a silent fallback.

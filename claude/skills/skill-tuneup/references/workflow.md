@@ -7,15 +7,17 @@ Deviations from `probe-and-audit.md`, recorded in `synthesis.md` under `## Not c
 - Probe count: three probes instead of five, to keep a whole-toolkit run affordable. In the 2026-10-11 probe experiment the main clusters appeared in all five probes, so three still capture the mode.
 - Probes get the skill's file paths instead of a written problem statement and keep Read, Grep, and Glob, because the skill's files are the problem. The no-file-tools isolation of `probe-and-audit.md` applies to break-consensus's own probes.
 
-Every agent is narrowed with `agent({disallowedTools})`. The `agent()` reference does not list that option; Claude Code 2.1.296 honors it and refuses a spawn it cannot narrow, and `skill-tuneup prepare` refuses older versions.
+Every agent is narrowed with `agent({disallowedTools})`. The `agent()` reference does not list that option; Claude Code 2.1.296 honors it and refuses a spawn it cannot narrow. `skill-tuneup prepare` refuses versions older than 2.1.305: before 2.1.301 a workflow agent could skip its step after the harness's "no user authority" note while the run still reported success, and before 2.1.305 resume re-ran completed `pipeline()`/`parallel()` agents instead of serving them from the journal.
 
 The miner (session-transcript friction mining, the known method the 2026-10-12 run adopted) reads local Claude Code and Codex transcripts for invocations of the skill and returns deviations with file, line, and a short redacted quote. When it finds no invocation, the skill runs on the probe-based flow alone, and `synthesis.md` names it under `## Not covered`.
 
-Agents per skill: 3 probes, 1 cluster, 1 second layer, 1 miner, 1 generator, then 1 auditor and 1 designer when there are candidates, and per experiment up to 3 runs and 1 judge, so 7 to 17. `skill-tuneup prepare` prints the total estimate.
+Each experiment is judged three times on the same outputs: with the designer's judge prompt and with two meaning-preserving rewordings written before the runs start (multi-prompt LLM-as-judge evaluation, https://arxiv.org/abs/2408.13006; meaning-preserving rewordings can flip judge rankings, arXiv 2610.38076). The verdict is PASS or FAIL only when all three agree; any disagreement, a run without output, or a failed experiment is INCONCLUSIVE and is never judged into a PASS.
+
+Agents per skill: 3 probes, 1 cluster, 1 second layer, 1 miner, 1 generator, then 1 auditor and 1 designer when there are candidates, and per experiment 1 rewording agent, up to 3 runs, and 3 judges, so 7 to 21. `skill-tuneup prepare` prints the total estimate.
 
 ## Args
 
-`{"runId": <run id>, "research": <text of research.md>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references).
+`{"runId": <run id>, "research": <text of research.md>, "priorResearch": <text of the previous finished run's research.md, or "" when `since` is none>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references).
 
 ## Script
 
@@ -32,6 +34,7 @@ const AUDITOR = ['Bash', 'Edit', 'Write', 'NotebookEdit', 'mcp__*']
 const PROBES = 3
 const MAX_EXPERIMENTS = 2
 const MAX_RUNS = 3
+const JUDGE_WORDINGS = 3
 const STR = { type: 'string' }
 const TEXT = { type: 'string', minLength: 1 }
 const LIST = { type: 'array', items: STR }
@@ -70,6 +73,7 @@ const DESIGN = obj({
     runs: { type: 'array', minItems: 1, maxItems: MAX_RUNS, items: obj({ label: STR, prompt: TEXT }) }, judge_prompt: TEXT }) },
 })
 const VERDICT = obj({ verdict: { type: 'string', enum: ['PASS', 'FAIL', 'INCONCLUSIVE'] }, reason: STR })
+const REWORDED = obj({ wordings: { type: 'array', minItems: JUDGE_WORDINGS - 1, maxItems: JUDGE_WORDINGS - 1, items: TEXT } })
 
 const fileList = (s) => s.files.map((f) => `- ${f}`).join('\n')
 const readOnly = (label, phase, extra) => ({ label, phase, disallowedTools: READ_ONLY, ...(extra || {}) })
@@ -100,7 +104,7 @@ const results = await pipeline(args.skills,
       ? `Deviations observed in local session transcripts (cite them as file:line when a finding or candidate addresses one):\n${deviationList(prev.mined)}`
       : `No deviation was observed in local session transcripts (${prev.mined.status}); do not claim anything about real use.`
     const generated = await agent(
-      `You run steps 2-3 of break-consensus, plus a hygiene review, for one agent skill${s.deprecated ? ' (marked deprecated: weigh hygiene over new candidates)' : ''}.\n\nRead only these files:\n${fileList(s)}\n\nFrozen baseline (exploration exclusions, not candidates):\n${prev.baseline.clusters.map((c) => `- ${c.name}`).join('\n')}\n${prev.baseline.second_layer.map((r) => `- ${r}`).join('\n')}\n\n${observed}\n\nShared research digest (current official guidance and research, with sources):\n${args.research}\n\n(a) hygiene: specific problems only: guidance outdated against the digest (cite the digest line), contract gaps, bugs, and wrong or superseded evidence. Give evidence as file:line or a source, and a concrete fix. effect: remove (delete stale or duplicated text), correct (fix wrong text in place), or add (a new instruction or step). An add fix is applied without an experiment only when its evidence names the digest line that mandates it.\n(b) candidates: generate through all three mechanisms (assumption_inversion, structural_transfer with the correspondence stated, changed_principle). Make each operationally distinct; reject synonyms, cosmetic variations, and combinations of baseline items. For each, also write purpose_line, mechanism_line, and implementation_line: three neutral lines of similar length with no word claiming novelty.`,
+      `You run steps 2-3 of break-consensus, plus a hygiene review, for one agent skill${s.deprecated ? ' (marked deprecated: weigh hygiene over new candidates)' : ''}.\n\nRead only these files:\n${fileList(s)}\n\nFrozen baseline (exploration exclusions, not candidates):\n${prev.baseline.clusters.map((c) => `- ${c.name}`).join('\n')}\n${prev.baseline.second_layer.map((r) => `- ${r}`).join('\n')}\n\n${observed}\n\nShared research digest (current official guidance and research, with sources):\n${args.research}\n\n${args.priorResearch ? `Older guidance from the previous finished run's digest, still in force unless a line above supersedes it:\n${args.priorResearch}\n\n` : ''}(a) hygiene: specific problems only: guidance outdated against the digest (cite the digest line), contract gaps, bugs, and wrong or superseded evidence. Give evidence as file:line or a source, and a concrete fix. effect: remove (delete stale or duplicated text), correct (fix wrong text in place), or add (a new instruction or step). An add fix is applied without an experiment only when its evidence names the digest line that mandates it.\n(b) candidates: generate through all three mechanisms (assumption_inversion, structural_transfer with the correspondence stated, changed_principle). Make each operationally distinct; reject synonyms, cosmetic variations, and combinations of baseline items. For each, also write purpose_line, mechanism_line, and implementation_line: three neutral lines of similar length with no word claiming novelty.`,
       readOnly(`generate: ${s.name}`, 'Generate', { schema: GENERATED }))
     return { ...prev, generated }
   },
@@ -122,16 +126,27 @@ const results = await pipeline(args.skills,
       `Step 5 of break-consensus and experiment design for one agent skill. Its files:\n${fileList(s)}\n\nCandidates:\n${JSON.stringify(prev.generated.candidates)}\n\nPrior-art verdicts:\n${JSON.stringify(prev.audit.verdicts)}\n\nHygiene findings:\n${JSON.stringify(prev.generated.hygiene)}\n\n(1) stress: test every candidate for feasibility, safety, reversibility, cost, and a falsifiable advantage. A KNOWN candidate survives only as "adopt the known method".\n(2) experiments: at most ${MAX_EXPERIMENTS} cheap read-only experiments on surviving candidates whose outcome would most change what gets implemented. criterion is the observation that fails the hypothesis, fixed now. runs: at most ${MAX_RUNS} self-contained prompts for fresh agents that can only read files; give variants different conditions; never tell a run the hypothesis or the expected result. judge_prompt: how a judge compares the run outputs against the criterion. Return no experiments when none can be tested this way.`,
       readOnly(`design: ${s.name}`, 'Design', { schema: DESIGN }))
     if (design.experiments.length > MAX_EXPERIMENTS) log(`${s.name}: kept ${MAX_EXPERIMENTS} of ${design.experiments.length} experiments`)
-    const experiments = (await parallel(design.experiments.slice(0, MAX_EXPERIMENTS).map((e, k) => async () => {
+    const designed = design.experiments.slice(0, MAX_EXPERIMENTS)
+    const experiments = (await parallel(designed.map((e, k) => async () => {
       if (e.runs.length > MAX_RUNS) log(`${s.name} experiment ${k + 1}: kept ${MAX_RUNS} of ${e.runs.length} runs`)
       const runs = e.runs.slice(0, MAX_RUNS)
-      const outputs = await parallel(runs.map((r) => () => agent(r.prompt, readOnly(`run ${k + 1}/${r.label}: ${s.name}`, 'Experiment'))))
-      const judged = await agent(
-        `${e.judge_prompt}\n\nPre-registered criterion (fixed before the runs): ${e.criterion}\n\n${runs.map((r, j) => `## ${r.label}\n${outputs[j] || '(no output)'}`).join('\n\n')}`,
-        readOnly(`judge ${k + 1}: ${s.name}`, 'Experiment', { schema: VERDICT }))
-      return { ...e, runs, outputs: outputs.map((o) => o || ''),
-        verdict: judged ? judged.verdict : 'INCONCLUSIVE', verdict_reason: judged ? judged.reason : 'judge returned no output' }
-    }))).filter(Boolean)
+      const reworded = await agent(
+        `Rewrite the judging instruction below in ${JUDGE_WORDINGS - 1} different ways. Keep its meaning, its checks, and its decision rule exactly; change only the wording and order. Do not add or drop a condition.\n\n${e.judge_prompt}`,
+        readOnly(`reword ${k + 1}: ${s.name}`, 'Experiment', { schema: REWORDED }))
+      const outputs = (await parallel(runs.map((r) => () => agent(r.prompt, readOnly(`run ${k + 1}/${r.label}: ${s.name}`, 'Experiment'))))).map((o) => o || '')
+      const base = { ...e, runs, outputs, judges: [] }
+      if (outputs.some((o) => !o)) return { ...base, verdict: 'INCONCLUSIVE', verdict_reason: 'run(s) returned no output; not judged' }
+      if (!reworded || reworded.wordings.length < JUDGE_WORDINGS - 1) return { ...base, verdict: 'INCONCLUSIVE', verdict_reason: 'judge rewording returned no output; not judged' }
+      const wordings = [e.judge_prompt, ...reworded.wordings.slice(0, JUDGE_WORDINGS - 1)]
+      const judges = await parallel(wordings.map((w, j) => () => agent(
+        `${w}\n\nPre-registered criterion (fixed before the runs): ${e.criterion}\n\n${runs.map((r, i) => `## ${r.label}\n${outputs[i]}`).join('\n\n')}`,
+        readOnly(`judge ${k + 1}/${j + 1}: ${s.name}`, 'Experiment', { schema: VERDICT }))))
+      const verdicts = judges.map((v, j) => ({ wording: wordings[j], verdict: v ? v.verdict : 'INCONCLUSIVE', reason: v ? v.reason : 'judge returned no output' }))
+      const unanimous = verdicts.every((v) => v.verdict === verdicts[0].verdict)
+      return { ...base, judges: verdicts, verdict: unanimous ? verdicts[0].verdict : 'INCONCLUSIVE',
+        verdict_reason: unanimous ? (verdicts[0].reason || 'no reason given') : `judges disagreed: ${verdicts.map((v) => v.verdict).join(' / ')}` }
+    }))).map((x, k) => x || { ...designed[k], runs: designed[k].runs.slice(0, MAX_RUNS), outputs: designed[k].runs.slice(0, MAX_RUNS).map(() => ''), judges: [],
+      verdict: 'INCONCLUSIVE', verdict_reason: 'experiment failed: no result' })
     return done(design.stress, experiments)
   })
 

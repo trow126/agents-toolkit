@@ -17,10 +17,10 @@ argument-hint: "[--only <skill,...>] | --apply <run-dir>"
 
 ## Default flow
 
-1. Run `~/.claude/bin/skill-tuneup prepare [--only <skill,...>]`. It inventories the skills, creates the run directory, and prints the skill list and the estimated number of agents; it refuses Claude Code older than 2.1.296 and prints `--only` batches when the skills could exceed the Workflow limit of 1,000 agents. Show the count and the estimate and ask the user once before going on; the run is large. The Workflow's large-workflow warning is expected and is not a reason to stop.
+1. Run `~/.claude/bin/skill-tuneup prepare [--only <skill,...>]`. It inventories the skills, creates the run directory, and prints the skill list and the estimated number of agents; it refuses Claude Code older than 2.1.305 and prints `--only` batches when the skills could exceed the Workflow limit of 1,000 agents. Show the count and the estimate and ask the user once before going on; the run is large. The Workflow's large-workflow warning is expected and is not a reason to stop.
 2. Shared research, once for all skills: follow [`references/research.md`](references/research.md) and write `<run_dir>/research.md`.
-3. Launch the Workflow in [`references/workflow.md`](references/workflow.md) with the `args` it describes. You invoked this skill, so this is the explicit opt-in the Workflow tool requires.
-4. Write the Workflow result to `<run_dir>/results.json` and run `~/.claude/bin/skill-tuneup record <run_dir>`. It validates every skill's result and fails on a missing skill or an unsupported verdict; rerun only the failed skills with `--only`, do not hand-write results.
+3. Launch the Workflow in [`references/workflow.md`](references/workflow.md) with the `args` it describes (with `since` set, `priorResearch` is the previous finished run's research.md). You invoked this skill, so this is the explicit opt-in the Workflow tool requires.
+4. Write the Workflow result to `<run_dir>/results.json` and run `~/.claude/bin/skill-tuneup record <run_dir>`. It validates every skill's result and fails on a missing skill or an unsupported verdict. Resume the Workflow run first (completed agents are served from its journal); use `--only` only for a skill whose failure resume does not clear, or when the run cannot be resumed. Do not hand-write results.
 5. Write `<run_dir>/synthesis.md` with non-empty `## Summary`, `## Per skill`, and `## Not covered` sections (name there every skill whose miner found no invocation), then run `~/.claude/bin/skill-tuneup finish <run_dir>`.
 6. Report, per skill: hygiene findings, candidates with their audit verdict, each experiment's pre-registered criterion and verdict, and what `--apply` would implement. Do not rank skills or candidates beyond that.
 

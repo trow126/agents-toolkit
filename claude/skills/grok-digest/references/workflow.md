@@ -61,7 +61,7 @@ Replace 〇〇 with the specific claim, method, or number to check. The proposal
 1. Open the conversation in a separate tab: `preview_start` with its `url`.
 2. Capture the page text before sending (`main` innerText) to `before.txt`, and write the approved question to `question.txt`.
 3. `find` the textbox whose placeholder is `どんなことでもお尋ねください`; click it **by `ref`** (coordinate clicks do not work in a background tab); `type` the question; `key` `Return`.
-4. Verify the send with `javascript_tool`: the end of `main` innerText contains the question and a generating indicator (for example `Thinking`). If not, check again before retyping; never send the same question twice.
+4. Verify the send with `javascript_tool`: the last user turn of `main` innerText contains the question, followed by a generating indicator (for example `Thinking`) or by answer text. If the question is not found after a second read, do not retype: report the conversation as 送信未確認 and ask the user before any resend, as in step 5.
 5. Wait 60–90 seconds, then save the page text to `page.txt` and run:
 
    ```bash
@@ -77,4 +77,4 @@ Write the claims and deep-dive answers to a scratchpad document. Leave out priva
 
 ## 8. Save and report
 
-Write the notes as `note-format.md` describes. Then report in chat: the table of §4, the deep-dive results, the critic decisions, the note paths (or the staging directory and how to copy it), and at most three next steps, each a check to run (for example, re-compute a claimed number from public data over a longer period).
+Write the notes as `note-format.md` describes. Then report as SKILL.md step 10 says. When the notes are staged, name the staging directory and say how to copy it into `<vault>/clippings/`.

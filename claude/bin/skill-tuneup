@@ -12,11 +12,12 @@ prepare  inventory every skill the toolkit ships (shared/skills, shared/skills/{
          under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/skill-tuneup/, record the toolkit HEAD
          and git status and the date of the previous finished run, and print JSON with the skills
          (name, description, deprecated, files) and the estimated number of agents. Fails when Claude
-         Code is older than 2.1.296 (Workflow agent() disallowedTools) or when the skills could exceed
+         Code is older than 2.1.305 (Workflow agent() disallowedTools, no skipped steps, resume from the journal) or when the skills could exceed
          the Workflow limit of 1,000 agents, printing --only batches that fit.
 record   validate <run>/results.json (the Workflow result) against references/result.schema.json and
          the run: every skill present, KNOWN/PARTIAL verdicts with a url and method, a verdict for every
-         candidate, a criterion and verdict for every experiment. Writes <run>/skills/<name>.json.
+         candidate, a criterion and verdict for every experiment, no PASS or FAIL over a run without
+         output. Writes <run>/skills/<name>.json.
 finish   check research.md (each finding with exactly one evidence tag), synthesis.md, the recorded
          results, and that the toolkit HEAD and git status
          are unchanged since prepare (the default mode writes no repository file), then write
@@ -52,13 +53,15 @@ SOURCES = (
 PER_RUNTIME_DIRS = {"claude-code", "codex"}
 CONTENT_SUFFIXES = {".md", ".json", ".env", ".yaml", ".yml", ".toml", ".txt"}
 # workflow.md: 3 probes, cluster, layer 2, miner, generator, then auditor and designer when there are
-# candidates, and 0-2 x (3 runs + judge).
-AGENTS_PER_SKILL = (7, 17)
+# candidates, and 0-2 x (1 rewording + 3 runs + 3 judges).
+AGENTS_PER_SKILL = (7, 21)
 RESEARCH_AGENTS = 3
 WORKFLOW_AGENT_LIMIT = 1000  # agents per Workflow run (Claude Code workflows docs)
 # The Workflow script narrows every agent with agent({disallowedTools}), which the agent() reference does
 # not document; 2.1.296 is the first version checked to honor it (and to refuse a spawn it cannot narrow).
-MIN_CLAUDE_VERSION = (2, 1, 296)
+# 2.1.301 fixed workflow agents that skipped their step after the "no user authority" note while the run
+# reported success; 2.1.305 made resume serve completed pipeline()/parallel() agents from the journal.
+MIN_CLAUDE_VERSION = (2, 1, 305)
 EVIDENCE_TAG = re.compile(r"\[(verified-main|agent-opened|secondary|practitioner|unverified)(?::[^\]]*)?\]")
 HYGIENE_GROUPS = (
     ("remove", "remove or correct (implement)"),
@@ -179,7 +182,7 @@ def claude_version() -> str:
     if tuple(int(n) for n in match.groups()) < MIN_CLAUDE_VERSION:
         raise DelegationError(f"Claude Code {match.group(0)} is older than "
                               f"{'.'.join(map(str, MIN_CLAUDE_VERSION))}, the first version known to honor "
-                              "Workflow agent() disallowedTools")
+                              "Workflow agent() disallowedTools, run every step, and resume from the journal")
     return match.group(0)
 
 
@@ -264,6 +267,8 @@ def result_errors(result: dict, schema: dict) -> list[str]:
             errors.append(f"{name}: experiment {index + 1} names unknown candidate {', '.join(sorted(unknown))}")
         if len(experiment["outputs"]) != len(experiment["runs"]):
             errors.append(f"{name}: experiment {index + 1} has {len(experiment['outputs'])} outputs for {len(experiment['runs'])} runs")
+        if experiment["verdict"] != "INCONCLUSIVE" and not all(o.strip() for o in experiment["outputs"]):
+            errors.append(f"{name}: experiment {index + 1} is {experiment['verdict']} with a run that returned no output")
     return errors
 
 

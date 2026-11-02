@@ -11,13 +11,13 @@
 
 ## Preview (default mode)
 
-Show, without executing: the paths to stage, the Conventional Commit message(s), the merge command (target branch and ff/no-ff choice per repo convention), and the `gh issue close --comment` text. End by naming `--apply` as the follow-up.
+Show, without executing: the paths to stage, the Conventional Commit message(s) (split by concern here when the diff spans distinct changes), the merge command (target branch and ff/no-ff choice per repo convention), and the `gh issue close --comment` text. End by naming `--apply` as the follow-up.
 
 ## Apply mode
 
-1. Stage only the previewed paths; create the previewed commit(s) with semantic granularity（適切な粒度 — split by concern when the diff spans distinct changes）.
+1. Stage only the previewed paths and create exactly the previewed commits. Decide any split by concern in the preview, never at apply time.
 2. Check out the default branch, merge the feature branch locally, and return any pre-existing state faithfully. On merge conflict: abort the merge, restore the branch state, report — never resolve conflicts silently inside this skill.
-3. Close the Issue with exactly one `gh issue close --comment` citing commit hash and test evidence. Prefer the GitHub connector; `gh` fallback does not broaden authorization.
+3. Close the Issue with exactly one `gh issue close --comment` citing the default-branch commit that contains the change (the merge commit for --no-ff, the fast-forwarded tip for ff), the feature commit(s), and test evidence. Prefer the GitHub connector; `gh` fallback does not broaden authorization.
 4. No push at any point. If the user wants the merge pushed, name the exact command and require a separate request.
 
 ## Stop conditions

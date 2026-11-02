@@ -5,7 +5,7 @@
 1. Reject empty or non-numeric tracking-Issue identifiers, unknown flags, and `--status` combined with `--critic`.
 2. Fetch the tracking Issue via `~/.claude/bin/gh-issue-fetch.sh`. It must contain a checklist of sub-Issue references (`- [ ] #N …`). If it does not, this is not a roadmap Issue — stop and say so.
 3. Determine order from the checklist itself (top to bottom) plus any explicit dependency notes or graph in the body. Do not reorder for convenience.
-4. Reconcile state before starting: a sub-Issue already closed on GitHub but unchecked in the list gets its box checked (one edit, counted as that Issue's checklist update); a checked but open sub-Issue is reported as an inconsistency, not silently fixed.
+4. Reconcile state before starting: a sub-Issue already closed on GitHub but unchecked in the list gets its box checked (one edit, counted as that Issue's checklist update); a checked but open sub-Issue is reported as an inconsistency, not silently fixed. In `--status`, do not edit; report each closed-but-unchecked sub-Issue as pending reconciliation.
 
 ## Iteration detail
 
@@ -14,7 +14,7 @@
 - Follow `~/.agents/rules/git-workflow.md` and the `gh-finish` skill for the apply step. `--apply` authority for each sub-Issue completed in this run comes from the roadmap-run invocation itself; everything `gh-finish` refuses (push, PR, branch deletion, unrelated changes) stays refused.
 - Checklist update: read the `body` string from `gh api repos/{owner}/{repo}/issues/<tracking>` JSON (not `gh issue view`, which adds a trailing newline), change that one `[ ]` to `[x]` at its character offset, and write the result with `gh issue edit <tracking> --body-file` with no added newline and the original line endings (CRLF stays CRLF). Re-fetch the body and compare it byte for byte with the expected string; a mismatch is a stop.
 - Real-runtime checks: when the sub-Issue's success criteria involve external data, network collection, or long-running computation, run the actual command (smoke run, backfill) and read its output before finishing. Background long runs with `Bash(run_in_background=true)` and keep driving or waiting on them; do not declare success from code reading alone.
-- Review: the tests are the gate. In the 2026-10 sandwich A/B (`docs/eval/sandwich-ab-results.md`, line 63), blind reviewers reading only the diff gave a leak score to none of the 8 candidates whose hidden tests failed, and scan-only review gates correlate weakly with outcome evaluation (ρ = 0.14, arXiv 2608.20614). Neither measured runs with and without a review gate. Use `/code-review` only for changes to architecture, data destruction, or public API, and treat its findings as input, not as approval.
+- Review: the tests are the gate. In the 2026-10 sandwich A/B (`docs/eval/sandwich-ab-results.md`, line 63), blind reviewers reading only the diff gave a leak score to none of the 8 candidates whose hidden tests failed. It did not measure runs with and without a review gate. Use `/code-review` only for changes to architecture, data destruction, or public API, and treat its findings as input, not as approval.
 
 ## Judgment gates
 

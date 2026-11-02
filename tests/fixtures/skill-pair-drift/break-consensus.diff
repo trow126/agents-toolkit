@@ -2,7 +2,7 @@
 +++ codex
 @@
 -disable-model-invocation: true
--argument-hint: "[--solo] <problem>"
+-argument-hint: "[--cross|--solo] <problem>"
 @@
 -- default (`--cross` names it explicitly): first collect candidates from a Codex worker and a read-only Claude worker that see only the same brief, then run steps 4–6 on their union. Follow [`references/cross.md`](references/cross.md). The brief goes to another provider (OpenAI), so write it without secrets, credentials, or private data; if the problem cannot be stated without them, ask the user before sending it or use `--solo`. If a cross step fails, stop and report it; do not fall back to `--solo` on your own.
 -- `--solo`: generate and test candidates in this session only; nothing is sent to another model provider.

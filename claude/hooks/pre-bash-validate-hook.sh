@@ -273,6 +273,29 @@ if [[ -n "$DENY_HIT" ]]; then
     block "managed policy の deny Bash($DENY_RULE) に当たる（該当部分: $DENY_SEG）。&& や ; でつないだ一部でもコマンド全体が拒否され、runtime の拒否文にはルール名が出ない。Bash tool 自体は使える。$DENY_HINT"
 fi
 
+# 変更系 git コマンドの連結の deny（git-operations skill、skill-tuneup 2026-11 C5）。
+# git add / commit / merge / push と gh repo create は単独の Bash 呼び出しで実行させる。transcript では
+# diff の確認と add・commit を同じ && でつなぎ、確認の出力を読む前に変更が走っていた（git-operations の
+# 「stage 前に diff を別コマンドで見る」規則の逸脱）。分割は上の SEGMENTS（quote・heredoc 本文の中では
+# 分けない）を使い、2つ以上の部分コマンドがあり、その1つが変更系なら block する。
+# 既知の手法: 複合コマンド内の git push を拒否して単独実行させる hook（https://github.com/StudioLE/hook-rs）。
+GIT_CHAIN_HIT=$(printf '%s\n' "$SEGMENTS" | jq -Rnr '
+    def strip_prefix:
+        (sub("^(!|if|then|do|else|elif|while|until)\\s+"; "")
+         | sub("^[A-Za-z_][A-Za-z0-9_]*=\\S*\\s+"; "")
+         | sub("^(timeout|time|nice|nohup|stdbuf)(\\s+(-\\S+|[0-9]\\S*))*\\s+"; "")) as $next
+        | if $next == . then . else $next | strip_prefix end;
+    [inputs | sub("^\\s+"; "") | sub("\\s+$"; "") | select(. != "") | strip_prefix | gsub("\\s+"; " ")] as $segs
+    | if ($segs | length) < 2 then empty
+      else first($segs[]
+        | select(test("^(\\S*/)?git( (-C|-c|--git-dir|--work-tree) \\S+| -\\S+)* (add|commit|merge|push)( |$)")
+                 or test("^(\\S*/)?gh repo create( |$)"))) // empty
+      end') ||
+    block "failed to check chained git mutations (fail-closed)"
+if [[ -n "$GIT_CHAIN_HIT" ]]; then
+    block "変更系の git コマンド（該当部分: $GIT_CHAIN_HIT）を && ; || | や改行で他のコマンドとつないでいる。git add / commit / merge / push と gh repo create は、それだけを1回の Bash で実行する。確認（git diff・git status）は先に別の Bash で実行して出力を読むこと。cd の代わりに git -C <dir> を使う"
+fi
+
 # pgrep -f / pkill -f の自己一致。Bash tool はコマンド全文を `bash -c "... eval '<command>'"` で
 # 実行するため、括弧なしのパターンは包んでいる shell 自身にも一致する。待機ループ
 # （while pgrep -f X / until ! pgrep -f X）は終わらず、pkill -f は自分の shell を kill する

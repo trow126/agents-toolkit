@@ -320,6 +320,23 @@ expect_allow "通常の commit は許可" 'git commit -m "normal message"'
 expect_allow "amend を含まない -S commit は許可" 'git commit -S -m signed'
 expect_allow "git 以外の --amend 文字列は許可" 'echo --amend'
 
+# ---- 5b. 変更系 git コマンドの連結（git-operations C5） ----
+expect_block "diff と add の && 連結を block" 'git diff x && git add x'
+expect_block "cd と commit の連結を block" 'cd /repo && git commit -m x'
+expect_block "; の後ろの git -c 前置 commit を block" 'ls; git -c user.name=x commit -m y'
+expect_block "push の pipe を block" 'git push origin main | cat'
+expect_block "gh repo create と push の連結を block" 'gh repo create foo --private && git push'
+expect_block "commit と改行の後ろの git log を block" "git commit -q -m x
+git log --oneline -1"
+expect_allow "単独の git -C add は許可" 'git -C /repo add -A'
+expect_allow "message 内の ; と && は対象外" 'git commit -m "a; b && c"'
+expect_allow "heredoc の commit message 本文の && は対象外" "git commit -q -F - <<'EOF'
+fix: a && b; c
+EOF"
+expect_allow "read-only の git の連結は許可" 'git status && git log --oneline -3'
+expect_allow "文字列中の git add は対象外" 'echo "git add x && y"'
+expect_allow "git add-x のような別 subcommand は対象外" 'git add-x && echo'
+
 # ---- 7. codex-companion subcommand に --help/-h を渡す事故(2026-09-03: --help が prompt になり Codex 実行が走った) ----
 expect_block "task --help を block" "node \"$COMPANION\" task --help"
 expect_block "task -h を block" "node \"$COMPANION\" task -h"
@@ -421,8 +438,7 @@ fix(hooks): block self-matching patterns
 
 Wait loops (\`while pgrep -f X\`, \`until ! pgrep -f X\`) never end.
 ; pkill -f X kills its own shell.
-EOF
-git log --oneline -1"
+EOF"
 expect_allow "cat > file と python - の heredoc 本文は対象外" "cat > notes.md <<EOF
 while pgrep -f x; do sleep 1; done
 EOF

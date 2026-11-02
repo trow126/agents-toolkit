@@ -50,7 +50,8 @@ findings = [
     {"kind": "oversight", "target": "§2", "claim": "claim two", "why_it_matters": "w",
      "resolution": "r", "severity": "low"},
 ]
-out.write_text(json.dumps({"document_sha256": sha, "findings": findings}))
+recon = "" if mode == "norecon" or "were withheld" not in prompt else "codex would choose B"
+out.write_text(json.dumps({"document_sha256": sha, "reconstruction": recon, "findings": findings}))
 thread = "0199aaaa-bbbb-cccc-dddd-eeeeffff0000"
 print(json.dumps({"type": "thread.started", "thread_id": thread}))
 print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}))
@@ -72,7 +73,8 @@ finding = {"kind": "alternative", "target": "§1", "claim": "claim three", "why_
            "resolution": "r", "severity": "medium"}
 print("login shell noise")
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "",
-                  "structured_output": {"document_sha256": sha, "findings": [finding]},
+                  "structured_output": {"document_sha256": sha, "findings": [finding],
+                                        "reconstruction": "claude would choose A" if "were withheld" in prompt else ""},
                   "total_cost_usd": 0.01, "num_turns": 1,
                   "modelUsage": {f"claude-{model}-9-9": {"inputTokens": 1}}}))
 STUB
@@ -168,6 +170,42 @@ expect_finish "finish rejects a decision other than 採用/不採用" fail
 write_synthesis "| X1, C1 | merged | 両方 | 高 | 採用 | fix |
 | X2 | two | $XL | 低 | 不採用 | - |"
 expect_finish "finish rejects a placeholder reason" fail
+
+# ---- --withhold (results-masked review) ------------------------------------------------------------
+WDOC="$SANDBOX/prereg.md"
+printf '# Prereg\n\n## Premises\n\nData from 2020.\n\n## Decision\n\nChoose A because SECRET-DECISION.\n\n### Detail\n\nmore detail\n\n## Risks\n\nLeak risk.\n' > "$WDOC"
+rc=0; run_cc run "$WDOC" --author x --withhold Nope >/dev/null 2>&1 || rc=$?
+[[ "$rc" -eq 2 ]] && ok "--withhold refuses a heading that is not in the document" || ng "unknown --withhold heading accepted (rc=$rc)"
+rc=0
+out="$(run_cc run "$WDOC" --author "claude-other-5-5" --gate --withhold Decision 2>/dev/null)" || rc=$?
+WRUN="$(python3 -c 'import json,sys; t=sys.stdin.read(); print(json.loads(t[t.index("{"):])["run_dir"])' <<< "$out")"
+if [[ "$rc" -eq 0 ]] && ! grep -q "SECRET-DECISION\|more detail" "$WRUN/prompt.md" && grep -q "Leak risk" "$WRUN/prompt.md" \
+   && grep -q 'The sections "Decision" were withheld' "$WRUN/prompt.md" && grep -q "SECRET-DECISION" "$WRUN/withheld.md" \
+   && grep -q "more detail" "$WRUN/withheld.md" && cmp -s "$WDOC" "$WRUN/original.md" \
+   && [[ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["document_sha256"])' "$WRUN/run.json")" == "$(sha256sum < "$WRUN/document.md" | cut -d' ' -f1)" ]]; then
+  ok "--withhold removes the section and its subsections from the sent copy, hashes the sent copy, and keeps the original"
+else
+  ng "--withhold run unexpected (rc=$rc): $out"
+fi
+if grep -q "^## Divergences" "$WRUN/synthesis.template.md" && grep -q "codex would choose B" "$WRUN/synthesis.template.md"; then
+  ok "--withhold: the template has ## Divergences with each critic's reconstruction"
+else
+  ng "--withhold template lacks the reconstructions"
+fi
+WXL="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print({c["key"]: c["label"] for c in d["critics"]}["codex"])' "$WRUN/findings.json")"
+write_wsynthesis() {
+  printf '# s\n\n| ID | 指摘 | 出所 | 優先度 | 判定 | 理由 |\n|---|---|---|---|---|---|\n| X1, C1 | merged | 両方 | 高 | 採用 | fix |\n| X2 | two | %s | 低 | 不採用 | covered |\n\n## Notes\n\nnone\n\n## Divergences\n\n%s\n' "$WXL" "$1" > "$WRUN/synthesis.md"
+}
+rc=0; write_wsynthesis "- $WXL reconstruction: codex would choose B"; "$BIN" finish "$WRUN" >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] && ok "--withhold: finish refuses a Divergences section with only the pre-filled reconstructions" || ng "empty Divergences accepted"
+rc=0; write_wsynthesis "Codex chose B, the document chose A: re-check the premise on 2020 data."; "$BIN" finish "$WRUN" >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -eq 0 ]] && grep -q "SECRET-DECISION" "$WRUN/result.md" && grep -q "claude would choose A" "$WRUN/result.md"; then
+  ok "--withhold: finish puts the withheld text next to the reconstructions in result.md"
+else
+  ng "--withhold finish failed or result.md lacks the comparison (rc=$rc)"
+fi
+rc=0; STUB_CODEX=norecon run_cc run "$WDOC" --author x --withhold Decision >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] && ok "--withhold: an empty reconstruction fails the run" || ng "empty reconstruction accepted"
 
 # ---- failure paths ---------------------------------------------------------------------------------
 rc=0; STUB_CODEX=badhash run_cc run "$DOC" --author x >/dev/null 2>&1 || rc=$?

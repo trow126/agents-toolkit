@@ -15,7 +15,7 @@ $ARGUMENTS
 
 ### Step 1: 計画の特定
 
-- **引数にファイルパスがある場合**（別セッションモード）: 指定ファイルを計画として読み込む。レビュアーは自らコードベースを探索して検証する
+- **引数にファイルパスがある場合**（別セッションモード）: 指定ファイルを計画として読み込む
 - **引数が空の場合**（同一セッションモード）: この会話で最近作成・議論された計画を対象にする。見つからなければユーザーに確認する
 
 ### Step 2: コンテキストの収集
@@ -28,7 +28,7 @@ $ARGUMENTS
 
 ### Step 3: 独立コンテキストでレビューを実行
 
-native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起動し、以下のレビュー観点をプロンプトに明示する。per-spawn modelは指定せず、agent fileのmodel・effortを使う。プロンプトには**計画の全文**（要約・省略禁止）とStep 2のコンテキストを含める。別セッションモードでは「参照ファイル・依存の実在をコードベースで検証すること」を明示する。**計画の書き換えや実装はさせない。**
+native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起動し、以下のレビュー観点をプロンプトに明示する。per-spawn modelは指定せず、agent fileのmodel・effortを使う。プロンプトには**計画の全文**（要約・省略禁止）とStep 2のコンテキストを含める。どちらのモードでも、参照ファイル・依存の実在はレビュアー自身がコードベースで検証する（観点1）。**計画の書き換えや実装はさせない。**
 
 ```
 ## 観点 1: 実現可能性（Feasibility）
@@ -41,6 +41,7 @@ native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起�
 - エラーハンドリングと失敗時の挙動が定義されているか
 - ロールバック/復旧手段があるか（特にデータ・スキーマ・設定変更）
 - プロジェクト規約（AGENTS.md・learnings・既存パターン）への準拠
+- AGENTS.md・learningsの記述が実コードと食い違う場合は実コードを正とし、計画を古い記述に合わせさせない。食い違い自体はWARNINGとして記述箇所と実コードの両方を示す
 - 成功条件が最終状態で定義されているか（中間シグナルでの完了扱いは不可）
 
 ## 観点 3: スコープとリスク（Critic）
@@ -60,14 +61,15 @@ native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起�
 
 ## INFO（検討事項）
 - ...
-```
 
+判定の基準:
 - APPROVE: BLOCKER なし、WARNING 0-2 件
 - APPROVE_WITH_CHANGES: BLOCKER なし、対応すべき WARNING あり
 - REQUEST_REVISION: BLOCKER 1 件以上または WARNING 多数
 - REJECT: 根本的なアプローチの問題
 
-根拠なき指摘は出させない。各 BLOCKER には実ファイル・実行結果など独立に確認した証拠を添えさせる。
+根拠なき指摘は出さない。各BLOCKERには実ファイル・実行結果など独立に確認した証拠を添える。
+```
 
 ### Step 4: 結果の保存と報告
 

@@ -72,7 +72,9 @@ Write the body in Japanese, with blank lines around headings and tables. `## 会
 
 ## 次の一手
 
-- a check to run, not a conclusion
+- 確認方法: the check to run / データ: the data source a user could obtain / 反証条件: the result that would show the claim does not hold for the project
 ```
+
+Each `## 次の一手` item names 確認方法, データ, and 反証条件 (kill criteria, a falsification condition fixed before the check). The 反証条件 rests on the conversation text or the project, not an arbitrary threshold; an item without one is not written.
 
 Do not copy long passages of posts or of Grok's answers; summarize. Do not include anyone's profile details beyond the handle that a cited post shows.
