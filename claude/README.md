@@ -120,6 +120,8 @@ GitHub workflow: `/gh-roadmap-plan`, `/gh-roadmap-run`, `/gh-test-first`, `/gh-f
 
 品質・Git router: `/implementation-quality`, `/git-operations`。
 
+自律試行: `/pursue <課題> [--budget N]`（manual only。managed policy の `allowManagedHooksOnly` で使えない built-in `/goal` の代替）。skill が完了判定コマンドを `~/.claude/bin/pursue-goal set` で git root ごとに登録し、managed Stop hook `pursue-stop-hook.sh` が停止のたびにそれを実行して、未達なら exit 2 で停止を取り消す。check は実行前に毎回 `pre-bash-validate-hook.sh` を通す。上限回数に達したとき・`pursue-goal clear --reason` で解除したとき・別 session では止めない。hook の内部異常は exit 1（non-blocking）でセッションを閉じ込めない。手動解除は `! ~/.claude/bin/pursue-goal clear --reason <理由>`。
+
 分析・utility: `/break-consensus`（manual only。既定でCodexとread-onlyのClaude workerの候補を併せる。`--solo`はsession内だけ）, `/skill-tuneup`（manual only。全skillを1回で調査・break-consensus・事前登録の実験にかけ、`--apply`で通った項目を実装する）, `/model-routing`, `/cross-critic`, `/grok-digest`。
 
 ## Secret scanning
