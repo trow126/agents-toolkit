@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""pursue-issue: track a /pursue run as a GitHub Issue with one sub-Issue per hypothesis.
+
+Subcommands (run from the project directory; the repository is the one `gh repo view` resolves):
+  start --title T --body-file F [--issue N]
+      Create the run Issue "[pursue] T" with the contract as its body. With --issue N, the run
+      Issue is attached as a sub-issue of the existing open Issue N.
+  hypothesis --run P --title T --body-file F
+      Create the next hypothesis Issue "H<k>: T" and attach it as a sub-issue of run Issue P.
+  verdict --issue C --verdict confirmed|refuted|inconclusive --body-file F
+      Append the result to hypothesis Issue C, mark its title, and close it
+      (confirmed: completed; refuted and inconclusive: not planned).
+  finish --issue P --outcome done|not-done|abandoned --body-file F
+      Append the final report to run Issue P and mark its title. done closes it as completed;
+      abandoned (the check can no longer pass, or the run will not be resumed) closes it as not
+      planned; not-done leaves it open. A run already finished as not-done can be finished again
+      as done or abandoned. Refuses while a hypothesis sub-Issue is still open.
+
+No comments are posted: progress is the run Issue's sub-issue list and each Issue's body.
+Every command prints JSON on success. Exit codes: 1 gh failure, 2 invalid use or state,
+3 gh is not signed in.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+RUN_PREFIX = "[pursue]"
+HYPOTHESIS_RE = re.compile(r"^H(\d+)(?: \[[a-z-]+\])?: ")
+CLOSE_REASON = {"confirmed": "completed", "refuted": "not planned", "inconclusive": "not planned"}
+OUTCOME_MARK = {"done": "[pursue:done]", "not-done": "[pursue:未達]", "abandoned": "[pursue:打ち切り]"}
+OUTCOME_CLOSE = {"done": "completed", "abandoned": "not planned"}
+
+
+class Fail(Exception):
+    def __init__(self, message: str, code: int = 2):
+        super().__init__(message)
+        self.code = code
+
+
+def run(cmd: list[str]) -> str:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Fail(f"command did not run: {' '.join(cmd[:3])}: {exc}", 1) from None
+    if proc.returncode != 0:
+        raise Fail(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{proc.stderr.strip()}", 1)
+    return proc.stdout
+
+
+def gh_json(args: list[str]):
+    out = run(["gh", *args])
+    try:
+        return json.loads(out or "null")
+    except json.JSONDecodeError:
+        raise Fail(f"gh {' '.join(args[:2])} returned non-JSON output: {out[:200]!r}", 1) from None
+
+
+def resolve_repo(explicit: str | None) -> str:
+    try:
+        auth = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise Fail(f"gh is not available: {exc}", 3) from None
+    if auth.returncode != 0:
+        raise Fail("gh is not signed in (run `gh auth login`)", 3)
+    info = gh_json(["repo", "view", *([explicit] if explicit else []), "--json", "nameWithOwner,hasIssuesEnabled"])
+    if not isinstance(info, dict) or not info.get("nameWithOwner"):
+        raise Fail("cannot resolve the GitHub repository of the current directory")
+    if not info.get("hasIssuesEnabled"):
+        raise Fail(f"Issues are disabled for {info['nameWithOwner']}")
+    return info["nameWithOwner"]
+
+
+def read_body(path: str) -> str:
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise Fail(f"cannot read --body-file {path}: {exc}") from None
+    if not text.strip():
+        raise Fail(f"--body-file is empty: {path}")
+    return text.rstrip() + "\n"
+
+
+def one_line(title: str) -> str:
+    title = " ".join(title.split())
+    if not title:
+        raise Fail("--title is empty")
+    return title
+
+
+def view(repo: str, number: int) -> dict:
+    data = gh_json(["issue", "view", str(number), "-R", repo, "--json", "number,title,body,state,url"])
+    if not isinstance(data, dict):
+        raise Fail(f"#{number}: unexpected gh issue view output", 1)
+    return data
+
+
+def require_open(issue: dict) -> None:
+    if issue.get("state") != "OPEN":
+        raise Fail(f"#{issue['number']} is {issue.get('state')}, not OPEN")
+
+
+def create(repo: str, title: str, body: str) -> int:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".md") as handle:
+        handle.write(body)
+        handle.flush()
+        out = run(["gh", "issue", "create", "-R", repo, "--title", title, "--body-file", handle.name]).strip()
+    match = re.search(r"/issues/(\d+)\s*$", out)
+    if not match:
+        raise Fail(f"cannot read the new Issue number from: {out!r}", 1)
+    return int(match.group(1))
+
+
+def edit(repo: str, number: int, title: str, body: str) -> None:
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".md") as handle:
+        handle.write(body)
+        handle.flush()
+        run(["gh", "issue", "edit", str(number), "-R", repo, "--title", title, "--body-file", handle.name])
+
+
+def sub_issues(repo: str, parent: int) -> list[dict]:
+    data = gh_json(["api", f"repos/{repo}/issues/{parent}/sub_issues?per_page=100"])
+    if not isinstance(data, list):
+        raise Fail(f"#{parent}: unexpected sub-issue list", 1)
+    return data
+
+
+def attach(repo: str, parent: int, child: int) -> None:
+    issue = gh_json(["api", f"repos/{repo}/issues/{child}"])
+    run(["gh", "api", "-X", "POST", f"repos/{repo}/issues/{parent}/sub_issues", "-F", f"sub_issue_id={issue['id']}"])
+    if child not in [s.get("number") for s in sub_issues(repo, parent)]:
+        raise Fail(f"#{child} is not listed as a sub-issue of #{parent} after attaching it", 1)
+
+
+def emit(**fields) -> None:
+    print(json.dumps(fields, ensure_ascii=False))
+
+
+def cmd_start(args, repo: str) -> None:
+    title = f"{RUN_PREFIX} {one_line(args.title)}"
+    body = read_body(args.body_file)
+    if args.issue is not None:
+        require_open(view(repo, args.issue))
+    number = create(repo, title, body)
+    if args.issue is not None:
+        attach(repo, args.issue, number)
+    emit(repo=repo, run=number, title=title, parent=args.issue, url=view(repo, number)["url"])
+
+
+def cmd_hypothesis(args, repo: str) -> None:
+    run_issue = view(repo, args.run)
+    require_open(run_issue)
+    if not run_issue["title"].startswith(RUN_PREFIX + " "):
+        raise Fail(f"#{args.run} is not a /pursue run Issue (title must start with {RUN_PREFIX!r})")
+    existing = [int(m.group(1)) for s in sub_issues(repo, args.run) if (m := HYPOTHESIS_RE.match(s.get("title", "")))]
+    index = max(existing, default=0) + 1
+    title = f"H{index}: {one_line(args.title)}"
+    number = create(repo, title, f"親 Issue: #{args.run}\n\n{read_body(args.body_file)}")
+    attach(repo, args.run, number)
+    emit(repo=repo, issue=number, label=f"H{index}", title=title, url=view(repo, number)["url"])
+
+
+def cmd_verdict(args, repo: str) -> None:
+    issue = view(repo, args.issue)
+    require_open(issue)
+    match = HYPOTHESIS_RE.match(issue["title"])
+    if not match or issue["title"].startswith(f"H{match.group(1)} ["):
+        raise Fail(f"#{args.issue} is not an open hypothesis Issue without a verdict: {issue['title']!r}")
+    rest = issue["title"][match.end():]
+    title = f"H{match.group(1)} [{args.verdict}]: {rest}"
+    body = f"{issue['body'].rstrip()}\n\n## 結果（{args.verdict}）\n\n{read_body(args.body_file)}"
+    edit(repo, args.issue, title, body)
+    run(["gh", "issue", "close", str(args.issue), "-R", repo, "--reason", CLOSE_REASON[args.verdict]])
+    emit(repo=repo, issue=args.issue, verdict=args.verdict, title=title, state="CLOSED")
+
+
+def cmd_finish(args, repo: str) -> None:
+    issue = view(repo, args.issue)
+    require_open(issue)
+    prefix = next((m for m in (RUN_PREFIX, OUTCOME_MARK["not-done"]) if issue["title"].startswith(m + " ")), None)
+    if prefix is None:
+        raise Fail(f"#{args.issue} is not an open /pursue run Issue: {issue['title']!r}")
+    if prefix != RUN_PREFIX and args.outcome == "not-done":
+        raise Fail(f"#{args.issue} is already finished as not-done; finish it again only as done or abandoned")
+    still_open = [f"#{s['number']}" for s in sub_issues(repo, args.issue) if str(s.get("state", "")).lower() == "open"]
+    if still_open:
+        raise Fail(f"record a verdict for the open hypothesis Issues first: {', '.join(still_open)}")
+    title = f"{OUTCOME_MARK[args.outcome]} {issue['title'][len(prefix) + 1:]}"
+    body = f"{issue['body'].rstrip()}\n\n## 最終報告（{args.outcome}）\n\n{read_body(args.body_file)}"
+    edit(repo, args.issue, title, body)
+    state = "OPEN"
+    if args.outcome in OUTCOME_CLOSE:
+        run(["gh", "issue", "close", str(args.issue), "-R", repo, "--reason", OUTCOME_CLOSE[args.outcome]])
+        state = "CLOSED"
+    emit(repo=repo, run=args.issue, outcome=args.outcome, title=title, state=state, url=issue["url"])
+
+
+def positive(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive Issue number")
+    return number
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(prog="pursue-issue", description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--repo", help="OWNER/NAME; default: the repository of the current directory")
+    sub = parser.add_subparsers(dest="command", required=True)
+    p = sub.add_parser("start")
+    p.add_argument("--title", required=True)
+    p.add_argument("--body-file", required=True)
+    p.add_argument("--issue", type=positive)
+    p = sub.add_parser("hypothesis")
+    p.add_argument("--run", type=positive, required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--body-file", required=True)
+    p = sub.add_parser("verdict")
+    p.add_argument("--issue", type=positive, required=True)
+    p.add_argument("--verdict", choices=sorted(CLOSE_REASON), required=True)
+    p.add_argument("--body-file", required=True)
+    p = sub.add_parser("finish")
+    p.add_argument("--issue", type=positive, required=True)
+    p.add_argument("--outcome", choices=sorted(OUTCOME_MARK), required=True)
+    p.add_argument("--body-file", required=True)
+    args = parser.parse_args()
+    handlers = {"start": cmd_start, "hypothesis": cmd_hypothesis, "verdict": cmd_verdict, "finish": cmd_finish}
+    try:
+        handlers[args.command](args, resolve_repo(args.repo))
+    except Fail as exc:
+        print(f"pursue-issue {args.command}: {exc}", file=sys.stderr)
+        return exc.code
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
