@@ -11,6 +11,7 @@ Subcommands:
   hook-stop
       Stop hook entry point (hook JSON on stdin). With an active goal bound to this session,
       runs the check: exit 0 lets Claude stop, exit 2 blocks the stop and tells Claude why.
+      When the stop budget is exhausted it exits 0 and reports through a JSON systemMessage.
 
 State lives in ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/pursue/, outside any
 repository, so a cloned project cannot plant a goal. The first Stop event after `set`
@@ -312,12 +313,15 @@ def cmd_hook_stop(_: argparse.Namespace) -> int:
         return 0
     if state["stops"] >= state["max_stops"]:
         close(path, state, "budget_exhausted", last_exit=code)
-        print(
+        # An exhausted budget is a designed outcome, not a hook failure: allow the stop with
+        # exit 0 and tell the user through systemMessage instead of a non-blocking error.
+        result = f"timed out after {state['timeout']}s" if code is None else f"exit {code}"
+        message = (
             f"pursue: 停止の取り消し上限（{state['max_stops']}回）に達したため、未達のまま停止を許可した。"
-            f" check: {state['check']}",
-            file=sys.stderr,
+            f" check: {state['check']} / result: {result}"
         )
-        return 1
+        print(json.dumps({"systemMessage": message}, ensure_ascii=False))
+        return 0
     state["stops"] += 1
     save(path, state)
     append_history("blocked", state, last_exit=code)

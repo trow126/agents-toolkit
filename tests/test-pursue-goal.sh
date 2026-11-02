@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # pursue-goal と pursue-stop-hook: 完了条件が未達なら Stop を exit 2 で取り消し、達成・上限到達・
-# 別 session・解除では止める。check は pre-bash gate を通し、異常は exit 1（non-blocking）にする。
+# 別 session・解除では止める。上限到達は exit 0 + systemMessage で通知する。check は pre-bash gate を
+# 通し、異常は exit 1（non-blocking）にする。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -70,12 +71,19 @@ if [[ "$RC" -eq 0 && -z "$OUT" ]]; then ok "別 session の Stop は止めない
 run_hook s1 "$PROJECT/sub"
 if [[ "$RC" -eq 2 && "$OUT" == *"2/2"* ]]; then ok "subdirectory からも同じ goal を強制する"; else ng "subdirectory: rc=$RC out=$OUT"; fi
 
-# 6. 上限到達で未達のまま停止を許可し、goal を閉じる
-run_hook s1
-if [[ "$RC" -eq 1 && "$OUT" == *"上限"* && "$(active_count)" -eq 0 && "$(last_event)" == budget_exhausted ]]; then
-  ok "上限到達で exit 1（non-blocking）、budget_exhausted で閉じる"
+# 6. 上限到達で未達のまま停止を許可し、goal を閉じる。通知は stdout の systemMessage で、error にしない
+RC=0
+OUT="$(hook s1 2>"$SANDBOX/stderr")" || RC=$?
+ERR="$(cat "$SANDBOX/stderr")"
+if [[ "$RC" -eq 0 && -z "$ERR" && "$(active_count)" -eq 0 && "$(last_event)" == budget_exhausted ]] &&
+  printf '%s' "$OUT" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+m = d["systemMessage"]
+sys.exit(0 if set(d) == {"systemMessage"} and "上限（2回）" in m and "exit 3" in m and "echo fixture-output; exit 3" in m else 1)'; then
+  ok "上限到達で exit 0、systemMessage で通知し、budget_exhausted で閉じる"
 else
-  ng "上限到達: rc=$RC active=$(active_count) out=$OUT"
+  ng "上限到達: rc=$RC active=$(active_count) out=$OUT err=$ERR"
 fi
 
 # 7. 重複登録は拒否、--replace で置き換え、clear は理由必須で閉じる
