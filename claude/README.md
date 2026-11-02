@@ -122,6 +122,8 @@ GitHub workflow: `/gh-roadmap-plan`, `/gh-roadmap-run`, `/gh-test-first`, `/gh-f
 
 自律試行: `/pursue <課題> [--budget N] [--issue N | --no-issue]`（manual only。managed policy の `allowManagedHooksOnly` で使えない built-in `/goal` の代替）。skill が完了判定コマンドを `~/.claude/bin/pursue-goal set` で git root ごとに登録し、managed Stop hook `pursue-stop-hook.sh` が停止のたびにそれを実行して、未達なら exit 2 で停止を取り消す。check は実行前に毎回 `pre-bash-validate-hook.sh` を通す。上限回数に達したとき（exit 0 と `systemMessage` で未達を通知する）・`pursue-goal clear --reason` で解除したとき・別 session では止めない。hook の内部異常は exit 1（non-blocking）でセッションを閉じ込めない。手動解除は `! ~/.claude/bin/pursue-goal clear --reason <理由>`。進捗は `~/.claude/bin/pursue-issue` が GitHub に残す。実行ごとに run Issue（`[pursue] …`、`--issue N` ならその sub-issue）を作り、仮説ごとに sub-Issue `H<k>: …` を作って、判定時に本文へ結果を追記し title に `[confirmed|refuted|inconclusive]` を付けて close する。終了時は run Issue の本文に最終報告を追記し、done なら close、完了条件がもう通らないか再開しない run は `abandoned`（`[pursue:打ち切り]`、not planned で close）、未達なら `[pursue:未達]` で open のまま残す。未達の run は後から done か abandoned で終えられる。コメントは投稿しない。`--no-issue` では GitHub に書かない。
 
+応答言語: managed hook `language-guard-hook.sh` は、`~/.claude/settings.json` の `language` が日本語のときだけ働く。Stop では最終返答（`last_assistant_message`）のコードブロック・インラインコード・URL・パスを除いた本文がラテン文字 80 字以上で日本語の割合が 10% 未満なら exit 2 で止め、日本語で書き直させる（同じ turn で2回目は止めない）。PreToolUse では日本語を含まない AskUserQuestion の質問を拒否する。内部異常は exit 1（non-blocking）。2026-10/11 の transcript で「日本語でお願い」の訂正 22 件中 21 件は日本語の割合がほぼ 0 の返答の直後で、この基準は turn 最終返答 1,015 件中 40 件（すべて英語）に当たる。
+
 分析・utility: `/break-consensus`（manual only。既定でCodexとread-onlyのClaude workerの候補を併せる。`--solo`はsession内だけ）, `/skill-tuneup`（manual only。全skillを1回で調査・break-consensus・事前登録の実験にかけ、`--apply`で通った項目を実装する）, `/model-routing`, `/cross-critic`, `/grok-digest`。
 
 ## Secret scanning

@@ -285,6 +285,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/language-guard-hook.sh",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -311,6 +321,11 @@
             "type": "command",
             "command": "~/.claude/hooks/pursue-stop-hook.sh",
             "timeout": 600
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/language-guard-hook.sh",
+            "timeout": 10
           }
         ]
       }
