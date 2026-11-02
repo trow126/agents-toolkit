@@ -306,6 +306,11 @@
             "type": "command",
             "command": "~/.claude/hooks/slack-notify-hook.sh stop",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pursue-stop-hook.sh",
+            "timeout": 600
           }
         ]
       }

@@ -1,0 +1,351 @@
+#!/usr/bin/env python3
+"""pursue-goal: enforce a /pursue completion check through the managed Stop hook.
+
+Subcommands:
+  set --check CMD [--max-stops N] [--timeout S] [--replace]
+      Register the completion check for the current git root (cwd when not in a repository).
+  status
+      Print the active goal for the current root as JSON, or "none".
+  clear --reason TEXT
+      Remove the active goal; the reason is kept in the history.
+  hook-stop
+      Stop hook entry point (hook JSON on stdin). With an active goal bound to this session,
+      runs the check: exit 0 lets Claude stop, exit 2 blocks the stop and tells Claude why.
+
+State lives in ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/pursue/, outside any
+repository, so a cloned project cannot plant a goal. The first Stop event after `set`
+binds the goal to that session; other sessions in the same root are not affected.
+
+Every check is passed through pre-bash-validate-hook.sh before it runs, so the Stop hook
+never runs a command that the Bash PreToolUse gate would block.
+
+Hook failure policy: an internal error prints the reason to stderr and exits 1, which
+Claude Code treats as a non-blocking error. Enforcement is an optional aid; a broken
+state file must not trap a session in an endless stop loop.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+
+VERSION = 1
+DEFAULT_MAX_STOPS = 5
+MAX_MAX_STOPS = 50
+DEFAULT_TIMEOUT = 300
+MAX_TIMEOUT = 540  # the managed Stop hook timeout is 600 seconds
+TAIL_LINES = 40
+TAIL_CHARS = 4000
+
+
+class GoalError(Exception):
+    pass
+
+
+def now() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def state_dir() -> Path:
+    base = os.environ.get("XDG_STATE_HOME") or str(Path.home() / ".local/state")
+    path = Path(base) / "agents-toolkit" / "pursue"
+    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if path.is_symlink() or not path.is_dir():
+        raise GoalError(f"state directory is not a plain directory: {path}")
+    return path
+
+
+def project_root(cwd: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GoalError(f"cannot resolve the project root of {cwd}: {exc}") from None
+    if result.returncode == 0 and result.stdout.strip():
+        return os.path.realpath(result.stdout.strip())
+    if not os.path.isdir(cwd):
+        raise GoalError(f"cwd is not a directory: {cwd}")
+    return os.path.realpath(cwd)
+
+
+def state_path(root: str) -> Path:
+    key = hashlib.sha256(root.encode("utf-8")).hexdigest()[:16]
+    return state_dir() / f"{key}.json"
+
+
+def load(path: Path, root: str) -> dict[str, Any] | None:
+    if path.is_symlink():
+        raise GoalError(f"state file is a symlink: {path}")
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise GoalError(f"unreadable state file {path}: {exc}") from None
+    problems = []
+    if not isinstance(data, dict):
+        raise GoalError(f"state file is not an object: {path}")
+    if data.get("version") != VERSION:
+        problems.append("version")
+    if data.get("root") != root:
+        problems.append("root")
+    if not isinstance(data.get("check"), str) or not data["check"].strip():
+        problems.append("check")
+    for field, upper in (("max_stops", MAX_MAX_STOPS), ("timeout", MAX_TIMEOUT)):
+        value = data.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= upper:
+            problems.append(field)
+    stops = data.get("stops")
+    if not isinstance(stops, int) or isinstance(stops, bool) or stops < 0:
+        problems.append("stops")
+    if data.get("session_id") is not None and not isinstance(data.get("session_id"), str):
+        problems.append("session_id")
+    if problems:
+        raise GoalError(f"invalid state file {path}: bad {', '.join(problems)}")
+    return data
+
+
+def save(path: Path, data: dict[str, Any]) -> None:
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def append_history(event: str, state: dict[str, Any], **extra: Any) -> None:
+    record = {
+        "at": now(),
+        "event": event,
+        "root": state.get("root"),
+        "check": state.get("check"),
+        "stops": state.get("stops"),
+        "max_stops": state.get("max_stops"),
+        "session_id": state.get("session_id"),
+        **extra,
+    }
+    path = state_dir() / "history.jsonl"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def close(path: Path, state: dict[str, Any], event: str, **extra: Any) -> None:
+    append_history(event, state, **extra)
+    path.unlink(missing_ok=True)
+
+
+def validator_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "hooks" / "pre-bash-validate-hook.sh"
+
+
+def validate_command(command: str, cwd: str) -> str | None:
+    """Return None when the Bash PreToolUse gate accepts the command, else the reason."""
+    hook = validator_path()
+    if not os.access(hook, os.X_OK):
+        raise GoalError(f"pre-bash validator is missing or not executable: {hook}")
+    payload = json.dumps(
+        {"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": cwd, "tool_input": {"command": command}}
+    )
+    try:
+        result = subprocess.run(
+            [str(hook)], input=payload, capture_output=True, text=True, cwd=cwd, timeout=30, check=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GoalError(f"pre-bash validator did not run: {exc}") from None
+    if result.returncode == 0:
+        return None
+    if result.returncode == 2:
+        return result.stderr.strip() or "blocked without a reason"
+    raise GoalError(f"pre-bash validator failed with exit {result.returncode}: {result.stderr.strip()}")
+
+
+def run_check(command: str, cwd: str, timeout: int) -> tuple[int | None, str]:
+    """Run the check in its own process group; output goes to a file so a lingering
+    grandchild holding a pipe cannot hang the hook. Returns (exit code or None on timeout, tail)."""
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as out:
+        proc = subprocess.Popen(
+            ["bash", "-c", command],
+            cwd=cwd,
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        try:
+            code: int | None = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            code = None
+        finally:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            if proc.poll() is None:
+                proc.wait()
+        out.seek(0)
+        lines = out.read().splitlines()
+    tail = "\n".join(lines[-TAIL_LINES:])
+    return code, tail[-TAIL_CHARS:]
+
+
+def cmd_set(args: argparse.Namespace) -> int:
+    if not 1 <= args.max_stops <= MAX_MAX_STOPS:
+        raise GoalError(f"--max-stops must be 1..{MAX_MAX_STOPS}")
+    if not 1 <= args.timeout <= MAX_TIMEOUT:
+        raise GoalError(f"--timeout must be 1..{MAX_TIMEOUT}")
+    check = args.check.strip()
+    if not check:
+        raise GoalError("--check must not be empty")
+    root = project_root(os.getcwd())
+    path = state_path(root)
+    existing = load(path, root)
+    if existing is not None and not args.replace:
+        raise GoalError(f"an active goal already exists for {root}; use --replace or clear it first")
+    rejected = validate_command(check, root)
+    if rejected is not None:
+        raise GoalError(f"the pre-bash gate rejects the check command: {rejected}")
+    if existing is not None:
+        close(path, existing, "replaced")
+    state = {
+        "version": VERSION,
+        "root": root,
+        "check": check,
+        "max_stops": args.max_stops,
+        "stops": 0,
+        "timeout": args.timeout,
+        "session_id": None,
+        "created_at": now(),
+    }
+    save(path, state)
+    append_history("set", state)
+    print(json.dumps(state, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_status(_: argparse.Namespace) -> int:
+    root = project_root(os.getcwd())
+    state = load(state_path(root), root)
+    print("none" if state is None else json.dumps(state, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_clear(args: argparse.Namespace) -> int:
+    reason = args.reason.strip()
+    if not reason:
+        raise GoalError("--reason must not be empty")
+    root = project_root(os.getcwd())
+    path = state_path(root)
+    state = load(path, root)
+    if state is None:
+        raise GoalError(f"no active goal for {root}")
+    close(path, state, "cleared", reason=reason)
+    print(f"cleared: {root}")
+    return 0
+
+
+def block_message(state: dict[str, Any], code: int | None, tail: str) -> str:
+    result = f"timed out after {state['timeout']}s" if code is None else f"exit {code}"
+    return (
+        f"pursue: 完了条件が未達のため停止を取り消した（{state['stops']}/{state['max_stops']}）。\n"
+        f"check: {state['check']}\n"
+        f"result: {result}\n"
+        f"--- output tail ---\n{tail}\n--- end ---\n"
+        "次の仮説を試して続けること。範囲外の変更・破壊操作・設定変更・依存追加が必要な場合や、"
+        "ユーザーしか持たない情報が必要な場合だけ "
+        "`~/.claude/bin/pursue-goal clear --reason '<理由>'` を実行し、理由を報告して止まること。"
+        "完了条件やテストを弱めて通してはならない。"
+    )
+
+
+def cmd_hook_stop(_: argparse.Namespace) -> int:
+    try:
+        data = json.loads(sys.stdin.read())
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise GoalError(f"hook input is not JSON: {exc}") from None
+    if not isinstance(data, dict):
+        raise GoalError("hook input is not an object")
+    session_id = data.get("session_id")
+    if not isinstance(session_id, str) or not session_id:
+        raise GoalError("hook input has no session_id")
+    cwd = data.get("cwd")
+    if not isinstance(cwd, str) or not cwd:
+        cwd = os.getcwd()
+    root = project_root(cwd)
+    path = state_path(root)
+    state = load(path, root)
+    if state is None:
+        return 0
+    if state["session_id"] is None:
+        state["session_id"] = session_id
+        save(path, state)
+    elif state["session_id"] != session_id:
+        return 0
+
+    rejected = validate_command(state["check"], root)
+    if rejected is not None:
+        close(path, state, "rejected", reason=rejected)
+        print(f"pursue: 完了条件コマンドが pre-bash gate に拒否されたため強制を解除した: {rejected}", file=sys.stderr)
+        return 1
+
+    code, tail = run_check(state["check"], root, state["timeout"])
+    if code == 0:
+        close(path, state, "achieved")
+        return 0
+    if state["stops"] >= state["max_stops"]:
+        close(path, state, "budget_exhausted", last_exit=code)
+        print(
+            f"pursue: 停止の取り消し上限（{state['max_stops']}回）に達したため、未達のまま停止を許可した。"
+            f" check: {state['check']}",
+            file=sys.stderr,
+        )
+        return 1
+    state["stops"] += 1
+    save(path, state)
+    append_history("blocked", state, last_exit=code)
+    print(block_message(state, code, tail), file=sys.stderr)
+    return 2
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="pursue-goal", description=__doc__.split("\n")[0])
+    sub = parser.add_subparsers(dest="command", required=True)
+    p_set = sub.add_parser("set", help="register the completion check for this root")
+    p_set.add_argument("--check", required=True)
+    p_set.add_argument("--max-stops", type=int, default=DEFAULT_MAX_STOPS)
+    p_set.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
+    p_set.add_argument("--replace", action="store_true")
+    p_set.set_defaults(func=cmd_set)
+    sub.add_parser("status", help="print the active goal").set_defaults(func=cmd_status)
+    p_clear = sub.add_parser("clear", help="remove the active goal")
+    p_clear.add_argument("--reason", required=True)
+    p_clear.set_defaults(func=cmd_clear)
+    sub.add_parser("hook-stop", help="Stop hook entry point").set_defaults(func=cmd_hook_stop)
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except GoalError as exc:
+        print(f"pursue-goal: {exc}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
