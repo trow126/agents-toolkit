@@ -321,6 +321,17 @@ while IFS= read -r seg; do
     fi
 done <<<"$PGREP_SEGMENTS"
 
+# 待機ループ内の python -c の構文エラー。ループ内の失敗ではループが終わらず、2>/dev/null や || echo で
+# 隠れると完了を検知できない（2026-11 に edge-agent で完了から約1時間気づかなかった）。判定は lib/wait_loop_check.py。
+# Monitor の command も tool_name=Bash でここを通る。
+WAIT_LOOP_SCAN=$(printf '%s\n' "$COMMAND" | strip_heredoc_bodies) ||
+    block "failed to strip heredoc bodies for wait loop check (fail-closed)"
+if [[ "$WAIT_LOOP_SCAN" == *python* && ("$WAIT_LOOP_SCAN" == *while* || "$WAIT_LOOP_SCAN" == *until*) ]]; then
+    if ! WAIT_LOOP_REASON=$(printf '%s\n' "$WAIT_LOOP_SCAN" | python3 -I "$HOOK_DIR/lib/wait_loop_check.py" 2>&1); then
+        block "$WAIT_LOOP_REASON"
+    fi
+fi
+
 # Block writes to block devices
 if printf '%s' "$NORM" | grep -qE '(>|of=)\s*/dev/sd'; then
     block "write to block device detected in command"

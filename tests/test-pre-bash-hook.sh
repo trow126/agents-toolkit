@@ -528,6 +528,63 @@ else
   ng "sudo の block 理由: $reason"
 fi
 
+# ---- 10. 待機ループ内の python -c の構文エラー（2026-11 edge-agent で完了から約1時間気づかなかった） ----
+INCIDENT_BODY='
+import json,sys
+ts=json.load(sys.stdin)
+print(" ".join(f"{t[\"id\"]}={t[\"status\"]}" for t in ts))'
+expect_block "実際の事故の形（f-string の \\\" を 2>/dev/null と || echo で隠す）を block" \
+  "D=/tmp/x; while :; do S=\$(curl -s 127.0.0.1:9300/api/tasks | python3 -c '$INCIDENT_BODY' 2>/dev/null || echo unreachable); case \"\$S\" in *failed*) break;; esac; sleep 30; done"
+expect_block "until の条件の中も block" "until python3 -c 'print(1'; do sleep 5; done"
+expect_block "二重引用符の本文も block" 'while true; do python3 -c "print(1"; sleep 1; done'
+expect_block "二重引用符の中の \$( ) も block" 'while [ "$(python3 -c "print(1")" != ok ]; do sleep 1; done'
+expect_block "uv run python も block" "while true; do uv run python -c 'print(1'; sleep 1; done"
+expect_block "パス指定と版指定の python も block" "while true; do .venv/bin/python3.12 -c 'print(1'; sleep 1; done"
+expect_block "-I などのフラグ付きも block" "while true; do python3 -I -u -c 'print(1'; sleep 1; done"
+expect_block "インデント崩れも block" "while true; do python3 -c '
+    import sys
+print(1)'; sleep 1; done"
+expect_block "連結された引用符の本文も block" "while true; do python3 -c 'print('\"'\"'a'\"'\"''; sleep 1; done"
+expect_block "shell へ渡す heredoc 本文の中も block" "ksh <<'EOF'
+while true; do python3 -c 'print(1'; sleep 1; done
+EOF"
+expect_allow "正しい本文は許可" "while :; do S=\$(curl -s x | python3 -c 'import json,sys; print(json.load(sys.stdin))' 2>/dev/null || echo unreachable); sleep 30; done"
+expect_allow "二重引用符内のエスケープを解いて判定する" 'while true; do python3 -c "print(\"a\")"; sleep 1; done'
+expect_allow "連結された引用符の正しい本文は許可" "while true; do python3 -c 'print('\"'\"'a'\"'\"')'; sleep 1; done"
+expect_allow "シェル展開を含む本文は判定しない" 'while true; do python3 -c "print($X"; sleep 1; done'
+expect_allow "変数渡しの本文は判定しない" 'while true; do python3 -c "$CODE"; sleep 1; done'
+expect_allow "ssh に渡す引用符の中は判定しない" "while ssh host 'python3 -c \"print(1\"'; do sleep 60; done"
+expect_allow "ループなしの python -c は対象外（失敗がそのまま見える）" "python3 -c 'print(1'"
+expect_allow "for ループは対象外（必ず終わる）" "for i in 1 2; do python3 -c 'print(1'; done"
+expect_allow "--until は while / until の語とみなさない" "tool --until 2026 && python3 -c 'print(1'"
+expect_allow "保存するだけの heredoc 本文は対象外" "cat > w.sh <<'EOF'
+while true; do python3 -c 'print(1'; done
+EOF"
+expect_allow "文字列中の while python3 -c は対象外" "grep -n \"while python3 -c 'print(1'\" notes.md"
+expect_allow "コメントの引用符で判定を誤らない" "# don't
+while true; do python3 -c 'print(1)'; sleep 1; done"
+expect_allow "閉じていない引用符は判定しない（shell が即座に失敗する）" "while true; do python3 -c 'print(1; done"
+expect_allow "本文中の << を heredoc と誤認して止めない" "while true; do python3 -c 'n=2
+print(1<<n)
+print(2)'; sleep 1; done"
+expect_allow "ファイルを実行するループは対象外" 'while read -r l; do python3 tools/x.py "$l"; done < in.txt'
+expect_allow "python を含まないループは対象外" 'until grep -q DONE x.log; do sleep 5; done'
+reason="$(hook_reason "until python3 -c 'print(1'; do sleep 5; done")"
+if [[ "$reason" == *"SyntaxError"* && "$reason" == *"2>/dev/null"* && "$reason" == *"1回"* ]]; then
+  ok "構文エラーの block 理由はエラー内容と起動前の単独実行を示す"
+else
+  ng "構文エラーの block 理由: $reason"
+fi
+rc=0
+jq -n --arg c "until python3 -c 'print(1'; do sleep 5; done" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":$c,"description":"monitor","timeout_ms":1000}}' \
+  | "$HOOK" >/dev/null 2>&1 || rc=$?
+if [[ "$rc" -eq 2 ]]; then
+  ok "Monitor の入力（command と timeout_ms）でも block"
+else
+  ng "Monitor の入力が exit $rc"
+fi
+
 echo
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "PASS: all assertions succeeded"
