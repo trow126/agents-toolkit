@@ -78,15 +78,15 @@ baseline `a2ef695`に対するlive-tree計測:
 <!-- BEGIN metrics:after -->
 ```
 == metrics: . ==
-claude_md_bytes: 3076
-claude_md_lines: 40
+claude_md_bytes: 3696
+claude_md_lines: 41
 claude_always_rules_bytes: 0
 claude_always_rules_lines: 0
-claude_imported_shared_bytes: 1441 (1 files)
-claude_always_on_total: 4517
-codex_agents_md_bytes: 3455
+claude_imported_shared_bytes: 1471 (1 files)
+claude_always_on_total: 5167
+codex_agents_md_bytes: 3485
 codex_agents_md_lines: 48
-combined_always_on_total: 7972
+combined_always_on_total: 8652
 custom_agents: 1
 codex_custom_agents: 2
 claude_skills: 14
@@ -96,14 +96,14 @@ active_skill_entrypoint_bytes: 66807
 active_skill_entrypoint_max_lines: 78
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
-shared_rules_always_on_bytes: 1441
+shared_rules_always_on_bytes: 1471
 shared_rules_on_demand_bytes: 12693
-hook_scripts: 8
-hook_registrations: 11
+hook_scripts: 9
+hook_registrations: 12
 shared_rules: 9
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 221
+inventory_audited_elements: 224
 review_progress_retrospective_mechanisms: 7
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
@@ -133,8 +133,8 @@ post_compact_system_message_typical_bytes: 0
 post_compact_system_message_max_bytes: 0
 user_prompt_submit_injection_typical_bytes: 0
 user_prompt_submit_injection_max_bytes: 0
-claude_session_start_injection_typical_bytes: 4517
-claude_session_start_injection_max_bytes: 4517
+claude_session_start_injection_typical_bytes: 5167
+claude_session_start_injection_max_bytes: 5167
 unconditional_delegation_gh_start: 0
 always_on_learnings_paths: 0
 duplicated_principles_greppable: 0 (of 3 signatures; manual-assessed pairs resolved by 2026-07-26 leaf-rule dedup)

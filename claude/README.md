@@ -124,6 +124,8 @@ GitHub workflow: `/gh-roadmap-plan`, `/gh-roadmap-run`, `/gh-test-first`, `/gh-f
 
 応答言語: managed hook `language-guard-hook.sh` は、`~/.claude/settings.json` の `language` が日本語のときだけ働く。Stop では最終返答（`last_assistant_message`）のコードブロック・インラインコード・URL・パスを除いた本文がラテン文字 80 字以上で日本語の割合が 10% 未満なら exit 2 で止め、日本語で書き直させる（同じ turn で2回目は止めない）。PreToolUse では日本語を含まない AskUserQuestion の質問を拒否する。内部異常は exit 1（non-blocking）。2026-10/11 の transcript で「日本語でお願い」の訂正 22 件中 21 件は日本語の割合がほぼ 0 の返答の直後で、この基準は turn 最終返答 1,015 件中 40 件（すべて英語）に当たる。
 
+確認の聞き方: managed Stop hook `ask-guard-hook.sh` は、対話セッション（`CLAUDE_CODE_ENTRYPOINT` が `cli` か `claude-desktop`）の最終返答（`last_assistant_message`）が文章でユーザーに質問していれば exit 2 で止め、同じ確認を `AskUserQuestion` で聞き直させる。判定は、コードブロック・インラインコード・URL・引用行を除いた末尾 2 段落に、`?`・`？` か「ますか・ですか・でしょうか・ませんか・ましょうか」で終わる文があるかどうか。同じ turn で2回目は止めない。headless（`sdk-cli`）と entrypoint の無い runtime は対象外。内部異常は exit 1（non-blocking）。Claude Code 本体の prompt は `AskUserQuestion` を行き詰まったときに限るため、`CLAUDE.md` の指示だけでは効かず、「アスクモードで聞いて」と頼んだ session が 2026-10/11 に 18 件あった。この基準は turn 最終返答 817 件中 106 件に当たる。
+
 分析・utility: `/break-consensus`（manual only。既定でCodexとread-onlyのClaude workerの候補を併せる。`--solo`はsession内だけ）, `/skill-tuneup`（manual only。全skillを1回で調査・break-consensus・事前登録の実験にかけ、`--apply`で通った項目を実装する）, `/model-routing`, `/cross-critic`, `/grok-digest`。
 
 ## Secret scanning

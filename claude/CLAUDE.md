@@ -38,3 +38,4 @@
 - `~/.claude/settings.json`をsession内で直接編集せず、project/local settingsへpermission・hook・sandbox policyを追加しない。
 - project/localのsecurity policy driftは`~/agents-toolkit/scripts/check-runtime.sh`と`~/.claude/bin/project-policy-gate`が拒否する。
 - bypassPermissions下ではGit操作がpromptなしで実行されるため、commit・push・外部writeの承認はcore contractに従う。
+- ユーザーへの確認は、文章で「〜してよいですか？」と聞いて終えず、選択肢を付けて`AskUserQuestion`で聞く。対象は、解釈が分かれる判断、core contractの明示依頼が要る操作（commit・merge・push・PR・外部write・rule/memory更新）の承認、その他ユーザーに聞く確認すべてである。Claude Code本体の「`AskUserQuestion`は行き詰まったときだけ使う」という既定より、このowner指定を優先する。managed Stop hook `ask-guard-hook.sh`が、文章の質問で終わる最終返答を1 turnに1回止める。

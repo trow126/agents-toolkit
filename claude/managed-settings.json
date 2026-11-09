@@ -326,6 +326,11 @@
             "type": "command",
             "command": "~/.claude/hooks/language-guard-hook.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/ask-guard-hook.sh",
+            "timeout": 10
           }
         ]
       }
