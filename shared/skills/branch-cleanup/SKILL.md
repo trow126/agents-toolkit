@@ -10,7 +10,7 @@ allowed-tools: Bash
 
 ## 手順
 
-1. `git status --porcelain` — 未コミット変更があれば**停止して報告**（整理はしない）
+1. `git status --porcelain` を単独のコマンドとして実行し、出力を読む。出力が空でなければ**停止して報告**する（整理はしない）。手順 2 以降のコマンドを同じ Bash 呼び出しに `;` や `|` でつながない（つなぐ場合は `test -z "$(git status --porcelain)" &&` で始める）
 2. デフォルトブランチを特定: `git remote show origin` の HEAD branch（通常 main または master）
 3. デフォルトブランチへ切替: `git checkout <default>`
 4. `git pull --ff-only`
@@ -18,7 +18,7 @@ allowed-tools: Bash
 6. ローカルブランチを分類（除外対象は安全規則を参照）:
    - `git branch --merged <default>` に出る → 通常マージ済み → `git branch -d <branch>`
    - 出ないものは squash / rebase マージの可能性 → 安全規則の `-D` 条件（独立した 2 つの根拠）を満たせば `-d` を試さず直接 `git branch -D <branch>`
-   - `--merged` に出ず、PR が OPEN / CLOSED（未マージ） / 存在しない / 未 push、または根拠が 1 つしかない → **削除せず報告のみ**（欠けた根拠を書く）
+   - `--merged` に出ず、安全規則の 2 つの根拠がそろわない → **削除せず報告のみ**（欠けた根拠を書く）
 7. worktree の後片付け: `git worktree list` で削除対象ブランチの worktree があれば `git worktree remove <path>`。dirty な worktree はその worktree とブランチだけを残し、`git status --porcelain` の要約を記録して残りの候補の処理を続ける
 8. 報告（途中で残した項目があっても必ず行う）: 削除したブランチ一覧（各行に根拠: merged / PR MERGED + merge-tree 一致）と、残したブランチ・worktree とその理由
 
@@ -28,7 +28,7 @@ allowed-tools: Bash
   - GitHub: `gh pr view <branch> --json state -q .state` が MERGED
   - ローカル: `git merge-tree --write-tree <default> <branch>` が exit 0 で、出力の tree が `git rev-parse <default>^{tree}` と一致する（ブランチを default に merge しても何も変わらない＝内容が取り込み済み）。merge 後にブランチへ足した commit があると一致しない。conflict や不一致なら残す。merge simulation による取り込み判定の既知手法（worktrunk: https://github.com/max-sixty/worktrunk/commit/6325be28）
 - それ以外の未マージブランチに `-D` を使わない
-- デフォルトブランチ・現在のブランチは削除しない
+- デフォルトブランチと、削除時点でいずれかの worktree に checkout されているブランチは削除しない（開始時にいたブランチは、手順 3 で default に切り替えた後は通常の候補として分類する）
 - リモートブランチの削除は明示的に依頼された場合のみ（マージ後の自動削除は repo ごとの設定で、既定は off。`gh api repos/{owner}/{repo} --jq .delete_branch_on_merge` で確認できる）
 - `git reset` / `git checkout -- .` / stash の破棄は行わない（このスキルの守備範囲外）
 

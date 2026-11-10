@@ -1,11 +1,11 @@
 # Baseline probe and blind prior-art audit
 
-Steps 1 and 4 of break-consensus. Both use fresh contexts (subagents started without this conversation or this skill), because the generating context can neither recall its own defaults nor judge its own novelty (evidence.md, 2026-10 section).
+Steps 1 and 4 of break-consensus. Both use fresh contexts (subagents started without this conversation or this skill), because the generating context can neither recall its own defaults nor judge its own novelty (evidence.md, 2026-10 section). The user invoked this skill, which is the explicit opt-in the Workflow tool requires for the probe, audit and cross-worker Workflow runs this skill names, and for nothing else.
 
 ## Baseline probe (step 1)
 
 1. Write the problem statement: the problem, constraints, and what is already known, without any candidate ideas.
-2. Start five fresh contexts on the same model family as the generator, each with only the problem statement and this request: "What would you recommend doing? Give 6-10 concrete recommendations, one line each." In Claude Code, run each as a Workflow `agent()` with the problem statement in the prompt and `disallowedTools: ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'WebSearch', 'WebFetch', 'Agent', 'Skill', 'mcp__*']`, so it cannot read the current implementation.
+2. Start five fresh contexts on the same model family as the generator, each with only the problem statement and this request: "What would you recommend doing? Give 6-10 concrete recommendations, one line each." In Claude Code, run each as a Workflow `agent()` with the problem statement in the prompt and `disallowedTools: ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'WebSearch', 'WebFetch', 'Agent', 'Skill', 'mcp__*']`, so it cannot read the current implementation. Pass the generator's model as the `model` option of each call: in `--solo`, this session's model; in cross mode, the `CLAUDE_MODEL` value of `divergent-route.env` (the value `prepare` later prints as `claude_model`).
 3. Cluster the answers by mechanism, not wording. Record how many of the five produced each cluster.
 4. Start one more fresh context, isolated the same way, with the problem statement and the cluster list: "First name 6-10 distinct directions that no item in this list takes, one sentence each. Then give one concrete recommendation per direction." Cluster its recommendations as the second layer. (A single call that spreads directions first beats asking to differ from a list, per token: arXiv 2605.30150.)
 5. The frozen baseline is both layers plus standard practice and the current implementation that the probes missed. Write each item as a named, concrete mechanism, not a generic category.
@@ -21,6 +21,6 @@ If a fresh context cannot be started, or the runtime refuses the spawn with thos
    - `PARTIAL`: the same purpose or the same mechanism with a different core, with the same evidence.
    - `NOT_FOUND`: nothing found in this search. Never "novel".
 4. Treat the verdicts this way in steps 5 and 6, and record what the audit searched so the reader can see its coverage:
-   - `KNOWN` with both mechanism and implementation matching: not a non-consensus candidate. List it separately as "known method to adopt here", with its source.
-   - `PARTIAL`, or `KNOWN` where mechanism or implementation does not match: stays a candidate, with each facet that differs from the source named.
+   - `KNOWN` with purpose, mechanism and implementation all matching: not a non-consensus candidate. List it separately as "known method to adopt here", with its source.
+   - `PARTIAL`, or `KNOWN` where any facet does not match: stays a candidate, with each differing facet named.
    - `NOT_FOUND`: stays a candidate.

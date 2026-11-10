@@ -5,22 +5,18 @@ description: "Use when an implementation plan needs review before execution（�
 
 # 実行前計画レビュー
 
-実装計画を、read-only custom agent `plan_reviewer` 1体で監査する（実現可能性・完全性・スコープ&リスクの3観点を1回で網羅）。agentが利用できない場合はgeneric agentへsilent fallbackせず、`~/.codex/agents/plan_reviewer.toml`のinstall状態を報告する。
-
-## Arguments
-
-$ARGUMENTS
+実装計画を、read-only custom agent `plan_reviewer` 1体で監査する。agentが利用できない場合はgeneric agentへsilent fallbackせず、`~/.codex/agents/plan_reviewer.toml`のinstall状態を報告する。
 
 ## Instructions
 
 ### Step 1: 計画の特定
 
-- **引数にファイルパスがある場合**（別セッションモード）: 指定ファイルを計画として読み込む
-- **引数が空の場合**（同一セッションモード）: この会話で最近作成・議論された計画を対象にする。見つからなければユーザーに確認する
+- **ユーザーの依頼文に計画fileのpathがある場合**（別セッションモード）: 指定ファイルを計画として読み込む
+- **pathがない場合**（同一セッションモード）: この会話で最近作成・議論された計画を対象にする。見つからなければユーザーに確認する
 
 ### Step 2: コンテキストの収集
 
-計画本文に加え、存在すれば以下を読み込んでレビュー呼び出しへ渡す:
+計画本文に加え、以下の各fileを読んでレビュー呼び出しへ渡す。fileがない場合は「不在」と記録して次へ進む:
 
 - プロジェクトの AGENTS.md / `claudedocs/learnings.md`
 - `~/.agents/rules/learnings.md`

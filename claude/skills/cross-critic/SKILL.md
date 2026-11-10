@@ -2,12 +2,12 @@
 name: cross-critic
 description: Read-only cross-model critique of a plan, preregistration, amendment, design, or hypothesis by a Codex critic, plus a Claude critic with --gate; you adopt or reject each merged finding with a reason. Use when the user invokes /cross-critic.
 disable-model-invocation: true
-argument-hint: "<document-path> [--gate] [--repo <dir>] [--withhold <heading>]"
+argument-hint: "<document-path> [--gate] [--repo <dir>] [--withhold <heading>]... [--dry-run]"
 ---
 
 # /cross-critic
 
-**Stop** before writing code, editing the document, or making any repository or external write; this skill only collects criticism and records your decision on each point. **Done** when `cross-critic finish` passes and you have reported the decision table with the path of `result.md`.
+**Stop** before writing code, editing the document, or writing to the repository. The only writes this skill makes are the scratchpad copy of the document, files in the run directory, and the `cross-critic run` call that sends the document to the critics; it only collects criticism and records your decision on each point. **Done** when `cross-critic finish` passes and you have reported the decision table with the path of `result.md`.
 
 Read [`references/workflow.md`](references/workflow.md).
 
@@ -26,8 +26,8 @@ Both modes send the document to other model sessions; use them only when the use
 
 1. Target only documents: plans, preregistrations, amendments, designs, hypotheses. For code, use `/code-review` instead.
 2. Put the document in a file (your scratchpad when it exists only in chat), without secrets or private data.
-3. Launch `~/.claude/bin/cross-critic run <document> --author <your exact model id> [--gate] [--repo <dir>] [--withhold <heading>]` from the main session with `Bash(run_in_background=true)`; pass `--repo` when the document is about a repository other than the current one, and `--withhold` for the section holding the decision when you want the critics to reconstruct it from the premises (workflow.md). Never wrap it in an Agent. Use `--dry-run` to show the commands first when the user asks.
-4. When `run` exits non-zero (failed critic, schema or document-hash mismatch, changed `git status`), report and stop; do not continue with one critic silently.
+3. Launch `~/.claude/bin/cross-critic run <document> --author <your exact model id> [--gate] [--repo <dir>] [--withhold <heading>]` from the main session with `Bash(run_in_background=true)`; pass `--repo` when the document is about a repository other than the current one, and `--withhold` for the section holding the decision when you want the critics to reconstruct it from the premises (workflow.md). Run it from the main session, not inside an Agent: `--author` is the model of the main session, which wrote the document (workflow.md). Use `--dry-run` to show the commands first when the user asks.
+4. When `run` exits non-zero, act by cause. An input refusal before any model call (size, encoding, a `--withhold` heading that does not match exactly one heading line): correct the input, rerun, and say so in the report. Secret-like text: report to the user and stop. A failed critic, a schema or document-hash mismatch, or a changed `git status`: report and stop; do not continue silently without a critic the mode requires.
 5. Complete `<run>/synthesis.md` from the template as `references/workflow.md` describes: merge duplicates, mark each row's source (one critic's label or `両方`), raise `両方` rows one priority level, and give every row `採用` or `不採用` with a concrete reason. Ignoring findings wholesale is not a valid synthesis.
 6. Run `~/.claude/bin/cross-critic finish <run>` and fix the synthesis until it passes.
 7. Report the decision table, what you will change because of the adopted rows, and the path of `result.md`. Changing the document is a separate step the user approves.

@@ -10,7 +10,7 @@
 - フィードバックで調整したモデルと書くと、書かれた内容の多様性が下がる: Padmakumar & He, ICLR 2024. https://arxiv.org/abs/2309.05196
 - 例示への曝露が発想を例示へ引き寄せる（design fixation）: Jansson & Smith 1991（古典）。「よくある解を列挙してから離れる」の実証的背骨
 - 分布として k 案 + 確率を出させ、裾から取ると創作タスクで多様性が 1.6-2.1 倍（Verbalized Sampling、abstract）。同論文は mode collapse の原因を選好データの typicality bias に求める: https://arxiv.org/abs/2510.01171 — 「mode を可視化してから外す」という本 skill の Stage 2 に最も近い公開手法
-- 注意: 「共通解を列挙して明示的に禁止する」手続きそのものの直接検証研究は見つかっていない（2026-07 時点）。本 skill の独自部分であり、効果は Stage 7 の実験で確認する
+- 注意: 「共通解を列挙して明示的に禁止する」手続きそのものの直接検証研究は見つかっていない（2026-07 時点）。本 skill の独自部分であり、効果は未検証である。検証方法は「設計上の限界」の節に書いた（baseline を封鎖した run と封鎖しない run の比較）
 
 ## なぜ「前提破壊」か（Stage 3)
 
@@ -28,7 +28,7 @@
 
 - frontier LLM は人間より distinct な答えが少ない（NoveltyBench）: https://arxiv.org/abs/2504.05228
 - 単に「もっと出せ」は同一原理の言い換えを量産する。CoT 型の多様化プロンプトで人間集団に近づくがまだ届かない: Meincke, Mollick, Terwiesch 2024. https://arxiv.org/abs/2402.01727
-- persona を付けると語彙の多様性は上がるが、persona の詳細を足しても上積みは小さい（合成データの語彙多様性で測定）: https://arxiv.org/html/2505.17390 。日常的な persona は多様なサンプリングの手がかりとして働き、CoT と組み合わせると人間より多様なアイデアが出るという報告もある: https://arxiv.org/abs/2602.20408 （どちらも旧版の原理タグ quota の根拠ではなくなった。現行手順に quota はない）
+- persona を付けると語彙の多様性は上がるが、persona の詳細を足しても上積みは小さい（合成データの語彙多様性で測定）: https://arxiv.org/html/2505.17390 。日常的な persona は知識の分割を改善するが固着を強め、CoT がその固着を和らげる。persona と CoT を組み合わせるとアイデアの多様性が最も高く、人間を上回るという報告もある（v2）: https://arxiv.org/abs/2602.20408 （どちらも旧版の原理タグ quota の根拠ではなくなった。現行手順に quota はない）
 
 ## なぜ「検索に基づく独立 novelty 監査」か（Stage 6）
 

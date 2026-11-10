@@ -7,7 +7,8 @@ description: Use when making a high-risk decision（アーキテクチャ・デ�
 
 既定は「必要十分な単一 owner が完遂」であり、subagentはユーザーの明示依頼または適用skill・AGENTS.mdが要求する場合だけ使う。現行Codexはbuilt-in `default`・`worker`・`explorer`と、`~/.codex/agents/*.toml`またはprojectの`.codex/agents/*.toml`に置くnamed custom agentをサポートする。
 
-- 停止条件: named agentが見つからない、またはmodel割当の変更が必要な場合は、fallbackせずに報告して止まる
+- 停止条件: named agentが見つからない場合は汎用agentへfallbackせず、install状態を報告して止まる。model割当や設定を書き換える操作が必要な場合も、実施せずに報告して止まる
+- session log・設定値・agent fileの読み取りは承認なしで行う
 - 完了条件: 実際に使われたmodel・effortをsession logの`turn_context`で確認して報告した時点
 
 ## Model割り当て
@@ -46,4 +47,3 @@ generic `default`・`worker`への委任はこれらの代替ではない。
 - session logの`session_meta.source.subagent.thread_spawn`で対象childとparentを特定し、childの`turn_context.model`・`turn_context.effort`を確認する。message本文は検証に使わない
 - routing異常時は`~/.codex/config.toml`の`[agents]` default、custom agent file、spawn時の明示値、CLI overrideの順に確認する
 - `max_concurrent_threads_per_session`を使う。`max_threads`はlegacy aliasであり、`max_depth`はV1でのみ有効、V2では無視される
-- named agentが見つからない場合は汎用agentへsilent fallbackせず、install状態を報告する

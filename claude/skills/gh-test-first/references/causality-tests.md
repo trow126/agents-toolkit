@@ -56,7 +56,7 @@ def assert_sensitive(fn, frame, row: int, cols: list[str]) -> None:
 # def test_no_lookahead():
 #     ticks = make_synthetic_ticks(n=500, seed=1)
 #     fn = lambda f: compute_feature(f, window=20)
-#     assert_prefix_invariant(fn, ticks, cuts=[50, 137, 499])
+#     assert_prefix_invariant(fn, ticks, cuts=[10, 50, 137, 499])
 #     assert_future_perturbation_invariant(fn, ticks, cut=300, cols=["bid", "ask"])
 #     assert_sensitive(fn, ticks, row=250, cols=["bid", "ask"])
 ```

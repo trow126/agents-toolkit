@@ -92,8 +92,8 @@ codex_custom_agents: 2
 claude_skills: 14
 codex_skills: 8
 active_skill_entrypoints: 17
-active_skill_entrypoint_bytes: 66807
-active_skill_entrypoint_max_lines: 78
+active_skill_entrypoint_bytes: 73237
+active_skill_entrypoint_max_lines: 75
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
 shared_rules_always_on_bytes: 1471

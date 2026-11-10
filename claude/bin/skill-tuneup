@@ -6,13 +6,17 @@ usage:
   skill-tuneup record <run-dir> [--results FILE]
   skill-tuneup finish <run-dir>
   skill-tuneup plan <run-dir>
+  skill-tuneup mark <run-dir> research
+  skill-tuneup mark <run-dir> workflow --workflow-run-id ID --script PATH
+  skill-tuneup status [<run-dir>]
 
 prepare  inventory every skill the toolkit ships (shared/skills, shared/skills/{claude-code,codex},
          claude/skills, codex/skills; same-name entrypoints are one skill), create a run directory
          under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/skill-tuneup/, record the toolkit HEAD
          and git status and the date of the previous finished run, and print JSON with the skills
          (name, description, deprecated, files) and the estimated number of agents. Fails when Claude
-         Code is older than 2.1.305 (Workflow agent() disallowedTools, no skipped steps, resume from the journal) or when the skills could exceed
+         Code is older than 2.1.318 (Workflow agent() disallowedTools, no skipped steps, resume from the journal,
+         also after a usage limit) or when the skills could exceed
          the Workflow limit of 1,000 agents, printing --only batches that fit.
 record   validate <run>/results.json (the Workflow result) against references/result.schema.json and
          the run: every skill present, KNOWN/PARTIAL verdicts with a url and method, a verdict for every
@@ -25,6 +29,10 @@ finish   check research.md (each finding with exactly one evidence tag), synthes
 plan     for --apply: check that the run finished and that the skills' files are unchanged since the
          inventoried HEAD, then print per skill the hygiene findings, grouped by effect (remove or
          correct, add), and the candidates whose experiment passed.
+mark     record in <run>/state.json that research.md was written, or that the Workflow was launched
+         (with its Workflow run id and script path). prepare, record, and finish record their own step.
+status   for a run that stopped: print the completed steps of the run (default: the newest unfinished
+         run), the Workflow run id to resume, and the exact next command.
 Nothing here writes to the repository.
 """
 import datetime as dt
@@ -60,8 +68,10 @@ WORKFLOW_AGENT_LIMIT = 1000  # agents per Workflow run (Claude Code workflows do
 # The Workflow script narrows every agent with agent({disallowedTools}), which the agent() reference does
 # not document; 2.1.296 is the first version checked to honor it (and to refuse a spawn it cannot narrow).
 # 2.1.301 fixed workflow agents that skipped their step after the "no user authority" note while the run
-# reported success; 2.1.305 made resume serve completed pipeline()/parallel() agents from the journal.
-MIN_CLAUDE_VERSION = (2, 1, 305)
+# reported success; 2.1.305 made resume serve completed pipeline()/parallel() agents from the journal;
+# 2.1.318 fixed a resume after a usage limit re-running finished agents.
+MIN_CLAUDE_VERSION = (2, 1, 318)
+STEPS = ("prepare", "research", "workflow", "record", "finish")
 EVIDENCE_TAG = re.compile(r"\[(verified-main|agent-opened|secondary|practitioner|unverified)(?::[^\]]*)?\]")
 HYGIENE_GROUPS = (
     ("remove", "remove or correct (implement)"),
@@ -170,6 +180,87 @@ def load_ledger() -> dict:
     return load_json(path) if path.is_file() else {"last_finished": None, "skills": {}}
 
 
+# ---------------------------------------------------------------- step record
+def mark_step(run_dir: Path, step: str, **extra: str) -> None:
+    """Append one completed step to <run>/state.json."""
+    path = run_dir / "state.json"
+    state = load_json(path) if path.is_file() else {"steps": []}
+    state["steps"].append({"step": step, "at": now(), **extra})
+    write_json(path, state)
+
+
+def cmd_mark(args: list[str]) -> int:
+    usage = ("usage: skill-tuneup mark <run-dir> research | "
+             "skill-tuneup mark <run-dir> workflow --workflow-run-id ID --script PATH")
+    run_id = pop_option(args, "--workflow-run-id")
+    script = pop_option(args, "--script")
+    if len(args) != 2 or args[1] not in ("research", "workflow"):
+        raise DelegationError(usage)
+    run_dir = Path(args[0]).resolve()
+    load_json(run_dir / "run.json")
+    if args[1] == "research":
+        if run_id or script:
+            raise DelegationError(usage)
+        if not (run_dir / "research.md").is_file():
+            raise DelegationError(f"{run_dir / 'research.md'} does not exist; write it before marking research")
+        mark_step(run_dir, "research")
+    else:
+        if not run_id or not script:
+            raise DelegationError(usage)
+        if not re.fullmatch(r"wf_[a-z0-9-]{6,}", run_id):
+            raise DelegationError(f"--workflow-run-id {run_id!r} is not a Workflow run id (wf_...)")
+        script_path = Path(script).resolve()
+        if not script_path.is_file():
+            raise DelegationError(f"--script {script_path} does not exist")
+        mark_step(run_dir, "workflow", workflow_run_id=run_id, script=str(script_path))
+    print(f"MARK OK: {args[1]} in {run_dir / 'state.json'}")
+    return 0
+
+
+def newest_unfinished_run() -> Path:
+    root = state_root()
+    runs = sorted((p for p in root.glob("*/run.json")), key=lambda p: p.parent.name, reverse=True) if root.is_dir() else []
+    for run_file in runs:
+        if not load_json(run_file).get("finished_at"):
+            return run_file.parent
+    raise DelegationError(f"no unfinished run under {root}; run skill-tuneup prepare")
+
+
+def cmd_status(args: list[str]) -> int:
+    if len(args) > 1:
+        raise DelegationError("usage: skill-tuneup status [<run-dir>]")
+    run_dir = Path(args[0]).resolve() if args else newest_unfinished_run()
+    load_json(run_dir / "run.json")
+    state_file = run_dir / "state.json"
+    if not state_file.is_file():
+        raise DelegationError(f"{state_file} is missing: this run has no step record (it predates skill-tuneup status)")
+    steps = load_json(state_file)["steps"]
+    done = {s["step"] for s in steps}
+    workflow = next((s for s in reversed(steps) if s["step"] == "workflow"), None)
+    tune = "~/.claude/bin/skill-tuneup"
+    if "finish" in done:
+        nxt = f"the run is finished; for --apply: {tune} plan {run_dir}"
+    elif "record" in done:
+        nxt = f"write {run_dir / 'synthesis.md'}, then: {tune} finish {run_dir}"
+    elif workflow:
+        nxt = (f"resume the Workflow, do not launch a new one: Workflow(scriptPath: {workflow['script']}, "
+               f"resumeFromRunId: {workflow['workflow_run_id']}); when it completes, write its result to "
+               f"{run_dir / 'results.json'}, then: {tune} record {run_dir}")
+    elif "research" in done:
+        nxt = (f"launch the Workflow (references/workflow.md), then: {tune} mark {run_dir} workflow "
+               "--workflow-run-id <wf_...> --script <script path>")
+    else:
+        nxt = f"write {run_dir / 'research.md'} (references/research.md), then: {tune} mark {run_dir} research"
+    print(f"run: {run_dir}")
+    for step in STEPS:
+        entry = next((s for s in reversed(steps) if s["step"] == step), None)
+        print(f"  {step}: " + (f"done {entry['at']}" if entry else "not done"))
+    print(f"workflow run id: {workflow['workflow_run_id'] if workflow else 'none recorded'}")
+    print("do not run prepare again for this run")
+    print(f"next: {nxt}")
+    return 0
+
+
 # ---------------------------------------------------------------- prepare
 def claude_version() -> str:
     try:
@@ -182,7 +273,7 @@ def claude_version() -> str:
     if tuple(int(n) for n in match.groups()) < MIN_CLAUDE_VERSION:
         raise DelegationError(f"Claude Code {match.group(0)} is older than "
                               f"{'.'.join(map(str, MIN_CLAUDE_VERSION))}, the first version known to honor "
-                              "Workflow agent() disallowedTools, run every step, and resume from the journal")
+                              "Workflow agent() disallowedTools, run every step, and resume from the journal, also after a usage limit")
     return match.group(0)
 
 
@@ -230,6 +321,7 @@ def cmd_prepare(args: list[str]) -> int:
         "git_before": git_state(), "skills": [s["name"] for s in skills], "estimated_agents": estimate,
         "claude_version": version,
     })
+    mark_step(run_dir, "prepare")
     print(json.dumps({
         "run_dir": str(run_dir), "run_id": run_dir.name, "since": since, "count": len(skills),
         "estimated_agents": estimate,
@@ -310,6 +402,8 @@ def cmd_record(args: list[str]) -> int:
             write_json(run_dir / "skills" / f"{name}.json", result)
     write_json(run_dir / "record.json", {"ok": ok, "recorded_at": now(), "problems": problems,
                                          "results_sha256": sha256_file(run_dir / "results.json")})
+    if ok:
+        mark_step(run_dir, "record")
     for problem in problems:
         print(f"FAIL: {problem}")
     print(f"RECORD OK: {len(seen)} skill(s) in {run_dir}" if ok else f"RECORD FAIL: {run_dir}")
@@ -393,6 +487,7 @@ def cmd_finish(args: list[str]) -> int:
         ledger["skills"][name] = {"run_id": run["id"], "date": date}
     state_root().mkdir(parents=True, exist_ok=True)
     write_json(ledger_path(), ledger)
+    mark_step(run_dir, "finish")
     print(f"FINISH OK: {run_dir / 'result.md'}")
     return 0
 
@@ -441,7 +536,8 @@ def cmd_plan(args: list[str]) -> int:
 
 
 def main(argv: list[str]) -> int:
-    commands = {"prepare": cmd_prepare, "record": cmd_record, "finish": cmd_finish, "plan": cmd_plan}
+    commands = {"prepare": cmd_prepare, "record": cmd_record, "finish": cmd_finish, "plan": cmd_plan,
+                "mark": cmd_mark, "status": cmd_status}
     if len(argv) < 2 or argv[1] not in commands:
         print(__doc__, file=sys.stderr)
         return 2

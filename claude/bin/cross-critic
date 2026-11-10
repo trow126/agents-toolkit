@@ -344,6 +344,8 @@ def output_errors(output: object, document_sha: str, withheld: bool = False) -> 
         return errors
     if output["document_sha256"] != document_sha:
         errors.append(f"document_sha256 {output['document_sha256']!r} does not match the document ({document_sha})")
+    if not output["failure_story"].strip():
+        errors.append("failure_story is empty")
     if withheld and not output["reconstruction"].strip():
         errors.append("reconstruction is empty although sections were withheld")
     for index, finding in enumerate(output["findings"]):
@@ -411,6 +413,7 @@ def finish_codex(run: dict, run_dir: Path, rc: int | None) -> dict:
     result["ok"] = not result["errors"]
     if result["ok"]:
         result["findings"] = output["findings"]
+        result["failure_story"] = output["failure_story"]
         result["reconstruction"] = output["reconstruction"]
     return result
 
@@ -448,6 +451,7 @@ def finish_claude(run: dict, run_dir: Path, rc: int | None) -> dict:
     result["ok"] = not result["errors"]
     if result["ok"]:
         result["findings"] = output["findings"]
+        result["failure_story"] = output["failure_story"]
         result["reconstruction"] = output["reconstruction"]
     return result
 
@@ -467,18 +471,23 @@ def write_findings(run: dict, run_dir: Path, results: dict[str, dict]) -> dict:
         findings = [dict(f, id=f"{prefix}{i}") for i, f in enumerate(res.get("findings") or [], 1)]
         critics.append({"key": key, "label": label(model), "model": model, "prefix": prefix,
                         "ok": res["ok"], "errors": res["errors"], "findings": findings,
+                        "failure_story": res.get("failure_story", ""),
                         "reconstruction": res.get("reconstruction", "")})
     data = {"run_id": run["id"], "document_sha256": run["document_sha256"], "critics": critics,
             "withheld": run.get("withheld", [])}
     write_json(run_dir / "findings.json", data)
     rows = ["# cross-critic synthesis", "",
             f"Document: `{run['document_name']}` (sha256 `{run['document_sha256'][:12]}`).", "",
-            "| " + " | ".join(COLUMNS) + " |", "|" + "---|" * len(COLUMNS)]
+            "## Failure stories", ""]
+    rows += [f"- {critic['label']}: {cell(critic['failure_story'], 900) or '(none: the critic failed)'}" for critic in critics]
+    rows += ["", "| " + " | ".join(COLUMNS) + " |", "|" + "---|" * len(COLUMNS)]
     for critic in critics:
         for f in critic["findings"]:
             rows.append(f"| {f['id']} | [{f['kind']}] {cell(f['target'], 80)}: {cell(f['claim'])} | "
                         f"{critic['label']} | {PRIORITY[f['severity']]} |  |  |")
-    rows += ["", "## Notes", ""]
+    rows += ["", "## Notes", "",
+             "<!-- What the critics could not check, any change of route, and which link of each failure "
+             "story the adopted rows cut (or that none does). -->", ""]
     if run.get("withheld"):
         rows += ["## Divergences", "",
                  "<!-- Compare each critic's reconstruction below with the withheld sections (withheld.md). "
@@ -704,7 +713,8 @@ def cmd_finish(args: list[str]) -> int:
             parts += [f"### {critic['key']} critic ({critic['label']}) reconstruction", "",
                       critic.get("reconstruction") or "(none)", ""]
     for critic in findings["critics"]:
-        parts += [f"### {critic['key']} critic ({critic['label']})", "", "```json",
+        parts += [f"### {critic['key']} critic ({critic['label']})", "",
+                  f"Failure story: {critic.get('failure_story') or '(none)'}", "", "```json",
                   json.dumps(critic["findings"], ensure_ascii=False, indent=2), "```", ""]
     (run_dir / "result.md").write_text("\n".join(parts), encoding="utf-8")
     run["finished_synthesis_at"] = now()

@@ -3,9 +3,10 @@
   "description": "Final answer of one critic (Codex: codex exec --output-schema; Claude: claude -p --json-schema). cross-critic run also checks the document hash and that no field is empty.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["document_sha256", "reconstruction", "findings"],
+  "required": ["document_sha256", "failure_story", "reconstruction", "findings"],
   "properties": {
     "document_sha256": {"type": "string"},
+    "failure_story": {"type": "string"},
     "reconstruction": {"type": "string"},
     "findings": {
       "type": "array",

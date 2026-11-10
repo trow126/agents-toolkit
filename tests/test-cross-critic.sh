@@ -51,7 +51,8 @@ findings = [
      "resolution": "r", "severity": "low"},
 ]
 recon = "" if mode == "norecon" or "were withheld" not in prompt else "codex would choose B"
-out.write_text(json.dumps({"document_sha256": sha, "reconstruction": recon, "findings": findings}))
+story = "" if mode == "nostory" else "codex story: the split leaked because \"fit on all rows\" was followed"
+out.write_text(json.dumps({"document_sha256": sha, "failure_story": story, "reconstruction": recon, "findings": findings}))
 thread = "0199aaaa-bbbb-cccc-dddd-eeeeffff0000"
 print(json.dumps({"type": "thread.started", "thread_id": thread}))
 print(json.dumps({"type": "turn.completed", "usage": {"input_tokens": 10, "output_tokens": 5}}))
@@ -74,6 +75,7 @@ finding = {"kind": "alternative", "target": "§1", "claim": "claim three", "why_
 print("login shell noise")
 print(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "",
                   "structured_output": {"document_sha256": sha, "findings": [finding],
+                                        "failure_story": "claude story: the gate passed on a stale baseline",
                                         "reconstruction": "claude would choose A" if "were withheld" in prompt else ""},
                   "total_cost_usd": 0.01, "num_turns": 1,
                   "modelUsage": {f"claude-{model}-9-9": {"inputTokens": 1}}}))
@@ -204,6 +206,15 @@ if [[ "$rc" -eq 0 ]] && grep -q "SECRET-DECISION" "$WRUN/result.md" && grep -q "
 else
   ng "--withhold finish failed or result.md lacks the comparison (rc=$rc)"
 fi
+if grep -q "^## Failure stories" "$WRUN/synthesis.template.md" && grep -q "codex story: the split leaked" "$WRUN/synthesis.template.md" \
+   && grep -q "claude story: the gate passed" "$WRUN/synthesis.template.md" && grep -q "Failure story: codex story" "$WRUN/result.md" \
+   && grep -q "failure_story: assume the document was carried out exactly as written" "$WRUN/prompt.md"; then
+  ok "premortem: the prompt asks for a failure story, and the template and result.md show each critic's story"
+else
+  ng "premortem: failure stories missing from the prompt, the template, or result.md"
+fi
+rc=0; STUB_CODEX=nostory run_cc run "$WDOC" --author x >/dev/null 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] && ok "premortem: an empty failure_story fails the run" || ng "empty failure_story accepted"
 rc=0; STUB_CODEX=norecon run_cc run "$WDOC" --author x --withhold Decision >/dev/null 2>&1 || rc=$?
 [[ "$rc" -ne 0 ]] && ok "--withhold: an empty reconstruction fails the run" || ng "empty reconstruction accepted"
 

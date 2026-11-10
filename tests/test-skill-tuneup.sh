@@ -44,7 +44,7 @@ git -C "$TK" add -A && git -C "$TK" commit -q -m base
 export PYTHONDONTWRITEBYTECODE=1 XDG_STATE_HOME="$SANDBOX/state"
 # stub claude: prints STUB_CLAUDE_VERSION for --version.
 mkdir -p "$SANDBOX/stub"
-printf '#!/usr/bin/env bash\necho "${STUB_CLAUDE_VERSION:-2.1.305 (Claude Code)}"\n' > "$SANDBOX/stub/claude"
+printf '#!/usr/bin/env bash\necho "${STUB_CLAUDE_VERSION:-2.1.318 (Claude Code)}"\n' > "$SANDBOX/stub/claude"
 chmod +x "$SANDBOX/stub/claude"
 export PATH="$SANDBOX/stub:$PATH"
 RC=0; OUT=""
@@ -56,8 +56,8 @@ expect_rc() { # desc want_rc needle
 # ---- prepare
 run "$TUNE" prepare --only alpha,nope
 expect_rc "--only の未知の skill は拒否する" 1 "unknown skill(s) for --only: nope"
-STUB_CLAUDE_VERSION="2.1.304 (Claude Code)" run "$TUNE" prepare
-expect_rc "step を飛ばす・resume で再実行する古い Claude Code は拒否する" 1 "older than 2.1.305"
+STUB_CLAUDE_VERSION="2.1.317 (Claude Code)" run "$TUNE" prepare
+expect_rc "step を飛ばす・resume で再実行する古い Claude Code は拒否する" 1 "older than 2.1.318"
 [[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/skill-tuneup" 2>/dev/null)" ]] && ok "拒否した prepare は run を作らない" || ng "拒否した prepare が run を作った"
 run "$TUNE" prepare
 expect_rc "prepare は run を作る" 0 '"count": 5'
@@ -77,10 +77,38 @@ if jq -e --arg ev "$TK/shared/skills/pair/references/evidence.md" '.skills[] | s
 else
   ng "skill の files か deprecated が不正"
 fi
-if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.305"' "$RUN/run.json" >/dev/null; then
+if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.318"' "$RUN/run.json" >/dev/null; then
   ok "run.json に前回の run（なし）、git status、skill を記録する"
 else
   ng "run.json が不正"
+fi
+
+# ---- step record: mark and status
+run "$TUNE" status
+expect_rc "status は最新の未完了 run の次の手順（research）を示す" 0 "mark $RUN research"
+[[ "$OUT" == *"prepare: done"* && "$OUT" == *"research: not done"* && "$OUT" == *"do not run prepare again"* ]] &&
+  ok "status は完了した step と、prepare をやり直さない旨を示す" || ng "status の step 一覧が不正: $OUT"
+run "$TUNE" mark "$RUN" research
+expect_rc "research.md が無ければ mark research は失敗する" 1 "write it before marking research"
+printf 'draft\n' > "$RUN/research.md"
+run "$TUNE" mark "$RUN" research
+expect_rc "mark research は step を記録する" 0 "MARK OK: research"
+rm "$RUN/research.md"
+printf '// script\n' > "$SANDBOX/launched.js"
+run "$TUNE" mark "$RUN" workflow --workflow-run-id nope --script "$SANDBOX/launched.js"
+expect_rc "Workflow run id でない値は拒否する" 1 "is not a Workflow run id"
+run "$TUNE" mark "$RUN" workflow --workflow-run-id wf_c45df394-a3d --script "$SANDBOX/missing.js"
+expect_rc "存在しない script は拒否する" 1 "does not exist"
+run "$TUNE" mark "$RUN" workflow --workflow-run-id wf_c45df394-a3d
+expect_rc "run id か script が欠けた mark workflow は拒否する" 1 "usage: skill-tuneup mark"
+run "$TUNE" mark "$RUN" workflow --workflow-run-id wf_c45df394-a3d --script "$SANDBOX/launched.js"
+expect_rc "mark workflow は run id と script を記録する" 0 "MARK OK: workflow"
+run "$TUNE" status "$RUN"
+if [[ "$RC" -eq 0 && "$OUT" == *"resumeFromRunId: wf_c45df394-a3d"* && "$OUT" == *"scriptPath: $SANDBOX/launched.js"* &&
+  "$OUT" == *"do not launch a new one"* && "$OUT" == *"workflow run id: wf_c45df394-a3d"* ]]; then
+  ok "Workflow 起動後の status は、記録した run id での resume を次の手順として示す"
+else
+  ng "status が resume を示さない (rc=$RC): $OUT"
 fi
 
 # ---- the Workflow script against a mock agent()
@@ -218,6 +246,8 @@ expect_rc "監査の判定が無い候補は失敗する" 1 "no audit verdict fo
 run "$TUNE" record "$RUN" --results "$SANDBOX/full.json"
 expect_rc "揃った結果は記録する" 0 "RECORD OK: 5 skill(s)"
 [[ -s "$RUN/skills/pair.json" ]] && ok "skill ごとの結果を書く" || ng "skills/pair.json が無い"
+run "$TUNE" status "$RUN"
+expect_rc "record 後の status は finish を次の手順として示す" 0 "finish $RUN"
 
 # ---- finish
 run "$TUNE" finish "$RUN"
@@ -239,6 +269,13 @@ run "$TUNE" plan "$RUN"
 expect_rc "finish 前の plan は失敗する" 1 "has not finished"
 run "$TUNE" finish "$RUN"
 expect_rc "finish は result を書く" 0 "FINISH OK"
+run "$TUNE" status "$RUN"
+expect_rc "finish 後の status は完了を示す" 0 "the run is finished"
+run "$TUNE" status
+expect_rc "未完了の run が無ければ status は失敗する" 1 "no unfinished run"
+rm "$RUN/state.json"
+run "$TUNE" status "$RUN"
+expect_rc "step の記録が無い run では status は失敗する" 1 "has no step record"
 if grep -qF '| pair | 1 | 1 | 1 / 0 / 0 | 1 / 0 / 1 |' "$RUN/result.md" && grep -qF 'three probes instead of five' "$RUN/result.md" &&
   jq -e --arg id "$(basename "$RUN")" '.last_finished.run_id == $id and .skills.alpha.run_id == $id' "$XDG_STATE_HOME/agents-toolkit/skill-tuneup/ledger.json" >/dev/null; then
   ok "result に skill ごとの集計と synthesis を書き、ledger を更新する"

@@ -22,4 +22,4 @@ Read [`references/workflow.md`](references/workflow.md) and `~/.agents/rules/git
 3. Run the project's deterministic verification. A failing check stops both modes — report, never merge over a failure.
 4. In `--apply`, stage only Issue-scoped paths, use semantic Conventional Commits, fast-forward or no-ff merge per repo convention, and close via one `gh issue close --comment` citing the evidence.
 5. Leave the merged feature branch in place; cleanup is a separate `/branch-cleanup` request.
-6. Report each operation performed or skipped, with the evidence, and the exact remaining manual steps (e.g. push) if the user wants them.
+6. Report each operation performed or skipped, with the evidence, and list the exact remaining manual steps (push is always one of them).

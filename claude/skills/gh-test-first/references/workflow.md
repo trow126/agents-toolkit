@@ -6,7 +6,8 @@
 2. Confirm the intended Git repository and no unresolved merge or rebase. On `main`/`master`, create and switch to `issue-<N>` (or the existing branch for that Issue). Stop only if the current branch clearly belongs to another Issue's work in progress.
 3. Inspect `git status --short --branch`. Unrelated or overlapping dirty changes are never staged, reset, or rewritten.
 4. Fetch the Issue only through `~/.claude/bin/gh-issue-fetch.sh`, again for each Issue of a `/gh-roadmap-run`; do not read it with `gh issue view` or `gh api`. If the helper fails, stop. Fail on a missing or closed Issue unless the user asked to continue closed work.
-5. Read the project instructions, the code the Issue touches, and its existing tests. Use the project's test framework, layout, and naming; apply the relevant `implementation-quality` rules.
+5. Run the project's relevant test suite once on the untouched tree, before writing any test, and record the IDs of the passing and the failing tests (the base).
+6. Read the project instructions, the code the Issue touches, and its existing tests. Use the project's test framework, layout, and naming; apply the relevant `implementation-quality` rules.
 
 ## Specification
 
@@ -23,7 +24,7 @@ For every function the Issue adds or changes whose output row `t` must depend on
 ## Red
 
 - Write tests and fixtures only. No implementation file changes in this phase (an empty module the import needs is the only exception, and it must stay empty).
-- Run the new tests. Acceptable red: an assertion failure, or `ImportError`/`AttributeError` for an interface the Issue introduces. Not acceptable: a syntax error, a fixture that fails to build, or a failure unrelated to the criterion. Fix the test until the failure is the expected one.
+- Run the new tests. Acceptable red: an assertion failure, or `ImportError`/`AttributeError` for the missing interface stated in the Specification step (named by the Issue, or the smallest one chosen and stated there). Not acceptable: a syntax error, a fixture that fails to build, or a failure unrelated to the criterion. Fix the test until the failure is the expected one.
 - For a bug fix, the test must reproduce the bug against the current code.
 - Run the project's formatter and lint autofix on the new test files, re-run them to confirm the same red, then record the command, the summary of failures, and `sha256sum <test files>`.
 
@@ -37,7 +38,7 @@ For every function the Issue adds or changes whose output row `t` must depend on
 All of these must hold; any failure stops the run with the output shown:
 
 1. The new tests pass.
-2. The project's relevant test suite and lint pass (the same commands `gh-finish` will run), without adding paths, patterns, or thresholds to an existing test's exclusion or allow list. When an existing test flags the new code or tests, stop and report it before any `/gh-finish` step.
+2. Lint passes, and the project's relevant test suite (the same commands `gh-finish` will run) is compared with the base recorded in Setup: no test that passed at the base fails or is missing now, and no test that failed at the base was fixed or edited by this run. List each existing test whose state changed, by ID. A failure that already existed at the base does not block: report it as a follow-up and leave it unfixed. Do not add paths, patterns, or thresholds to an existing test's exclusion or allow list. When an existing test flags the new code or tests, the gate has failed: stop at that point without editing that test, report the test name and its failure output, and do not name `/gh-finish <N>` as the follow-up.
 3. `sha256sum` of the frozen test files matches the record, or each change is listed with its reason and its re-shown red.
 4. In a time-series or quantitative repository, the causality tests exist for every affected function and pass.
 5. The diff contains only Issue-attributable changes.
@@ -46,6 +47,7 @@ All of these must hold; any failure stops the run with the output shown:
 
 - Success criteria with their tests, and manual checks with their status.
 - Red: command and failure summary. Green: command and pass summary. Frozen hashes, and any test change with its reason.
+- Existing tests whose state changed against the base, by ID, and the failures that already existed at the base (follow-ups).
 - Changed paths and remaining risk.
 - The follow-up: `/gh-finish <N>` to verify and preview, then `/gh-finish <N> --apply` to commit, merge locally, and close.
 
@@ -55,4 +57,6 @@ All of these must hold; any failure stops the run with the output shown:
 - Ambiguity that changes design, data, or public API.
 - New tests that cannot be made to fail for the expected reason.
 - A failing gate that cannot be fixed within the Issue's scope.
-- Any request to infer commit, push, PR, or close authority from this skill.
+- Any request to infer commit, push, PR, or close authority from this skill itself; the `/gh-finish` steps run only on a separate user request or when `/gh-roadmap-run` authorizes them.
+
+At every stop, write a stop record: the blocker, the phase reached, what is done, what was verified and with which command, and the state left on disk. End it with an `AskUserQuestion` whose options are named for the condition, and resume only on the option the user selects. For an existing test that flags the new code or tests, the options are: the Issue requires changing that test, change the implementation instead, or end the run.
