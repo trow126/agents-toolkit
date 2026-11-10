@@ -37,7 +37,8 @@ Research-specific rules:
 Judgment gates:
 
 - Title starts with 【判断ゲート】. The body lists the options, the evidence each needs (with the children that produce it), the decision criteria, and `担当: ユーザー`.
-- Nothing after a gate may assume its outcome; children that depend on a particular outcome say so in their 前提.
+- Nothing after a gate may assume its outcome; children that depend on a particular outcome say so in their 前提, using the option's name as the gate body writes it.
+- Give every option a short, unique name. `/gh-roadmap-run` records the user's decision under `## 決定` at the end of the gate's own body (not in a comment) and checks dependent children's 前提 against it; do not write a `## 決定` section in the draft.
 
 ## Final check before `create`
 

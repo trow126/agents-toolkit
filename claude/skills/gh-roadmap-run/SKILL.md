@@ -1,6 +1,6 @@
 ---
 name: gh-roadmap-run
-description: Loops a tracking Issue's sub-Issues through /gh-test-first, verification, and /gh-finish --apply, updating its checklist until a gate, unmet dependency, or failure; --critic adds cross-critic at gates. Use when the user invokes /gh-roadmap-run.
+description: Loops a tracking Issue's sub-Issues through /gh-test-first, verification, and /gh-finish --apply, updating its checklist until an undecided gate, unmet dependency, or failure; --critic adds cross-critic at gates. Use when the user invokes /gh-roadmap-run.
 disable-model-invocation: true
 argument-hint: "<tracking-issue-number> [--status|--critic]"
 ---
@@ -19,12 +19,12 @@ Read [`references/workflow.md`](references/workflow.md). The per-step contracts 
 
 ## Authority
 
-Invoking the loop is the user's single explicit request to follow `~/.claude/skills/gh-test-first/SKILL.md` (and, with `--critic`, `~/.claude/skills/cross-critic/SKILL.md`) for the listed sub-Issues, and it covers, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update; and, at reconciliation, one checklist update for each sub-Issue already closed on GitHub but unchecked. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no closing of or commenting on the tracking Issue, no work outside the listed sub-Issues.
+Invoking the loop is the user's single explicit request to follow `~/.claude/skills/gh-test-first/SKILL.md` (and, with `--critic`, `~/.claude/skills/cross-critic/SKILL.md`) for the listed sub-Issues, and it covers, for each sub-Issue completed in this run: the `gh-test-first` work, the `gh-finish --apply` sequence (commit → local merge → Issue close), and one tracking-Issue checklist update; at reconciliation, one checklist update for each sub-Issue already closed on GitHub but unchecked; and, for each judgment gate the user decides in this run, one edit that appends `## 決定` to that gate Issue's body; and, for each decided gate (decided in this run, or already carrying `## 決定` in its body), closing that gate Issue and its checklist update. `--critic` also authorizes sending gate material to the cross-critic critics. Nothing else is authorized — no push, no PR, no branch deletion, no closing of or commenting on the tracking Issue, no work outside the listed sub-Issues.
 
 ## Loop (per sub-Issue)
 
 1. Re-read `references/workflow.md` and `~/.claude/skills/gh-test-first/SKILL.md` with the references it names (after compaction only Skill-tool invocations come back, not files read with Read). Fetch the tracking Issue with `~/.claude/bin/gh-issue-fetch.sh <tracking>` (the same helper as for sub-Issues; its `body` is the tracking Issue's text, and `gh issue view` is not used for it); parse the ordered checklist and dependency notes. On the first iteration only, run the reconciliation in workflow.md "Reading the roadmap" step 4. Select the next unchecked sub-Issue whose dependencies are met.
-2. Classify the selected sub-Issue as a judgment gate or a work item (workflow.md "Judgment gates"). A judgment gate stops the loop here: with `--critic`, run the cross-critic step first; then present the pending decisions.
+2. Classify the selected sub-Issue as a judgment gate or a work item (workflow.md "Judgment gates"). At a judgment gate, do not implement anything: with `--critic`, run the cross-critic step first; then present the decision material and ask the user for the decision with `AskUserQuestion`. When the user decides, record the decision in the gate Issue's body, close the gate, check its box (workflow.md "Judgment gates"), and continue with step 1. When the user does not decide, stop the loop.
 3. Run the `gh-test-first` workflow for the sub-Issue through its gate, as `~/.claude/skills/gh-test-first/SKILL.md` defines it.
 4. Verify: when the success criteria involve real data or runtime behavior, run the real smoke or backfill check and read its output. Run `/code-review` on the diff only when the Issue touches architecture, data destruction, or a public API.
 5. Run the `gh-finish --apply` sequence (commit, local merge, Issue close). The `/gh-roadmap-run` invocation is the explicit request that gh-finish requires for these three actions on this sub-Issue; do not ask again. Then check the sub-Issue's box in the tracking Issue body.
@@ -34,7 +34,7 @@ Invoking the loop is the user's single explicit request to follow `~/.claude/ski
 
 These are the only reasons to end the run. Starting the next sub-Issue after step 6 needs no confirmation, and a turn that lists remaining sub-Issues without one of these conditions is not a valid stop.
 
-- A judgment gate is next, a dependency is unmet, or an Issue body is ambiguous in a way that changes design, data, or public API.
+- A judgment gate is next and is undecided (its body has no `## 決定` and the user did not decide it in this run), a dependency is unmet (including a prerequisite on a gate outcome that the gate's `## 決定` does not show), or an Issue body is ambiguous in a way that changes design, data, or public API.
 - A completed sub-Issue's result meets its `中止条件:` line (written by `/gh-roadmap-plan`). Show the result and the line to the user; do not skip ahead to a verdict sub-Issue on your own.
 - A `gh-test-first` gate, verification, or `gh-finish` check fails and cannot be fixed within the sub-Issue's scope — report; never merge over a failure and never weaken a test.
 - A cross-critic run fails (with `--critic`).

@@ -20,14 +20,30 @@
 
 A sub-Issue is a gate if its title or body marks it as a user decision（例:【判断ゲート】, 「担当: <user>」, ask-mode 指定）. On reaching a gate:
 
-1. Stop the loop before implementing anything for the gate or any later sub-Issue.
+1. Implement nothing for the gate or any later sub-Issue until the gate is decided.
 2. Summarize the decisions the gate needs, with the evidence produced by the completed sub-Issues.
 3. With `--critic`: re-read `~/.claude/skills/cross-critic/SKILL.md` and its references, write the gate's decision material (the gate Issue body, the plan or preregistration it decides on, and the evidence summary) to one file in your scratchpad, run the `cross-critic` skill with `--gate` on it by following `~/.claude/skills/cross-critic/SKILL.md` and its references (the Skill tool refuses it), and present its decision table together with the decisions. The critics criticize; the user decides.
-4. Resume only when the user has made the decision; the resumed run treats the recorded decision as the gate's outcome.
+4. Ask the user for the decision with `AskUserQuestion`, using the gate body's own option names. A gate whose body already has a `## 決定` section is decided: do not ask again; go to step 6.
+5. When the user decides, append this section to the end of the gate Issue's body. Write the chosen option with the name the gate body gives it and the user's reason in their own words; never record a decision the user did not make, and never rewrite the rest of the body.
+
+   ```markdown
+   ## 決定
+
+   - 決定: <the chosen option>
+   - 決定者: ユーザー
+   - 日付: <YYYY-MM-DD>
+   - 理由: <the user's words, or 記載なし>
+   ```
+
+   Use the checklist-update procedure of "Iteration detail" on the gate Issue: read `body` from `gh api`, append the section, write it with `gh issue edit <gate> --body-file`, re-fetch, and compare byte for byte; a mismatch is a stop. The decision lives in the body, not in a comment, because `gh-issue-fetch.sh` returns the body and no comments.
+6. Close the gate with `gh issue close <gate> --reason completed` (no comment), check its box in the tracking Issue, and continue the loop.
+7. When the user does not decide (no answer, a request for more evidence, or a deferral), write nothing to the gate, stop the loop, and report what the decision still needs.
+
+A sub-Issue whose 前提 names a gate outcome has its dependency met only when that gate's body, fetched with `~/.claude/bin/gh-issue-fetch.sh <gate>`, has a `## 決定` section showing that outcome. A decision found only in a comment does not count: ask the user as in step 4.
 
 ## Status mode
 
-`--status` fetches the tracking Issue with `~/.claude/bin/gh-issue-fetch.sh <tracking>` (`gh issue view` is not used for it), compares the checklist against GitHub Issue states, local branches, and the latest test evidence in the session, and reports progress plus the next actionable sub-Issue. It never implements, edits files, runs critics, or writes to GitHub.
+`--status` reports each gate as decided (its body has `## 決定`) or pending, and writes nothing to it. It fetches the tracking Issue with `~/.claude/bin/gh-issue-fetch.sh <tracking>` (`gh issue view` is not used for it), compares the checklist against GitHub Issue states, local branches, and the latest test evidence in the session, and reports progress plus the next actionable sub-Issue. It never implements, edits files, runs critics, or writes to GitHub.
 
 ## Reporting
 
