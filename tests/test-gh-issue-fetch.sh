@@ -26,8 +26,12 @@ cat > "$SANDBOX/bin/gh" <<'FAKEGH'
 #!/usr/bin/env bash
 # fake gh for tests: `gh issue view <n> --json ...` だけに応答する
 if [[ "$1" == "issue" && "$2" == "view" ]]; then
+  if [[ "${FAKE_GH_BODY:-prose}" == "null" ]]; then
+    echo '{"number": 42, "title": "Fixture issue", "state": "OPEN", "url": "https://example.invalid/issues/42", "body": null}'
+    exit 0
+  fi
   cat <<'JSON'
-{"number": 42, "title": "Fixture issue", "state": "OPEN", "url": "https://example.invalid/issues/42", "body": "## Phase 1\n- [ ] Task one\n- [x] Task two\n"}
+{"number": 42, "title": "Fixture issue", "state": "OPEN", "url": "https://example.invalid/issues/42", "body": "親 Issue: #7\r\n前提: #41 が完了していること\n\n成功条件: `make check` が exit 0 で、rows >= 10 | \"quoted\"\n中止条件: usable rows < 10\n\n## Phase 1\n- [ ] Task one\n- [x] Task two\n\n  trailing prose without newline"}
 JSON
   exit 0
 fi
@@ -51,6 +55,27 @@ if echo "$out" | jq -e '.tasks | length >= 1' > /dev/null 2>&1; then
   ok "構造化JSONに tasks が含まれる"
 else
   ng "構造化JSONに tasks が含まれない: $out"
+fi
+
+# 本文は地の文・CRLF・引用符・末尾を含めて無加工で body に入る（成功条件・前提・中止条件は checkbox ではない）
+expected_body=$'親 Issue: #7\r\n前提: #41 が完了していること\n\n成功条件: `make check` が exit 0 で、rows >= 10 | "quoted"\n中止条件: usable rows < 10\n\n## Phase 1\n- [ ] Task one\n- [x] Task two\n\n  trailing prose without newline'
+if [[ "$(jq -j '.body' <<< "$out")" == "$expected_body" ]]; then
+  ok "body にIssue本文の全文が無加工で入る"
+else
+  ng "body が本文と一致しない: $(jq -c '.body' <<< "$out")"
+fi
+if jq -e '(.tasks | length) == 2 and .phases == ["Phase 1"] and .statistics.completed_tasks == 1 and .issue_number == 42' <<< "$out" > /dev/null 2>&1; then
+  ok "body を加えても tasks・phases・statistics は変わらない"
+else
+  ng "既存の構造化項目が変わった: $out"
+fi
+out_null=""
+rc=0
+out_null="$(FAKE_GH_BODY=null PATH="$SANDBOX/bin:$PATH" "$REPO_ROOT/claude/bin/gh-issue-fetch.sh" 42 2>/dev/null)" || rc=$?
+if [[ "$rc" -eq 0 ]] && jq -e '.body == "" and .tasks == []' <<< "$out_null" > /dev/null 2>&1; then
+  ok "本文が空（null）のIssueは body が空文字列、tasks が空"
+else
+  ng "本文が空のIssueの出力が不正 (exit=$rc): $out_null"
 fi
 
 # =========================================================================

@@ -170,7 +170,7 @@ def parse_issue(body, title, number, url=""):
         url: Issue URL
 
     Returns:
-        dict: Structured issue data with phases and tasks
+        dict: Structured issue data with the unmodified body, phases, and tasks
     """
     phases = []
     tasks = []
@@ -232,6 +232,8 @@ def parse_issue(body, title, number, url=""):
         'issue_number': number,
         'title': title,
         'url': url,
+        # The whole body, unchanged: criteria, dependencies, and abort lines are often prose, not checkboxes.
+        'body': body if body else '',
         'phases': phases,
         'tasks': tasks,
         'inferred_labels': inferred_labels,

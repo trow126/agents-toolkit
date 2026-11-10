@@ -4,7 +4,8 @@
 #        gh-issue-fetch.sh --active
 #
 # Issue内容を取得し、parse_issue.pyで構造化JSONを出力
-# 出力: { issue_number, title, url, phases, tasks, statistics }
+# 出力: { issue_number, title, url, body, phases, tasks, inferred_labels, statistics }
+# body はIssue本文の全文（無加工）。コメントは含まない
 
 set -e
 
@@ -19,11 +20,12 @@ show_help() {
     echo "  gh-issue-fetch.sh <issue-number>  # 指定Issueを取得"
     echo "  gh-issue-fetch.sh --active        # アクティブIssueを自動検出"
     echo ""
-    echo "Output: 構造化JSON (stdout)"
+    echo "Output: 構造化JSON (stdout)。body にIssue本文の全文を含む（コメントは含まない）"
     echo ""
     echo "Examples:"
     echo "  gh-issue-fetch.sh 42"
     echo "  gh-issue-fetch.sh --active | jq '.tasks'"
+    echo "  gh-issue-fetch.sh 42 | jq -r '.body'"
 }
 
 # ヘルプオプション
