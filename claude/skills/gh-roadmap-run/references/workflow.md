@@ -27,7 +27,7 @@ A sub-Issue is a gate if its title or body marks it as a user decision（例:【
 
 ## Status mode
 
-`--status` fetches the tracking Issue with `~/.claude/bin/gh-issue-fetch.sh <tracking>`, compares the checklist against GitHub Issue states, local branches, and the latest test evidence in the session, and reports progress plus the next actionable sub-Issue. It never implements, edits files, runs critics, or writes to GitHub.
+`--status` fetches the tracking Issue with `~/.claude/bin/gh-issue-fetch.sh <tracking>` (`gh issue view` is not used for it), compares the checklist against GitHub Issue states, local branches, and the latest test evidence in the session, and reports progress plus the next actionable sub-Issue. It never implements, edits files, runs critics, or writes to GitHub.
 
 ## Reporting
 

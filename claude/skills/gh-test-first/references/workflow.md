@@ -5,13 +5,21 @@
 1. Reject empty or non-numeric Issue identifiers and unknown flags.
 2. Confirm the intended Git repository and no unresolved merge or rebase. On `main`/`master`, create and switch to `issue-<N>` (or the existing branch for that Issue). Stop only if the current branch clearly belongs to another Issue's work in progress.
 3. Inspect `git status --short --branch`. Unrelated or overlapping dirty changes are never staged, reset, or rewritten.
-4. Fetch the Issue only through `~/.claude/bin/gh-issue-fetch.sh`, again for each Issue of a `/gh-roadmap-run`; do not read it with `gh issue view` or `gh api`. If the helper fails, stop. Fail on a missing or closed Issue unless the user asked to continue closed work.
+4. Fetch the Issue with `~/.claude/bin/gh-issue-fetch.sh <N>`, again for each Issue of a `/gh-roadmap-run`. The helper exits non-zero on a missing or closed Issue and prints one JSON object with the whole Issue body (`body`, unchanged) and the parsed checkboxes (`tasks`); it does not include Issue comments. Save it outside the work tree, so that the diff stays clean; run both lines in one Bash call, because `d` does not carry over to the next call:
+
+   ```bash
+   d="$(git rev-parse --git-dir)/gh-test-first" && mkdir -p "$d" && ~/.claude/bin/gh-issue-fetch.sh <N> > "$d/issue-<N>.json"
+   jq -r '.body' "$d/issue-<N>.json" > "$d/issue-<N>.txt"
+   ```
+
+   Read `issue-<N>.txt` in full with line numbers. It is the only Issue text this run uses: do not discard, truncate, or filter the helper output, and do not read the Issue with `gh issue view` or `gh api`. If the helper fails, stop. Fail on a missing or closed Issue unless the user asked to continue closed work.
 5. Run the project's relevant test suite once on the untouched tree, before writing any test, and record the IDs of the passing and the failing tests (the base).
 6. Read the project instructions, the code the Issue touches, and its existing tests. Use the project's test framework, layout, and naming; apply the relevant `implementation-quality` rules.
 
 ## Specification
 
-- Turn the Issue into numbered success criteria. Each criterion names its test(s) (`tests/...::test_name`) or is listed as a manual check with the command or observation that will close it.
+- Turn the Issue into numbered success criteria. Each criterion cites the line of the saved body it comes from (`issue-<N>.txt:<line>`) and names its test(s) (`tests/...::test_name`), or is listed as a manual check with the command or observation that will close it.
+- Map every requirement sentence of `issue-<N>.txt` to a criterion, or mark it "not a requirement, because ...". A criterion without a line citation is a stop (requirements traceability: https://pub.towardsai.net/keeping-specs-tests-and-code-in-sync-in-ai-development-cd3f79d11054).
 - Name the interface the tests use (functions, CLI, files, columns) from the Issue. If the Issue does not fix an interface the tests need, choose the smallest one consistent with the code and state it; if the choice changes a public API, stop and ask.
 - Edge cases the tests cover follow `~/.agents/rules/test-policy.md`: empty, single, boundary, invalid, NaN, and the round trip for persisted state.
 
@@ -45,7 +53,7 @@ All of these must hold; any failure stops the run with the output shown:
 
 ## Report
 
-- Success criteria with their tests, and manual checks with their status.
+- Success criteria with their line citations and tests, the sentences marked "not a requirement", and manual checks with their status.
 - Red: command and failure summary. Green: command and pass summary. Frozen hashes, and any test change with its reason.
 - Existing tests whose state changed against the base, by ID, and the failures that already existed at the base (follow-ups).
 - Changed paths and remaining risk.
@@ -56,6 +64,7 @@ All of these must hold; any failure stops the run with the output shown:
 - Missing repository, Issue, helper, or authentication.
 - Ambiguity that changes design, data, or public API.
 - New tests that cannot be made to fail for the expected reason.
+- A success criterion that cannot cite a line of the saved Issue body.
 - A failing gate that cannot be fixed within the Issue's scope.
 - Any request to infer commit, push, PR, or close authority from this skill itself; the `/gh-finish` steps run only on a separate user request or when `/gh-roadmap-run` authorizes them.
 
