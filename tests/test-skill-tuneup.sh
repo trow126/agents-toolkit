@@ -21,7 +21,7 @@ TK="$SANDBOX/toolkit"
 mkdir -p "$TK/claude/bin" "$TK/claude/skills/skill-tuneup/references"
 cp "$REPO_ROOT/claude/bin/skill-tuneup" "$REPO_ROOT/claude/bin/delegation_common.py" "$TK/claude/bin/"
 cp "$REPO_ROOT/claude/skills/skill-tuneup/SKILL.md" "$TK/claude/skills/skill-tuneup/"
-cp "$REPO_ROOT/claude/skills/skill-tuneup/references/result.schema.json" "$TK/claude/skills/skill-tuneup/references/"
+cp "$REPO_ROOT/claude/skills/skill-tuneup/references/result.schema.json" "$REPO_ROOT/claude/skills/skill-tuneup/references/worker-route.env" "$TK/claude/skills/skill-tuneup/references/"
 TUNE="$TK/claude/bin/skill-tuneup"
 skill() { # <dir> <name> <description> [body]
   mkdir -p "$TK/$1"
@@ -59,6 +59,19 @@ expect_rc "--only の未知の skill は拒否する" 1 "unknown skill(s) for --
 STUB_CLAUDE_VERSION="2.1.317 (Claude Code)" run "$TUNE" prepare
 expect_rc "step を飛ばす・resume で再実行する古い Claude Code は拒否する" 1 "older than 2.1.318"
 [[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/skill-tuneup" 2>/dev/null)" ]] && ok "拒否した prepare は run を作らない" || ng "拒否した prepare が run を作った"
+ROUTE="$TK/claude/skills/skill-tuneup/references/worker-route.env"
+ROUTE_MODEL="$(sed -n 's/^WORKER_MODEL=//p' "$ROUTE")"
+mv "$ROUTE" "$ROUTE.bak"
+run "$TUNE" prepare
+expect_rc "route file が無ければ prepare は失敗する" 1 "the Workflow agents need an explicit model"
+printf 'WORKER_MODEL=Not A Model\n' > "$ROUTE"
+run "$TUNE" prepare
+expect_rc "model 名として不正な WORKER_MODEL は拒否する" 1 "WORKER_MODEL is not a model alias or id"
+printf '# no key\n' > "$ROUTE"
+run "$TUNE" prepare
+expect_rc "WORKER_MODEL が無い route file は拒否する" 1 "WORKER_MODEL is not a model alias or id"
+mv "$ROUTE.bak" "$ROUTE"
+[[ -z "$(ls -A "$XDG_STATE_HOME/agents-toolkit/skill-tuneup" 2>/dev/null)" ]] && ok "route が不正な prepare は run を作らない" || ng "route が不正な prepare が run を作った"
 run "$TUNE" prepare
 expect_rc "prepare は run を作る" 0 '"count": 5'
 PREP="$OUT"
@@ -77,7 +90,8 @@ if jq -e --arg ev "$TK/shared/skills/pair/references/evidence.md" '.skills[] | s
 else
   ng "skill の files か deprecated が不正"
 fi
-if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.318"' "$RUN/run.json" >/dev/null; then
+if jq -e '.since == null and .git_before.status == [] and (.skills | length) == 5 and .claude_version == "2.1.318"' "$RUN/run.json" >/dev/null && [[ -n "$ROUTE_MODEL" ]] &&
+  jq -e --arg m "$ROUTE_MODEL" '.worker_model == $m' "$RUN/run.json" >/dev/null && jq -e --arg m "$ROUTE_MODEL" '.worker_model == $m' <<< "$PREP" >/dev/null; then
   ok "run.json に前回の run（なし）、git status、skill を記録する"
 else
   ng "run.json が不正"
@@ -132,7 +146,7 @@ const pipeline = async (items, ...stages) => Promise.all(items.map(async (item, 
 const C = { id: 'C1', generation_mechanism: 'assumption_inversion', broken_assumption: 'b', mechanism: 'm', predicted_benefit: 'p',
   failure_condition: 'f', purpose_line: 'pu', mechanism_line: 'me', implementation_line: 'im' }
 const agent = async (prompt, opts) => {
-  calls.push({ label: opts.label, deny: opts.disallowedTools || [], prompt })
+  calls.push({ label: opts.label, deny: opts.disallowedTools || [], model: opts.model ?? null, prompt })
   const kind = opts.label.split(/[ :]/)[0]
   if (opts.label.startsWith('probe 1: gamma')) return null
   if (opts.label === 'generate: beta') return { hygiene: [], candidates: [] }
@@ -162,11 +176,22 @@ open(sys.argv[2], "w", encoding="utf-8").write(harness)
 PY
 if command -v node >/dev/null; then
   printf 'digest\n' > "$SANDBOX/research.txt"
-  jq --arg id "$(jq -r .run_id <<< "$PREP")" --rawfile r "$SANDBOX/research.txt" '{runId: $id, research: $r, priorResearch: "older-digest-line", skills: .skills}' <<< "$PREP" > "$SANDBOX/args.json"
+  jq --arg id "$(jq -r .run_id <<< "$PREP")" --rawfile r "$SANDBOX/research.txt" '{runId: $id, model: .worker_model, research: $r, priorResearch: "older-digest-line", skills: .skills}' <<< "$PREP" > "$SANDBOX/args.json"
   if node "$WF" "$SANDBOX/args.json" "$RUN/results.json" "$SANDBOX/calls.json"; then
     ok "Workflow script は mock の agent() で最後まで動く"
   else
     ng "Workflow script が mock で失敗した"
+  fi
+  if jq -e --arg m "$ROUTE_MODEL" 'length > 20 and ([.[] | .model == $m] | all)' "$SANDBOX/calls.json" >/dev/null; then
+    ok "全 agent() が route の model を明示して起動する（親 model を継承しない）"
+  else
+    ng "model を明示しない agent() がある: $(jq -c '[.[] | select(.model == null) | .label]' "$SANDBOX/calls.json")"
+  fi
+  jq 'del(.model)' "$SANDBOX/args.json" > "$SANDBOX/args-nomodel.json"
+  if ! node "$WF" "$SANDBOX/args-nomodel.json" "$SANDBOX/nomodel-results.json" "$SANDBOX/nomodel-calls.json" 2>"$SANDBOX/nomodel.err" && grep -q "args.model is missing" "$SANDBOX/nomodel.err" && [[ ! -e "$SANDBOX/nomodel-calls.json" ]]; then
+    ok "args.model が無ければ Workflow script は agent を1つも起動せずに止まる"
+  else
+    ng "args.model 無しで Workflow script が動いた"
   fi
   if jq -e '.missing == ["gamma"] and (.results | length) == 4 and (.results[0].experiments | length) == 2' "$RUN/results.json" >/dev/null; then
     ok "probe が欠けた skill は missing に出し、実験は2件までに切る"

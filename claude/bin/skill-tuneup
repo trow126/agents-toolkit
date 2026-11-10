@@ -14,7 +14,8 @@ prepare  inventory every skill the toolkit ships (shared/skills, shared/skills/{
          claude/skills, codex/skills; same-name entrypoints are one skill), create a run directory
          under ${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/skill-tuneup/, record the toolkit HEAD
          and git status and the date of the previous finished run, and print JSON with the skills
-         (name, description, deprecated, files) and the estimated number of agents. Fails when Claude
+         (name, description, deprecated, files), the estimated number of agents, and worker_model (the
+         model of every Workflow agent, from references/worker-route.env). Fails when Claude
          Code is older than 2.1.318 (Workflow agent() disallowedTools, no skipped steps, resume from the journal,
          also after a usage limit) or when the skills could exceed
          the Workflow limit of 1,000 agents, printing --only batches that fit.
@@ -50,6 +51,7 @@ from delegation_common import DelegationError, load_json, schema_errors, sha256_
 TOOLKIT_ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = TOOLKIT_ROOT / "claude/skills/skill-tuneup"
 SCHEMA_FILE = SKILL_DIR / "references/result.schema.json"
+ROUTE_FILE = SKILL_DIR / "references/worker-route.env"
 # (directory, runtimes); shared/skills/<name> serves both runtimes, the per-runtime dirs one each.
 SOURCES = (
     ("shared/skills", ("claude", "codex")),
@@ -262,6 +264,18 @@ def cmd_status(args: list[str]) -> int:
 
 
 # ---------------------------------------------------------------- prepare
+def worker_model() -> str:
+    """Model of every Workflow agent, from the route file (a row of the routing table)."""
+    if not ROUTE_FILE.is_file():
+        raise DelegationError(f"{ROUTE_FILE} is missing; the Workflow agents need an explicit model")
+    values = dict(line.split("=", 1) for line in ROUTE_FILE.read_text(encoding="utf-8").splitlines()
+                  if line.strip() and not line.lstrip().startswith("#") and "=" in line)
+    model = values.get("WORKER_MODEL", "").strip()
+    if not re.fullmatch(r"[a-z][a-z0-9.-]*", model):
+        raise DelegationError(f"{ROUTE_FILE}: WORKER_MODEL is not a model alias or id: {model!r}")
+    return model
+
+
 def claude_version() -> str:
     try:
         out = subprocess.run(["claude", "--version"], capture_output=True, text=True, timeout=60)
@@ -282,6 +296,7 @@ def cmd_prepare(args: list[str]) -> int:
     if args:
         raise DelegationError("usage: skill-tuneup prepare [--only NAME[,NAME...]]")
     version = claude_version()
+    model = worker_model()
     skills = inventory()
     if not skills:
         raise DelegationError(f"no skills found under {TOOLKIT_ROOT}")
@@ -319,12 +334,12 @@ def cmd_prepare(args: list[str]) -> int:
     write_json(run_dir / "run.json", {
         "id": run_dir.name, "created_at": now(), "since": since, "toolkit": str(TOOLKIT_ROOT),
         "git_before": git_state(), "skills": [s["name"] for s in skills], "estimated_agents": estimate,
-        "claude_version": version,
+        "claude_version": version, "worker_model": model,
     })
     mark_step(run_dir, "prepare")
     print(json.dumps({
         "run_dir": str(run_dir), "run_id": run_dir.name, "since": since, "count": len(skills),
-        "estimated_agents": estimate,
+        "estimated_agents": estimate, "worker_model": model,
         "skills": [{k: s[k] for k in ("name", "description", "deprecated", "files")} for s in skills],
     }, indent=2, ensure_ascii=False))
     return 0

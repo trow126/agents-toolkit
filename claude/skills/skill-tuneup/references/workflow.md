@@ -17,7 +17,7 @@ Agents per skill: 3 probes, 1 cluster, 1 second layer, 1 miner, 1 generator, the
 
 ## Args
 
-`{"runId": <run id>, "research": <text of research.md>, "priorResearch": <text of the previous finished run's research.md, or "" when `since` is none>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references).
+`{"runId": <run id>, "model": <the `worker_model` printed by prepare>, "research": <text of research.md>, "priorResearch": <text of the previous finished run's research.md, or "" when `since` is none>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references). Every `agent()` runs on `args.model` (`references/worker-route.env`, row `claude-workflow-worker` of the routing table), so no agent inherits the main session's model; the script stops when it is missing.
 
 ## Script
 
@@ -76,7 +76,8 @@ const VERDICT = obj({ verdict: { type: 'string', enum: ['PASS', 'FAIL', 'INCONCL
 const REWORDED = obj({ wordings: { type: 'array', minItems: JUDGE_WORDINGS - 1, maxItems: JUDGE_WORDINGS - 1, items: TEXT } })
 
 const fileList = (s) => s.files.map((f) => `- ${f}`).join('\n')
-const readOnly = (label, phase, extra) => ({ label, phase, disallowedTools: READ_ONLY, ...(extra || {}) })
+if (!args.model) throw new Error('args.model is missing: pass the worker_model printed by prepare')
+const readOnly = (label, phase, extra) => ({ label, phase, model: args.model, disallowedTools: READ_ONLY, ...(extra || {}) })
 const deviationList = (m) => m.deviations.map((d) => `- [${d.kind}] ${d.file}:${d.line} "${d.quote}" — ${d.summary}`).join('\n')
 
 const results = await pipeline(args.skills,
@@ -113,7 +114,7 @@ const results = await pipeline(args.skills,
     if (!candidates.length) return { ...prev, audit: { verdicts: [], searched: 'no candidates' } }
     const audit = await agent(
       `You are a prior-art auditor. Context: changes proposed for an agent skill whose purpose is: ${s.description}\n\nCandidates:\n${candidates.map((c) => `${c.id}\n  purpose: ${c.purpose_line}\n  mechanism: ${c.mechanism_line}\n  implementation: ${c.implementation_line}`).join('\n')}\n\nFor each, search the web by the mechanism in generic words and by any established method name you suspect. Verdict KNOWN (substantially the same thing exists) or PARTIAL (same purpose or same mechanism, different core) needs a url you opened or saw in results, the method name, and purpose/mechanism/implementation match. Otherwise NOT_FOUND with empty method and url; never call anything novel. In searched, say what you searched.`,
-      { label: `audit: ${s.name}`, phase: 'Audit', schema: AUDIT, disallowedTools: AUDITOR })
+      { label: `audit: ${s.name}`, phase: 'Audit', model: args.model, schema: AUDIT, disallowedTools: AUDITOR })
     return { ...prev, audit }
   },
   async (prev, s) => {
