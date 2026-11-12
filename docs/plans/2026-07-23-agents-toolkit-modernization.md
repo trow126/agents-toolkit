@@ -89,10 +89,10 @@ codex_agents_md_lines: 48
 combined_always_on_total: 8652
 custom_agents: 1
 codex_custom_agents: 2
-claude_skills: 14
+claude_skills: 15
 codex_skills: 8
-active_skill_entrypoints: 17
-active_skill_entrypoint_bytes: 74344
+active_skill_entrypoints: 18
+active_skill_entrypoint_bytes: 79559
 active_skill_entrypoint_max_lines: 75
 active_skill_entrypoint_over_150_lines: 0
 active_skill_entrypoint_over_8192_bytes: 0
@@ -103,7 +103,7 @@ hook_registrations: 12
 shared_rules: 9
 claude_rules: 3
 output_styles: 4
-inventory_audited_elements: 224
+inventory_audited_elements: 227
 review_progress_retrospective_mechanisms: 7
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0

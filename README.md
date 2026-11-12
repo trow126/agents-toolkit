@@ -68,6 +68,7 @@ Windows の Claude desktop app は WSL の `~/.claude` ではなく `%USERPROFIL
 | `cross-critic` | 配布 | `grok-digest --critic` の依存。helper(`run`・`finish`)の WSL 化と run directory の UNC 参照だけで動く |
 | `article-style` | 配布 | 文章規則だけで shell 依存が無く、変換不要 |
 | `gh-roadmap-plan` | 配布 | 会話や資料から計画を起こす起点で desktop app でも使う。git・gh の操作はすべて helper(`gh-roadmap-plan`・`grok-digest projects`)に寄せてあり、WSL 化だけで動く |
+| `project-sync` | 配布 | desktop app のセッションでも一覧を更新する。収集は helper(`project-sync`)に寄せてあり、WSL 化だけで動く。Notion は connector の tool で読み書きする |
 | `gh-test-first`・`gh-finish`・`gh-roadmap-run`・`git-operations`・`branch-cleanup` | 除外 | `gh`・`git`・`~/.claude/bin` を多数の手順で使い、WSL の repo を扱うため WSL の Claude Code で使う |
 | `break-consensus`・`skill-tuneup` | 除外 | `--cross`・Workflow の多段 orchestration と WSL の toolkit repo が前提 |
 | `model-routing`・`implementation-quality` | 除外 | WSL の設定・rule(`~/.agents/rules`)を前提にし、desktop app 固有の利点が無い |

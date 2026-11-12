@@ -1,0 +1,452 @@
+#!/usr/bin/env python3
+"""project-sync — deterministic, read-only evidence for /project-sync (agents-toolkit).
+
+usage:
+  project-sync config
+  project-sync repos    [--root DIR]
+  project-sync sessions [--since ISO] [--root DIR] [--transcripts DIR ...] [--app-meta DIR ...]
+                        [--snippets N]
+  project-sync runtime  [--root DIR]
+
+config    print the private config ${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/project-sync.toml
+          as JSON after checking every required key (exit 3 when the file or a key is missing).
+repos     list the git repositories directly under --root and one level deeper (inside a
+          directory that is not itself a repository), with the README's first lines and any
+          status line that marks the repository frozen or archived.
+sessions  read Claude Code transcripts (*.jsonl directly under each project directory of every
+          --transcripts root; default: [sessions] roots of the config) and desktop-app session
+          metadata (local_*.json under --app-meta; default: [sessions] app_meta), keep the entries
+          at or after --since (default: 72 hours ago), attribute each session to repositories by the
+          paths its cwd and tool calls touch, and print per repository: sessions, recent user
+          prompts, and assistant paragraphs that carry a date or time together with a schedule or
+          decision phrase. Sessions that wrote to Notion and unattributed sessions are listed too.
+runtime   per repository: git HEAD, branch, last commit, dirty count, upstream ahead/behind;
+          crontab lines that mention the repository; systemd --user services and timers whose
+          WorkingDirectory is inside it, with state and last result. Environment assignments whose
+          name looks secret (TOKEN, TOPIC, KEY, SECRET, PASSWORD) are redacted.
+
+Nothing here talks to Notion or the network, starts or stops a unit, or writes a file.
+Exit 1: bad arguments or a command failed; exit 3: private config missing or incomplete.
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import subprocess
+import sys
+import tomllib
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+
+REQUIRED = {
+    "notion": ("data_source",),
+    "properties": ("name", "category", "summary", "state", "next_date", "next_action", "decision"),
+    "categories": ("active", "paused", "dormant", "frozen", "other"),
+    "sessions": ("roots", "app_meta"),
+}
+FROZEN_LINE = re.compile(
+    r"(?i)(status|状態|ステータス)\W{0,6}(frozen|archived|shelved|凍結|棚上げ|終了)"
+)
+DATE_RE = re.compile(r"(\d{1,2}/\d{1,2}|\d{1,2}月\d{1,2}日|20\d\d-\d\d-\d\d|\d{1,2}:\d\d)")
+PHRASE_RE = re.compile(
+    r"(次に|次は|予定|判定|開始|再開|以降|までに|条件|宿題|待ち|目安|期限|"
+    r"あなたが決め|決めてください|判断待ち|あなたの判断|選んでください|続けるか|止めるか|閉じるか)"
+)
+DECISION_RE = re.compile(
+    r"(あなたが決め|決めてください|判断待ち|あなたの判断|選んでください|続けるか|止めるか|閉じるか)"
+)
+SECRET_ASSIGN = re.compile(r"\b([A-Z0-9_]*(TOKEN|TOPIC|KEY|SECRET|PASSWORD)[A-Z0-9_]*)=(\"[^\"]*\"|'[^']*'|\S+)")
+SKIP_PROMPT_PREFIX = ("<", "# あなたの役割")
+
+
+def fail(msg: str, code: int = 1) -> None:
+    print(f"project-sync: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def config_path() -> Path:
+    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return Path(base) / "agents-toolkit" / "project-sync.toml"
+
+
+def load_config() -> dict:
+    path = config_path()
+    if not path.is_file():
+        fail(f"private config not found: {path}", 3)
+    try:
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except tomllib.TOMLDecodeError as exc:
+        fail(f"private config is not valid TOML: {path}: {exc}", 3)
+    missing = [f"{sec}.{key}" for sec, keys in REQUIRED.items() for key in keys
+               if not isinstance(data.get(sec), dict) or key not in data[sec]]
+    if missing:
+        fail(f"private config {path} lacks: {', '.join(missing)}", 3)
+    for key in ("roots", "app_meta"):
+        if not isinstance(data["sessions"][key], list):
+            fail(f"private config {path}: sessions.{key} must be a list", 3)
+    return data
+
+
+def expand(p: str) -> Path:
+    return Path(os.path.expanduser(p))
+
+
+# ---- repositories --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class Repo:
+    name: str
+    path: Path
+
+
+def find_repos(root: Path) -> list[Repo]:
+    if not root.is_dir():
+        fail(f"root is not a directory: {root}")
+    repos: list[Repo] = []
+    for child in sorted(root.iterdir()):
+        if child.name.startswith(".") or not child.is_dir() or child.is_symlink():
+            continue
+        if (child / ".git").exists():
+            repos.append(Repo(child.name, child))
+            continue
+        try:
+            grand = sorted(child.iterdir())
+        except PermissionError:
+            continue
+        for sub in grand:
+            if sub.is_dir() and not sub.is_symlink() and (sub / ".git").exists():
+                repos.append(Repo(sub.name, sub))
+    names = Counter(r.name for r in repos)
+    return [Repo(f"{r.path.parent.name}/{r.name}" if names[r.name] > 1 else r.name, r.path)
+            for r in repos]
+
+
+def readme_info(path: Path) -> dict:
+    readme = next((path / n for n in ("README.md", "README.rst", "README") if (path / n).is_file()), None)
+    if readme is None:
+        return {"readme_head": [], "frozen_marker": None}
+    lines = readme.read_text(encoding="utf-8", errors="replace").splitlines()[:60]
+    head = [ln.strip() for ln in lines
+            if ln.strip() and not ln.lstrip().startswith(("#", "<", "!", "[!", "|", "```", "---", ">"))][:3]
+    marker = next((ln.strip()[:200] for ln in lines if FROZEN_LINE.search(ln)), None)
+    return {"readme_head": [h[:200] for h in head], "frozen_marker": marker}
+
+
+def cmd_repos(args: argparse.Namespace) -> None:
+    out = [{"name": r.name, "path": str(r.path), **readme_info(r.path)} for r in find_repos(args.root)]
+    print(json.dumps({"root": str(args.root), "repos": out}, ensure_ascii=False, indent=1))
+
+
+def repo_of(path_text: str, repos: list[Repo]) -> Repo | None:
+    best: Repo | None = None
+    for r in repos:
+        p = str(r.path)
+        if (path_text == p or path_text.startswith(p + "/")) and (best is None or len(p) > len(str(best.path))):
+            best = r
+    return best
+
+
+# ---- sessions ------------------------------------------------------------------------------
+
+@dataclass
+class Session:
+    sid: str
+    source: str
+    start: str = ""
+    end: str = ""
+    cwd: Counter = field(default_factory=Counter)
+    hits: Counter = field(default_factory=Counter)
+    title: str | None = None
+    prompts: list[tuple[str, str]] = field(default_factory=list)
+    snippets: list[tuple[str, str, bool]] = field(default_factory=list)
+    notion_writes: list[tuple[str, str]] = field(default_factory=list)
+
+
+def parse_since(text: str | None) -> dt.datetime:
+    if text is None:
+        return dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=72)
+    try:
+        value = dt.datetime.fromisoformat(text)
+    except ValueError:
+        fail(f"--since is not ISO 8601: {text}")
+    if value.tzinfo is None:
+        value = value.astimezone()
+    return value.astimezone(dt.timezone.utc)
+
+
+def iso_utc(ts: str) -> dt.datetime | None:
+    try:
+        return dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
+    except ValueError:
+        return None
+
+
+def path_mentions(text: str, root: str) -> list[str]:
+    norm = text.replace("\\\\", "/").replace("\\", "/")
+    pat = re.compile(re.escape(root.rstrip("/")) + r"/[^\s\"'`,;:)\]}]+")
+    return pat.findall(norm)
+
+
+def read_transcript(path: Path, since: dt.datetime, repos: list[Repo], root: str) -> Session | None:
+    s = Session(sid=path.stem, source=str(path.parent.parent))
+    try:
+        handle = path.open(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        fail(f"cannot read transcript {path}: {exc}")
+    with handle:
+        for line in handle:
+            try:
+                o = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(o, dict):
+                continue
+            if o.get("type") == "custom-title" and o.get("customTitle"):
+                s.title = str(o["customTitle"])
+            ts = o.get("timestamp")
+            when = iso_utc(ts) if isinstance(ts, str) else None
+            if when is None or when < since or o.get("isSidechain"):
+                continue
+            s.start = min(s.start, ts) if s.start else ts
+            s.end = max(s.end, ts)
+            cwd = o.get("cwd")
+            if isinstance(cwd, str):
+                s.cwd[cwd] += 1
+                r = repo_of(cwd, repos)
+                if r:
+                    s.hits[r.name] += 50
+            msg = o.get("message") if isinstance(o.get("message"), dict) else {}
+            content = msg.get("content")
+            if o.get("type") == "user" and isinstance(content, str) and not o.get("isMeta"):
+                if not content.startswith(SKIP_PROMPT_PREFIX):
+                    s.prompts.append((ts, content[:200]))
+            if o.get("type") != "assistant" or not isinstance(content, list):
+                continue
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "tool_use":
+                    name = str(block.get("name", ""))
+                    if "notion" in name.lower() and ("update" in name or "create" in name):
+                        s.notion_writes.append((ts, name.split("__")[-1]))
+                    for m in path_mentions(json.dumps(block.get("input"), ensure_ascii=False), root):
+                        r = repo_of(m, repos)
+                        if r:
+                            s.hits[r.name] += 1
+                elif block.get("type") == "text":
+                    for para in str(block.get("text", "")).split("\n"):
+                        para = para.strip()
+                        if len(para) > 25 and DATE_RE.search(para) and PHRASE_RE.search(para):
+                            s.snippets.append((ts, para[:300], bool(DECISION_RE.search(para))))
+    return s if s.end else None
+
+
+def attributed(s: Session) -> list[str]:
+    if not s.hits:
+        return []
+    top = max(s.hits.values())
+    return [name for name, n in s.hits.items() if n >= max(3, top * 0.3)]
+
+
+def app_titles(dirs: list[Path]) -> dict[str, dict]:
+    meta: dict[str, dict] = {}
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("*/*/local_*.json")) + sorted(d.glob("local_*.json")):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                print(f"project-sync: skipped unreadable app metadata {f}", file=sys.stderr)
+                continue
+            cli = data.get("cliSessionId")
+            if isinstance(cli, str):
+                summary = data.get("postTurnSummary") or {}
+                meta[cli] = {"title": data.get("title"),
+                             "status": summary.get("status_detail") if isinstance(summary, dict) else None}
+    return meta
+
+
+def cmd_sessions(args: argparse.Namespace) -> None:
+    since = parse_since(args.since)
+    cfg = None
+    if args.transcripts is None or args.app_meta is None:
+        cfg = load_config()
+    roots = [expand(p) for p in (args.transcripts if args.transcripts is not None else cfg["sessions"]["roots"])]
+    metas = [expand(p) for p in (args.app_meta if args.app_meta is not None else cfg["sessions"]["app_meta"])]
+    repos = find_repos(args.root)
+    meta = app_titles(metas)
+    seen: set[str] = set()
+    sessions: list[Session] = []
+    missing_roots = [str(r) for r in roots if not r.is_dir()]
+    for root in roots:
+        if not root.is_dir():
+            continue
+        for f in sorted(root.glob("*/*.jsonl")):
+            if f.name.startswith("agent-") or f.stem in seen:
+                continue
+            if dt.datetime.fromtimestamp(f.stat().st_mtime, dt.timezone.utc) < since:
+                continue
+            s = read_transcript(f, since, repos, str(args.root))
+            if s is None:
+                continue
+            seen.add(f.stem)
+            sessions.append(s)
+    per: dict[str, dict] = {}
+    unattributed = []
+    notion_writers = []
+    for s in sorted(sessions, key=lambda x: x.end):
+        info = meta.get(s.sid, {})
+        title = info.get("title") or s.title or (s.prompts[0][1][:60] if s.prompts else None)
+        if s.notion_writes:
+            notion_writers.append({"session": s.sid, "title": title, "writes": len(s.notion_writes),
+                                   "first": s.notion_writes[0][0], "last": s.notion_writes[-1][0]})
+        names = attributed(s)
+        if not names:
+            unattributed.append({"session": s.sid, "end": s.end, "title": title})
+            continue
+        for name in names:
+            p = per.setdefault(name, {"sessions": [], "prompts": [], "snippets": []})
+            p["sessions"].append({"session": s.sid, "start": s.start, "end": s.end, "title": title,
+                                  "app_status": info.get("status"), "source": s.source})
+            p["prompts"].extend({"at": t, "text": x} for t, x in s.prompts[-3:])
+            p["snippets"].extend({"at": t, "text": x, "decision": d} for t, x, d in s.snippets)
+    for p in per.values():
+        p["prompts"] = sorted(p["prompts"], key=lambda x: x["at"])[-6:]
+        uniq: dict[str, dict] = {}
+        for sn in sorted(p["snippets"], key=lambda x: x["at"]):
+            uniq[sn["text"]] = sn
+        p["snippets"] = sorted(uniq.values(), key=lambda x: x["at"])[-args.snippets:]
+        p["last_activity"] = max(x["end"] for x in p["sessions"])
+    print(json.dumps({"since": since.isoformat(), "missing_roots": missing_roots,
+                      "session_count": len(sessions), "projects": per,
+                      "notion_writers": notion_writers, "unattributed": unattributed},
+                     ensure_ascii=False, indent=1))
+
+
+# ---- runtime -------------------------------------------------------------------------------
+
+def run(cmd: list[str], ok_codes: tuple[int, ...] = (0,)) -> subprocess.CompletedProcess[str]:
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60, check=False)
+    except FileNotFoundError:
+        fail(f"command not found: {cmd[0]}")
+    except subprocess.TimeoutExpired:
+        fail(f"command timed out: {' '.join(cmd)}")
+    if proc.returncode not in ok_codes:
+        fail(f"command failed ({proc.returncode}): {' '.join(cmd)}: {proc.stderr.strip()[:300]}")
+    return proc
+
+
+def redact(text: str) -> str:
+    return SECRET_ASSIGN.sub(lambda m: f"{m.group(1)}=<redacted>", text)
+
+
+def git_info(path: Path) -> dict:
+    def g(*a: str, ok: tuple[int, ...] = (0,)) -> subprocess.CompletedProcess[str]:
+        return run(["git", "-C", str(path), *a], ok)
+
+    head = g("rev-parse", "--short", "HEAD", ok=(0, 128))
+    if head.returncode != 0:
+        return {"error": head.stderr.strip()[:200]}
+    last = g("log", "-1", "--format=%cI%x09%s").stdout.strip().split("\t", 1)
+    up = g("rev-list", "--left-right", "--count", "HEAD...@{u}", ok=(0, 128))
+    ahead_behind = None
+    if up.returncode == 0:
+        a, b = up.stdout.split()
+        ahead_behind = {"ahead": int(a), "behind": int(b)}
+    return {"head": head.stdout.strip(), "branch": g("branch", "--show-current").stdout.strip(),
+            "last_commit": last[0], "subject": last[1] if len(last) > 1 else "",
+            "dirty": len([ln for ln in g("status", "--porcelain").stdout.splitlines() if ln]),
+            "upstream": ahead_behind}
+
+
+def systemd_units() -> list[dict]:
+    names = run(["systemctl", "--user", "list-units", "--all", "--type=service", "--type=timer",
+                 "--no-legend", "--plain"]).stdout
+    units = [ln.split()[0] for ln in names.splitlines() if ln.strip()]
+    files = run(["systemctl", "--user", "list-unit-files", "--type=service", "--type=timer",
+                 "--no-legend", "--plain"]).stdout
+    units += [ln.split()[0] for ln in files.splitlines()
+              if ln.strip() and "@." not in ln.split()[0] and ln.split()[0] not in units]
+    if not units:
+        return []
+    props = ("Id,WorkingDirectory,ActiveState,SubState,Result,ExecMainStatus,UnitFileState,"
+             "LastTriggerUSec,NextElapseUSecRealtime,Triggers")
+    text = run(["systemctl", "--user", "show", "-p", props, *units]).stdout
+    out = []
+    for block in text.strip().split("\n\n"):
+        d = dict(ln.split("=", 1) for ln in block.splitlines() if "=" in ln)
+        if d.get("Id"):
+            out.append(d)
+    return out
+
+
+def cmd_runtime(args: argparse.Namespace) -> None:
+    repos = find_repos(args.root)
+    result: dict[str, dict] = {r.name: {"path": str(r.path), "git": git_info(r.path), "cron": [], "units": [],
+                                        **readme_info(r.path)} for r in repos}
+    cron = run(["crontab", "-l"], ok_codes=(0, 1))
+    if cron.returncode == 1 and "no crontab" not in cron.stderr:
+        fail(f"crontab -l failed: {cron.stderr.strip()[:200]}")
+    unmapped_cron = []
+    for line in cron.stdout.splitlines():
+        if not line.strip() or line.lstrip().startswith("#") or re.match(r"^\s*[A-Z_]+=", line):
+            continue
+        hit = {repo_of(m, repos) for m in path_mentions(line, str(args.root))} - {None}
+        for r in hit:
+            result[r.name]["cron"].append(redact(line)[:400])
+        if not hit:
+            unmapped_cron.append(redact(line)[:400])
+    by_id = {}
+    unmapped_units = []
+    for u in systemd_units():
+        by_id[u["Id"]] = u
+    for u in by_id.values():
+        wd = u.get("WorkingDirectory", "").lstrip("!-")
+        target = u
+        if u["Id"].endswith(".timer") and u.get("Triggers"):
+            svc = by_id.get(u["Triggers"].split()[0], {})
+            wd = svc.get("WorkingDirectory", "").lstrip("!-")
+        r = repo_of(wd, repos) if wd else None
+        entry = {k: target.get(k, "") for k in ("Id", "ActiveState", "SubState", "Result", "ExecMainStatus",
+                                                  "UnitFileState", "LastTriggerUSec", "NextElapseUSecRealtime")}
+        if r:
+            result[r.name]["units"].append(entry)
+        elif wd.startswith(str(args.root).rstrip("/") + "/"):
+            unmapped_units.append({**entry, "WorkingDirectory": wd})
+    print(json.dumps({"root": str(args.root), "repos": result, "unmapped_cron": unmapped_cron,
+                      "unmapped_units": unmapped_units}, ensure_ascii=False, indent=1))
+
+
+def cmd_config(_: argparse.Namespace) -> None:
+    print(json.dumps({"path": str(config_path()), **load_config()}, ensure_ascii=False, indent=1))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="project-sync", description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("config")
+    for name in ("repos", "sessions", "runtime"):
+        p = sub.add_parser(name)
+        p.add_argument("--root", type=Path, default=Path.home())
+        if name == "sessions":
+            p.add_argument("--since")
+            p.add_argument("--transcripts", nargs="*", type=str)
+            p.add_argument("--app-meta", nargs="*", type=str)
+            p.add_argument("--snippets", type=int, default=12)
+    args = ap.parse_args()
+    if getattr(args, "snippets", 1) < 1:
+        fail("--snippets must be at least 1")
+    {"config": cmd_config, "repos": cmd_repos, "sessions": cmd_sessions, "runtime": cmd_runtime}[args.cmd](args)
+
+
+if __name__ == "__main__":
+    main()
