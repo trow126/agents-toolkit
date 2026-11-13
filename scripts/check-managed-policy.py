@@ -35,8 +35,9 @@ REQUIRED_DENIES = {
     "Edit(//**/.env)",
     "Edit(//**/.env.*)",
 }
-# D2: aliases resolve through managed env pins; routing-table rows own the values.
-REQUIRED_ENV_PINS = {
+# D16 (supersedes D2): aliases follow the Claude Code default resolution; managed
+# must not pin them again.
+RETIRED_ENV_PINS = {
     "ANTHROPIC_DEFAULT_FABLE_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
@@ -124,10 +125,10 @@ def validate_managed(managed: dict[str, Any], errors: list[str]) -> dict[str, An
     env = managed.get("env")
     require(isinstance(env, dict), "managed env must be an object", errors)
     if isinstance(env, dict):
-        missing_pins = sorted(k for k in REQUIRED_ENV_PINS if not isinstance(env.get(k), str) or not env.get(k))
+        retired_pins = sorted(RETIRED_ENV_PINS.intersection(env))
         require(
-            not missing_pins,
-            "managed env pins are missing (D2): " + ", ".join(missing_pins),
+            not retired_pins,
+            "managed env must not pin model aliases (D16): " + ", ".join(retired_pins),
             errors,
         )
 

@@ -1345,7 +1345,7 @@ done <<< "$INSTRUCTION_RESULTS"
 
 # =========================================================================
 # 15. model routing 表と model 名 (2026-09-25 近代化 Phase 2)
-#     - routing 表の schema・targets の値の一致・agent file の帰属・env pin は
+#     - routing 表の schema・targets の値の一致・agent file の帰属・env pin（置く場合）は
 #       scripts/lib/check-model-routing.py が検査する
 #     - manifest で配布されるファイルの model 名は、routing 表の targets の行を除いて0件
 # =========================================================================

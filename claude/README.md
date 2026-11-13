@@ -5,7 +5,7 @@
 ## 構成
 
 - `CLAUDE.md`: `core-contract`、単一 owner、routing、runtime固有事項だけの常時context
-- `managed-settings.json`: owner 選択の `bypassPermissions`、sandbox、credentials、hooks、top-level `disableAutoMode`、`autoMemoryEnabled: false`（EX-004）、alias の env pin（D2）、`requiredMinimumVersion: 2.1.281`
+- `managed-settings.json`: owner 選択の `bypassPermissions`、sandbox、credentials、hooks、top-level `disableAutoMode`、`autoMemoryEnabled: false`（EX-004）、alias の env pin は置かない（D16）、`requiredMinimumVersion: 2.1.281`
 - user settings は repo で管理しない（D5）。live の `~/.claude/settings.json` を正本とし、model、effort（`modelSettings`）、plugin、表示などは Claude Code の UI か shell で設定する
 - `bin/`: deterministic helper。`project-policy-gate` は project/local security override を拒否する
 - `hooks/`: managed policy からのみ登録される lifecycle / tool hook。毎 prompt への注入と SessionStart / PostCompact の systemMessage は無い

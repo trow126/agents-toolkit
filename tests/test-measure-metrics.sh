@@ -85,7 +85,7 @@ fi
 # ---- 実 repo(current checkout)への適用が主要指標で after 状態を示す ----
 out="$("$MEASURE" --repo "$REPO_ROOT")"
 assert_metric "実 repo: full pin 0" "$out" "full_model_pins" "0"
-assert_metric "実 repo: routing 表は15行" "$out" "routing_rows" "15"
+assert_metric "実 repo: routing 表は11行" "$out" "routing_rows" "11"
 assert_metric "実 repo: routing targets 外の model 名は0件" "$out" "model_name_mentions_outside_targets" "0"
 assert_metric "実 repo: 無条件委譲 0" "$out" "unconditional_delegation_gh_start" "0"
 assert_metric "実 repo: learnings 常時ロード 0" "$out" "always_on_learnings_paths" "0"

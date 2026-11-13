@@ -99,7 +99,7 @@ CONSUMERS
   printf 'role\truntime\tlauncher\tmodel\teffort\ttargets\tfallback\tretires_at\tevidence\tverified_at\tadaptation\n' > "$repo/docs/contracts/model-routing.tsv"
   printf 'fixture-claude-agent\tclaude\tAgent\thaiku\t-\tclaude/agents/sample.md#model\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
   printf 'fixture-codex-agent\tcodex\tspawn_agent\tgpt-5.6-terra\tmedium\tcodex/agents/sample.toml#model,model_reasoning_effort\t\t\tfixture\t2026-09-25\t\n' >> "$repo/docs/contracts/model-routing.tsv"
-  # the copied managed policy carries the D2 env pins; each must be a routing-table target
+  # env pins in the copied managed policy (none since D16) must each be a routing-table target
   jq -r '.env | to_entries[] | select(.key | test("^ANTHROPIC_DEFAULT_[A-Z]+_MODEL$"))
     | [("fixture-pin-" + (.key | ascii_downcase | gsub("_"; "-"))), "claude", "managed env pin", .value, "-",
        ("claude/managed-settings.json#env." + .key), "", "", "fixture", "2026-09-25", ""] | @tsv' \

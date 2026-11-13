@@ -24,13 +24,13 @@ cp "$REPO_ROOT/claude/managed-settings.json" "$MANAGED"
 expect_ok "current managed/user split validates" python3 "$CHECK" --user "$USER" --managed "$MANAGED"
 expect_ok "managed policy validates without a user file (D5)" python3 "$CHECK" --managed "$MANAGED"
 
-# Phase 7: version floor, codex-rescue deny, EX-004 memory policy, D2 env pins, retired hooks
+# Phase 7: version floor, codex-rescue deny, EX-004 memory policy, D16 retired env pins, retired hooks
 for mutation in \
   "d['requiredMinimumVersion']='2.1.280'" \
   "d['permissions']['deny'].remove('Agent(codex:codex-rescue)')" \
   "d.pop('autoMemoryEnabled')" \
   "d['autoMemoryEnabled']=True" \
-  "d['env'].pop('ANTHROPIC_DEFAULT_SONNET_MODEL')" \
+  "d['env']['ANTHROPIC_DEFAULT_FABLE_MODEL']='claude-fable-5-1'" \
   "d['hooks']['UserPromptSubmit']=[{'hooks':[{'type':'command','command':'~/.claude/hooks/prompt-submit-hook.sh'}]}]" \
   "d['hooks']['SessionStart'].append({'hooks':[{'type':'command','command':'~/.claude/hooks/session-init-hook.sh'}]})" \
   "d['hooks']['PostCompact']=[{'hooks':[{'type':'command','command':'~/.claude/hooks/post-compact-hook.sh'}]}]"; do

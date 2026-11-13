@@ -108,7 +108,7 @@ review_progress_retrospective_mechanisms: 7
 custom_builtin_agent_overlaps: 0
 full_model_pins: 0
 tier_aliases: 1
-routing_rows: 15
+routing_rows: 11
 model_name_mentions_outside_targets: 0
 permissions_allow_count: 4
 permissions_ask_count: 0
