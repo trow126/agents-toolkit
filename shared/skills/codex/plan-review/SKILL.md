@@ -5,7 +5,7 @@ description: "Use when an implementation plan needs review before execution（�
 
 # 実行前計画レビュー
 
-実装計画を、read-only custom agent `plan_reviewer` 1体で監査する。agentが利用できない場合はgeneric agentへsilent fallbackせず、`~/.codex/agents/plan_reviewer.toml`のinstall状態を報告する。
+実装計画を、read-only custom agent `plan_reviewer` 1体で監査する。agentが利用できない場合はgeneric agentへsilent fallbackせず、`~/.codex/agents/plan_reviewer.toml`のinstall状態を報告して処理を中断する。
 
 ## Instructions
 
@@ -16,9 +16,10 @@ description: "Use when an implementation plan needs review before execution（�
 
 ### Step 2: コンテキストの収集
 
-計画本文に加え、以下の各fileを読んでレビュー呼び出しへ渡す。fileがない場合は「不在」と記録して次へ進む:
+計画本文に加え、以下の各fileを読んでレビュー呼び出しへ渡す。fileがない場合は、渡すコンテキスト内に該当fileが「不在」である旨を明記して次へ進む:
 
-- プロジェクトの AGENTS.md / `claudedocs/learnings.md`
+- プロジェクトルート直下の AGENTS.md
+- プロジェクトルート基準の `claudedocs/learnings.md`
 - `~/.agents/rules/learnings.md`
 - 同一セッションモードでは、計画策定時の主要な意思決定と関連ファイル一覧
 
@@ -71,4 +72,4 @@ native subagent interfaceで`plan_reviewer`をfull-history forkなしで1体起�
 
 1. レビュー結果を `claudedocs/reviews/plan-review-[YYYYMMDD-HHMM].md` に保存する（ディレクトリがなければ作成）
 2. ユーザーへ報告する: 総合判定（APPROVE / APPROVE_WITH_CHANGES / REQUEST_REVISION / REJECT）、BLOCKER/WARNING/INFO 件数、最重要指摘 Top 3、保存パス
-3. BLOCKER がある場合は、計画修正 → 必要なら再レビューを提案する（自動では修正しない）
+3. BLOCKER がある場合、または判定が REQUEST_REVISION / REJECT の場合は、計画修正（REJECT の場合はアプローチ自体の見直しを含む）→ 必要なら再レビューを提案する（自動では修正しない）

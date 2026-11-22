@@ -1,23 +1,27 @@
 # Per-skill Workflow
 
-One pipeline item per skill, no barrier between skills. The script is a frozen `--solo` copy of break-consensus steps 1–5 (`~/.claude/skills/break-consensus/references/probe-and-audit.md` for steps 1 and 4): baseline probe (step 1), a transcript miner, generation (steps 2–3) plus a hygiene review against the shared research, blind prior-art audit (step 4), stress test (step 5), and up to two pre-registered experiments whose criterion is fixed before their runs start. `tests/test-skill-tuneup.sh` checks the second-layer request and the verdict names against `probe-and-audit.md`; when break-consensus changes them, change this script in the same commit.
+One pipeline item per skill, no barrier between skills. The script is a frozen `--solo` (no Codex worker) copy of break-consensus steps 1–5 (`~/.claude/skills/break-consensus/references/probe-and-audit.md` for steps 1 and 4): baseline probe (step 1), a transcript miner, generation (steps 2–3) plus a hygiene review against the shared research, blind prior-art audit (step 4), stress test (step 5), and up to two pre-registered experiments whose criterion is fixed before their runs start. `tests/test-skill-tuneup.sh` checks the second-layer request and the verdict names against `probe-and-audit.md`; when break-consensus changes them, change this script in the same commit.
 
-Deviations from `probe-and-audit.md`, recorded in `synthesis.md` under `## Not covered`:
+Deviations from `probe-and-audit.md` to record in `<run_dir>/synthesis.md` under `## Not covered`:
 
 - Probe count: three probes instead of five, to keep a whole-toolkit run affordable. In the 2026-10-11 probe experiment the main clusters appeared in all five probes, so three still capture the mode.
 - Probes get the skill's file paths instead of a written problem statement and keep Read, Grep, and Glob, because the skill's files are the problem. The no-file-tools isolation of `probe-and-audit.md` applies to break-consensus's own probes.
 
 Every agent is narrowed with `agent({disallowedTools})`. The `agent()` reference does not list that option; Claude Code 2.1.296 honors it and refuses a spawn it cannot narrow. `skill-tuneup prepare` refuses versions older than 2.1.318: before 2.1.301 a workflow agent could skip its step after the harness's "no user authority" note while the run still reported success, before 2.1.305 resume re-ran completed `pipeline()`/`parallel()` agents instead of serving them from the journal, and before 2.1.318 a resume after a usage limit re-ran finished agents.
 
-The miner (session-transcript friction mining, the known method the 2026-10-12 run adopted) reads local Claude Code and Codex transcripts for invocations of the skill and returns deviations with file, line, and a short redacted quote. When it finds no invocation, the skill runs on the probe-based flow alone, and `synthesis.md` names it under `## Not covered`.
+The miner (session-transcript friction mining, the known method the 2026-10-12 run adopted) reads local Claude Code and Codex transcripts for invocations of the skill and returns deviations with file, line, and a short redacted quote. When it finds no invocation (status `no_transcripts`), that skill runs on the probe-based flow alone, and `synthesis.md` names that skill under `## Not covered`.
 
-Each experiment is judged three times on the same outputs: with the designer's judge prompt and with two meaning-preserving rewordings written before the runs start (multi-prompt LLM-as-judge evaluation, https://arxiv.org/abs/2408.13006; meaning-preserving rewordings can flip judge rankings, arXiv 2610.38076). The verdict is PASS or FAIL only when all three agree; any disagreement, a run without output, or a failed experiment is INCONCLUSIVE and is never judged into a PASS.
+Each experiment is judged three times on the same outputs: with the designer's judge prompt and with two meaning-preserving rewordings written before the runs start (multi-prompt LLM-as-judge evaluation, https://arxiv.org/abs/2408.13006; meaning-preserving rewordings can flip judge rankings, arXiv 2610.38076). The verdict is PASS or FAIL only when all three agree; any disagreement, a failed experiment, or no output from a run, rewording, or judge is INCONCLUSIVE and is never judged into a PASS.
 
 Agents per skill: 3 probes, 1 cluster, 1 second layer, 1 miner, 1 generator, then 1 auditor and 1 designer when there are candidates, and per experiment 1 rewording agent, up to 3 runs, and 3 judges, so 7 to 21. `skill-tuneup prepare` prints the total estimate.
 
 ## Args
 
-`{"runId": <run id>, "model": <the `worker_model` printed by prepare>, "research": <text of research.md>, "priorResearch": <text of the previous finished run's research.md, or "" when `since` is none>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references). Every `agent()` runs on `args.model` (`references/worker-route.env`, row `claude-workflow-worker` of the routing table), so no agent inherits the main session's model; the script stops when it is missing.
+`{"runId": <run id>, "model": <the `worker_model` printed by prepare>, "research": <text of research.md>, "priorResearch": <text of the previous finished run's research.md, or "" when `since` in `<run_dir>/run.json` is not set>, "skills": <the "skills" array printed by prepare>}`. Each skill has `name`, `description`, `deprecated`, and `files` (absolute paths of its entrypoints and references). Every `agent()` runs on `args.model` (`references/worker-route.env`, row `claude-workflow-worker` of the routing table), so no agent inherits the main session's model; the script stops when `args.model` is missing.
+
+## Return value
+
+The script returns `{run_id, results, missing}` (`missing` lists skills whose pipeline item produced no result). Write that object, without any wrapper the Workflow tool adds, to `<run_dir>/results.json` for `skill-tuneup record`.
 
 ## Script
 

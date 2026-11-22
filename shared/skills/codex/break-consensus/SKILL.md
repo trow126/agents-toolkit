@@ -5,20 +5,22 @@ description: "Generates non-consensus candidates: freezes the consensus baseline
 
 # $break-consensus
 
-**Stop** before any implementation, external write, or destructive experiment; this skill only explores and proposes. **Done** when you have returned the surviving candidates, each with its smallest reversible experiment.
+**Stop** before any implementation, external write, or destructive experiment; this skill only explores and proposes. **Done** when you have returned the surviving candidates, each with its smallest reversible experiment, or reported that none survived.
 
 ## Modes
 
-- In Codex: generate and test candidates in this session (the `--solo` behavior), with or without `--solo`.
-- `--cross`: the cross-provider mode, the default only in Claude Code, which launches the Codex and Claude workers from its main session. In Codex, do not emulate it; tell the user to run `/break-consensus` in Claude Code, and stop.
+This skill definition is for Codex only; if loaded outside Codex, stop and report that this definition applies only to Codex.
+
+- Default / `--solo`: generate and test candidates in this session (the `--solo` behavior), with or without `--solo`, unless `--cross` is given. Steps 1 and 4 still require separate fresh contexts that do not inherit this session; if any required fresh context cannot be started, stop and report it rather than falling back to this session.
+- `--cross`: the cross-provider mode, the default only in Claude Code, which launches the Codex and Claude workers from its main session. Do not emulate it in Codex, even if `--solo` is also given; tell the user to run `/break-consensus` in Claude Code, and stop.
 
 For steps 1 and 4 follow [`../../break-consensus/references/probe-and-audit.md`](../../break-consensus/references/probe-and-audit.md). Read [`../../break-consensus/references/evidence.md`](../../break-consensus/references/evidence.md) only when the user asks why a step exists or when you update this skill.
 
 1. Freeze the consensus baseline from observed answers, not recall: probe fresh contexts for their first answers and for the next layer beyond them, then add standard practice and the current implementation. These are exploration exclusions, not candidates.
-2. Generate candidates through at least three distinct mechanisms: assumption inversion, transfer from a structurally different field, and a changed generation principle or objective.
+2. Generate candidates through at least these three distinct mechanisms: assumption inversion, transfer from a structurally different field, and a changed generation principle or objective.
 3. Make each candidate operationally distinct; reject synonyms, cosmetic variations, and combinations of baseline ideas.
-4. Check prior art with a blind auditor in a fresh context that sees each candidate only as purpose, mechanism, and implementation, with no claim of novelty. Accept "known" only with a source and a facet match, record "not found", never "novel", and handle each verdict as probe-and-audit.md defines.
+4. Check prior art with a blind auditor in a fresh context that sees each candidate only as purpose, mechanism, and implementation, with no claim of novelty. Exclude a candidate as `KNOWN` only when backed by a source and a match on all three facets (purpose, mechanism, implementation); record `NOT_FOUND` when nothing is found (never label a candidate as "novel" in any language), and handle every verdict, keeping the fixed English identifiers `KNOWN`, `PARTIAL`, and `NOT_FOUND` verbatim, as probe-and-audit.md defines.
 5. Stress-test surviving ideas for feasibility, safety, reversibility, cost, and a falsifiable advantage.
-6. Return only candidates that survive, each with its broken assumption, mechanism, predicted benefit, failure condition, and smallest reversible experiment.
+6. Return only candidates that survive, each with its broken assumption, mechanism, predicted benefit, failure condition, and smallest reversible experiment. If none survive, report that none survived (with the prior-art audit record probe-and-audit.md requires) and stop; do not regenerate or relax the filters in steps 3–5.
 
 This skill explores and proposes. It does not authorize implementation, external writes, destructive experiments, or bypassing normal quality and approval gates.

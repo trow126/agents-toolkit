@@ -9,28 +9,28 @@ description: Use when making a high-risk decision（アーキテクチャ・デ�
 
 - 停止条件: named agentが見つからない場合は汎用agentへfallbackせず、install状態を報告して止まる。model割当や設定を書き換える操作が必要な場合も、実施せずに報告して止まる
 - session log・設定値・agent fileの読み取りは承認なしで行う
-- 完了条件: 実際に使われたmodel・effortをsession logの`turn_context`で確認して報告した時点
+- 完了条件（subagentを使った場合、またはルーティングを検証する場合）: 実際に使われたmodel・effortをsession logの`turn_context`で確認して報告した時点
 
 ## Model割り当て
 
 - built-in `default`・`worker`: `[agents]`の既定model・effort（AGENTS.mdに記載）
 - `explorer`: read-only探索
-- `plan_reviewer`: read-only計画review（`$plan-review`が起動する）
-- named agentのmodel・effortは各agent file（`~/.codex/agents/*.toml`）に従う。値の正本はtoolkitのrouting表である
+- `plan_reviewer`（named custom agent）: read-only計画review（`$plan-review`が起動する）
+- named agentのmodel・effortは各agent file（`~/.codex/agents/*.toml`またはprojectの`.codex/agents/*.toml`）に従う。値の正本はtoolkitのrouting表である。agent fileが正本と食い違う場合は、agent fileを書き換えず報告して止まる
 
-custom agent fileの`model`・`model_reasoning_effort`を最優先し、次にspawn時の明示値、`[agents]` default、親設定の順で解決する。custom agent利用時にper-spawn modelを重ねず、agent fileの指定を尊重する。
+運用上の優先方針として、custom agent fileの`model`・`model_reasoning_effort`を最優先し、次にspawn時の明示値、`[agents]` default、親設定の順で採用する。custom agent利用時にper-spawn modelを重ねず、agent fileの指定を尊重する。
 named custom agentをspawnする場合はfull-history forkを併用せず、必要なcontextをpromptへ明示する。現行runtimeはcustom `agent_type`とfull-history forkの同時指定をrejectする。
 
 ## 高リスク判断
 
 - 失敗が反復する・根本原因が不明・競合する複数仮説がある場合も、判断はownerが行う。判断を別のagentへ委任しない
-- 独立した意見が必要な場合だけ、Claude Code CLIでClaudeに相談する（`AGENTS.md`のRuntime規則に従う）。ownerの暫定結論は見せず、問題とcontextだけを渡す
+- 独立した意見が必要な場合だけ、Claude Code CLIでClaudeに相談する（実行・監視の手順は`AGENTS.md`のRuntime規則に従う）。ownerの暫定結論は見せず、問題とcontextだけを渡す
 - ownerが自分の結論とClaudeの回答を統合する（相違点と採否理由を明示）
 - 高リスク変更（アーキテクチャ・データ破壊・公開 API）は、実装後に `codex review`（独立コンテキストの検査）+ deterministic CI で判定する
 
 ## Claude 運用
 
-- 妥当な待機で結果が得られなければownerの判断だけで結論を出し、「peer opinion欠落」と明記する
+- `AGENTS.md`のRuntime規則に定める待機時間（定めがなければownerが妥当と判断する時間）で結果が得られなければownerの判断だけで結論を出し、「peer opinion欠落」と明記する
 - Claude の役割は peer engineer（実装の下請けでもレビュアーでもない）
 
 ## 既存経路が優先
@@ -45,5 +45,5 @@ generic `default`・`worker`への委任はこれらの代替ではない。
 
 - 実測したsession log・設定値がこのskillや公式docsの記述と食い違う場合は実測を優先し、食い違った記述をstale候補として報告する
 - session logの`session_meta.source.subagent.thread_spawn`で対象childとparentを特定し、childの`turn_context.model`・`turn_context.effort`を確認する。message本文は検証に使わない
-- routing異常時は`~/.codex/config.toml`の`[agents]` default、custom agent file、spawn時の明示値、CLI overrideの順に確認する
-- `max_concurrent_threads_per_session`を使う。`max_threads`はlegacy aliasであり、`max_depth`はV1でのみ有効、V2では無視される
+- routing異常時は、上記の優先方針とは別の点検手順として、`~/.codex/config.toml`の`[agents]` default、custom agent file、spawn時の明示値、CLI overrideの順に確認する
+- `~/.codex/config.toml`の`[agents]`セクションでは`max_concurrent_threads_per_session`を使う（`max_threads`はlegacy alias、`max_depth`はV1でのみ有効でV2では無視される。V1・V2はCodexのmulti-agent runtimeの世代）

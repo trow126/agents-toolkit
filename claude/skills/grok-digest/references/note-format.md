@@ -1,12 +1,12 @@
 # grok-digest note format
 
-The notes go into the user's Obsidian vault, which a separate clipping pipeline fills with one Markdown note per saved link and curates once a week. A Grok note follows that pipeline's clipping format, so its weekly curation may add `summary`, content tags, related-note links, and the weekly digest entry, and its search index picks the note up. Related-note links were missing from 4 of the 6 Grok notes saved on 2026-10-08; check after the next weekly run before relying on them. Do not modify the pipeline; only write notes in its format.
+The notes go into the user's Obsidian vault, which a separate clipping pipeline fills with one Markdown note per saved link and curates once a week. A Grok note follows that pipeline's clipping format, so its weekly curation may add `summary`, content tags, related-note links, and the weekly digest entry, and its search index picks the note up. Related-note links were missing from 4 of the 6 Grok notes saved on 2026-10-08; do not promise them in a note or in the report until the user confirms they work after a weekly run. Do not modify the pipeline; only write notes in its format.
 
 ## Where the vault is
 
 The vault path is never written in this skill. `grok-digest vault` resolves it:
 
-1. `$GROK_DIGEST_INBOX_CONFIG`, or else `config` in section `[inbox]` of `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/grok-digest.toml` (untracked, machine-local), names the pipeline's `config.toml`.
+1. `$GROK_DIGEST_INBOX_CONFIG` when set, otherwise `config` in section `[inbox]` of `${XDG_CONFIG_HOME:-~/.config}/agents-toolkit/grok-digest.toml` (untracked, machine-local), names the path to the pipeline's `config.toml`.
 2. That file's `[vault]` `path` is the vault; notes go to `<vault>/clippings/`.
 
 ```toml
@@ -15,11 +15,11 @@ The vault path is never written in this skill. `grok-digest vault` resolves it:
 config = "~/<pipeline checkout>/config.toml"
 ```
 
-When this fails (exit 3; for example on a machine without the vault), report the reason and write with `--staging`: the notes go to `${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/grok-digest/clippings/`, to be copied into `<vault>/clippings/` on the machine that has the vault.
+When this fails (exit 3, from `grok-digest vault` or from `grok-digest note`; for example on a machine without the vault), report the reason and write with `grok-digest note --staging`: the notes go to `${XDG_STATE_HOME:-~/.local/state}/agents-toolkit/grok-digest/clippings/`, to be copied into `<vault>/clippings/` on the machine that has the vault.
 
 ## What the helper writes
 
-`grok-digest note --url <conversation url> --title <history title> --date <conversation date> --body-file <body.md>` writes `clippings/<saved>-Grok-<slug>.md` (a numbered suffix when the name exists) with:
+`grok-digest note --url <conversation url> --title <history title> --date <conversation date> --body-file <body.md>` writes `clippings/<saved>-Grok-<slug>.md` (adding a numbered suffix when that name already exists; a duplicate `url` exits 4 instead) with:
 
 ```yaml
 ---
@@ -33,13 +33,14 @@ tags: [clipping, grok-digest]
 ---
 ```
 
-- `url` is the pipeline's idempotency key. The helper refuses (exit 4) when a note with the same `url` exists; report it and do not overwrite or edit that note.
-- Do not add `summary` or `curated`: the weekly curation adds them. `status`, `url`, and the user's later edits belong to the user.
+- `<conversation date>` is `YYYY-MM-DD`, the date the conversation's history heading resolves to. If the date is unknown (for example, under an `unparsed` heading), omit `--date` so the helper records 不明 in `## 出典`.
+- `url` is the pipeline's idempotency key. The helper checks only the target `clippings/` directory (vault or staging) and refuses (exit 4) when a note with the same `url` exists there; report it and do not overwrite or edit that note.
+- Do not add `summary` or `curated`: the weekly curation adds them. After a note is written, never change `status`, `url`, or the user's later edits; they belong to the user.
 - The helper appends `## 出典` with the conversation URL and date. The body must not contain `## 出典`, `## 関連ノート (auto)`, or `## Deep dive (auto)` (the pipeline owns the last two).
 
 ## Body
 
-Write the body in Japanese, with blank lines around headings and tables. `## 会話の要約` and `## 次の一手` are required; leave out a section that has no content rather than writing an empty one.
+Write the body in Japanese, with blank lines around headings and tables. `## 会話の要約` and `## 次の一手` are required (the helper rejects a body missing either section); leave out any other section that has no content rather than writing an empty one.
 
 ```markdown
 ## 会話の要約
@@ -74,6 +75,8 @@ Write the body in Japanese, with blank lines around headings and tables. `## 会
 
 - 確認方法: the check to run / データ: the data source a user could obtain / 反証条件: the result that would show the claim does not hold for the project
 ```
+
+Omit projects with 関連度 `なし` from `## 関連プロジェクト` (and omit the section if none remain). Include `## 反論` only when `--critic` ran on the conversation and produced findings.
 
 Each `## 次の一手` item names 確認方法, データ, and 反証条件 (kill criteria, a falsification condition fixed before the check). The 反証条件 rests on the conversation text or the project, not an arbitrary threshold; an item without one is not written.
 

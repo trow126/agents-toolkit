@@ -1,6 +1,9 @@
 # break-consensus の設計根拠（実証研究・先行事例）
 
-2026-07-23 調査。各 Stage の設計判断を支える一次情報と、設計上の限界の明示。
+2026-07-23 初回調査（2026-10 に一部追記・更新）。各 Stage の設計判断を支える一次情報と、設計上の限界の明示。
+
+- 見出しおよび本文中の「Stage N」は 2026-07 調査時点の旧番号で、現行 SKILL.md の手順番号とは一致しない。対応: Stage 2 = 手順1（合意の凍結）、Stage 3-4 = 手順2（前提破壊・異分野移植）、Stage 5 = 手順2-3（生成原理の変更と操作上の差別化・言い換え排除）、Stage 6 = 手順4（先行事例の監査）、Stage 7 = 手順5-6（ストレステストと最小実験）。本文中の「手順N」は現行の番号を指す
+- 出典末尾の `[agent-opened, abstract only]` はエージェントが参照し abstract のみ確認したこと、`[unverified: abstract only]` は abstract のみ確認しており該当記述が未検証であることを示す（いずれも本文は未確認）
 
 ## なぜ「合意領域の可視化と封鎖」か（Stage 2）
 
@@ -10,9 +13,9 @@
 - フィードバックで調整したモデルと書くと、書かれた内容の多様性が下がる: Padmakumar & He, ICLR 2024. https://arxiv.org/abs/2309.05196
 - 例示への曝露が発想を例示へ引き寄せる（design fixation）: Jansson & Smith 1991（古典）。「よくある解を列挙してから離れる」の実証的背骨
 - 分布として k 案 + 確率を出させ、裾から取ると創作タスクで多様性が 1.6-2.1 倍（Verbalized Sampling、abstract）。同論文は mode collapse の原因を選好データの typicality bias に求める: https://arxiv.org/abs/2510.01171 — 「mode を可視化してから外す」という本 skill の Stage 2 に最も近い公開手法
-- 注意: 「共通解を列挙して明示的に禁止する」手続きそのものの直接検証研究は見つかっていない（2026-07 時点）。本 skill の独自部分であり、効果は未検証である。検証方法は「設計上の限界」の節に書いた（baseline を封鎖した run と封鎖しない run の比較）
+- 注意: 「共通解を列挙して明示的に禁止する」手続きそのものの直接検証研究は見つかっていない（2026-07 時点）。同時点の調査で直接の裏付けを確認できていない設計要素であり、効果は未検証である。検証方法は「設計上の限界」の節に書いた（baseline を封鎖した run と封鎖しない run の比較）
 
-## なぜ「前提破壊」か（Stage 3)
+## なぜ「前提破壊」か（Stage 3）
 
 - 直接の統制実験は薄い。最も近い実証は McCaffrey の Generic Parts Technique（Psychological Science 2012、機能固着の除去で洞察問題の解決率 +67%）
 - （履歴）旧版の操作メニュー（削除/反転/ゼロ/100倍ほか）は SCAMPER・ラテラルシンキング系の伝統操作を厳格化したもの。現行の手順2はメニューを持たず、assumption inversion を3つの生成機構の1つとして使う
@@ -20,7 +23,7 @@
 ## なぜ「構造的対応が実在する異分野移植」か（Stage 4）
 
 - 遠い分野・低頻度の例示ほど novel な設計を生む: Chan, Fu, Schunn et al., JMD 2011. https://asmedigitalcollection.asme.org/mechanicaldesign/article-abstract/133/8/081004/478279/
-- ただし「遠すぎる類推」は逆効果（sweet spot が存在）: Fu et al. 2013 — 表面的比喩でなく構造対応（対応関係 5 項目）を採用条件にする理由
+- ただし「遠すぎる類推」は逆効果（sweet spot が存在）: Fu et al. 2013 — 表面的比喩でなく構造対応を採用条件にする理由（旧版の基準は対応関係 5 項目。現行の SKILL.md 手順2 に 5 項目の規定はなく、cross.md の worker prompt は対応関係の明示のみを求める）
 - 実務の設計チームは近い類推で前進する（in-vivo）: Chan & Schunn, Cognitive Science 2015. https://onlinelibrary.wiley.com/doi/full/10.1111/cogs.12127
 - BioTRIZ（Vincent et al. 2006）: 生物系の解は情報・構造で解く傾向 — エネルギー投入型の定石から離れる移植元として有効
 
@@ -43,6 +46,8 @@
 
 ## 既存 skill との差分（本 skill 自身の novelty 監査、2026-07-23 実施）
 
+以下の「なし」「ない」は、いずれも 2026-07-23 時点の調査範囲で確認できなかったという意味である。
+
 - obra/superpowers `brainstorming`: 要件明確化ゲート（Socratic 質問 → 設計文書）。novelty・反収束機構なし
 - UditAkhourii/adhd: 並列 diverge + critic 収束。最も近いが、合意封鎖・前提破壊・外部 novelty 検索・実験変換なし
 - 技法メニュー型（SCAMPER/Six Hats/TRIZ 列挙系）: 操作の列挙のみで、baseline 封鎖・原理重複禁止・監査の強制がない
@@ -50,7 +55,7 @@
 
 ## 設計上の限界（明示）
 
-- 「合意列挙 → 封鎖」は直接の実証が薄い手続き。falsifiable: `--solo` / `--cross` の実行で、probe の baseline を封鎖した run と封鎖しない run を比べ、候補の非重複率と stress test の生存率を見れば検証できる
+- 「合意列挙 → 封鎖」は直接の実証が薄い手続き。falsifiable: `--solo` / `--cross` の実行で、probe の baseline を封鎖した run と封鎖しない run を比べ、候補の非重複率と stress test の生存率を見れば検証できる（検証用の比較実験であり、通常の実行では手順1による凍結を省かない）
 - cross-provider（既定の `--cross`）は多様性を保証しない。異なるモデルの出力同士も収束する（Artificial Hivemind, NeurIPS 2025 D&B, https://arxiv.org/abs/2510.22954）。両 worker の一致は正しさや非合意の証拠ではない。同じ結果は 23 model・13 言語でも再現し（arXiv 2610.16755）、reasoning を有効にすると model 間の一致が増える（arXiv 2610.41691）[agent-opened, abstract only]
 - novelty 監査は検索範囲に依存する。「新規らしい」は「調査範囲で未発見」以上を意味しない
 
@@ -62,7 +67,7 @@
 - 単純な prompt で独創性が上がるが、モデル間の均質化は残る（IDEAFix, arXiv 2606.00875）。「出した案をカテゴリ分けしてその外で出させる」という手法の帰属は abstract では確認できない [unverified: abstract only]。https://arxiv.org/abs/2606.00875
 - LLM judge の novelty 判定は不安定で、「査読者が片方を新規と判断した」と伝えるだけで同じペアの半数以上で判定が反転し、精度が50点以上動く。検索の上積みは小さい（Sternlicht et al., arXiv 2610.02022）。https://arxiv.org/abs/2610.02022
 
-### 実測（2026-10-11、前回の --cross run の brief 1本、Claude 側のみ）
+### 実測（2026-10-11。それ以前に行った --cross run［以下「前回」］の brief 1本、Claude 側のみ）
 
 - baseline probe: 手順なしの fresh context 5体の回答は15の塊になった。前回の自己列挙の baseline（19項目）が覆ったのは3塊（20%）。前回の「非合意」候補16件のうち13件が probe の塊に入っていた。自己列挙では本当の mode を取りこぼす
 - blind audit: 中立化した11候補に対し、fresh context の監査役が前回の記憶ベースの確認に無い先行事例を7件で URL 付きで見つけた（KNOWN 7、PARTIAL 4、NOT_FOUND 0）。「新規な案」と伝えた監査役とは3件で判定が変わった（反復なしなので、手がかりの効果とばらつきは区別できない）

@@ -1,13 +1,13 @@
 # grok-digest workflow
 
-Established by hand on 2026-10-03. The X web UI changes without notice: when a selector or UI string below no longer matches, say so, adapt in this session, and report the change so this file can be updated. If a built-in browser skill is available in the session, read it before the first browser step.
+Established by hand on 2026-10-03. The X web UI changes without notice: when a selector or UI string below no longer matches, say so, adapt in this session (within the safety rules of SKILL.md), and report the change so this file can be updated. If a built-in browser skill is available in the session, read it before the first browser step.
 
 Keep page text out of the repository; put intermediate files (history JSON, page text, questions, answers) in your scratchpad.
 
 ## 1. Open Grok
 
 - Open `https://x.com/i/grok` with `preview_start` (`url`) or `navigate`.
-- Use `get_page_text` or `read_page` to check the state. A sign-in or account-selection page means the user is not signed in: ask them to sign in in the browser pane, then stop.
+- Use `get_page_text` or `read_page` to check the state. A sign-in or account-selection page means the user is not signed in: ask them to sign in in the browser pane, then stop. If site approval for x.com is denied, or external pages or navigation are disabled, report that as such (not as signed out) and stop without retrying (SKILL.md Safety rules).
 
 ## 2. Collect the history
 
@@ -31,12 +31,12 @@ Keep page text out of the repository; put intermediate files (history JSON, page
    })()
    ```
 
-3. The list loads lazily. If the last heading is still inside the period, scroll the dialog list (`scroll` at the list, or set `scrollTop` of its scroll container) and collect again until a parsed heading older than the period appears or no new link appears. A heading the regex does not parse does not end the loop. Concatenate the results; `select` drops duplicates.
+3. The list loads lazily. If the last parsed heading is still inside the period (the last `<days>` days, today included), or none has been parsed yet, scroll the dialog list (`scroll` at the list, or set `scrollTop` of its scroll container) and collect again until a parsed heading older than the period appears or no new link appears. A heading the regex does not match, or one whose date cannot be parsed (`select` in step 4 reports it as `unparsed`), does not end the loop. Merge the collected JSON arrays into one array; `select` drops duplicates.
 4. Save the JSON to a scratchpad file and run `~/.claude/bin/grok-digest select --days <days> <file>`. Its `today` is the local date; pass `--today` only to reproduce an earlier run. A weekday heading means 2–7 days back, since 今日 and 昨日 have their own headings.
 
 ## 3. Read each conversation
 
-For each selected `url`: `navigate`, wait about 3 seconds (`computer` `wait`), then take the text with `javascript_tool` `document.querySelector('main').innerText` (or `get_page_text`). If the text is empty or still loading, wait and read once more. If the second read is still empty, record the conversation as 読み取り失敗 with its URL: list it apart from the §4 table (never as 関連度 なし) and propose no question or note for it. Keep each text in the scratchpad.
+For each selected `url`: `navigate`, wait about 3 seconds (`computer` `wait`), then take the text with `javascript_tool` `document.querySelector('main').innerText` (or `get_page_text`). If the text is empty or still loading, wait and read once more. If the second read is still empty or still loading, record the conversation as 読み取り失敗 with its URL: list it apart from the §4 table (never as 関連度 なし) and propose no question or note for it. Keep each text in the scratchpad.
 
 ## 4. Match against the projects
 
@@ -46,7 +46,7 @@ Run `~/.claude/bin/grok-digest projects` (git repositories directly under the ho
 |---|---|---|---|---|
 | title (date) | 高/中/低/なし | project names | concrete idea | 自己申告・短期・年率換算・宣伝の兆候・出典なし |
 
-関連度 is about the user's projects, not about how interesting the claim is. Frozen or archived projects count as context only.
+関連度 is about the user's projects, not about how interesting the claim is. Frozen or archived projects (see SKILL.md step 5) count as context only.
 
 ## 5. Deep-dive question template
 
@@ -61,7 +61,7 @@ Replace 〇〇 with the specific claim, method, or number to check. The proposal
 1. Open the conversation in a separate tab: `preview_start` with its `url`.
 2. Capture the page text before sending (`main` innerText) to `before.txt`, and write the approved question to `question.txt`.
 3. `find` the textbox whose placeholder is `どんなことでもお尋ねください`; click it **by `ref`** (coordinate clicks do not work in a background tab); `type` the question; `key` `Return`.
-4. Verify the send with `javascript_tool`: the last user turn of `main` innerText contains the question, followed by a generating indicator (for example `Thinking`) or by answer text. If the question is not found after a second read, do not retype: report the conversation as 送信未確認 and ask the user before any resend, as in step 5.
+4. Verify the send with `javascript_tool`: the last user turn of `main` innerText contains the question, followed by a generating indicator (for example `Thinking`) or by answer text. If the question is not found after a second read, do not retype: report the conversation as 送信未確認 and ask the user before any resend, as in step 5 below.
 5. Wait 60–90 seconds, then save the page text to `page.txt` and run:
 
    ```bash
@@ -73,7 +73,7 @@ Replace 〇〇 with the specific claim, method, or number to check. The proposal
 
 ## 7. Critic (`--critic` only)
 
-Write the claims and deep-dive answers to a scratchpad document. Leave out private project details, account names, and anything private; `cross-critic` sends the document to another provider. Run `/cross-critic <document>` (default mode) by reading `~/.claude/skills/cross-critic/SKILL.md` and its references, since the Skill tool refuses it, and ask for alternative explanations that look equally convincing and for objections. Follow its workflow to the end: every finding gets 採用 or 不採用 with a reason, and `cross-critic finish` must pass. Put the decision table into the notes' `## 反論` section.
+If there is no complete deep-dive answer, skip this section and say so in the report (SKILL.md step 8). Write the claims and deep-dive answers to a scratchpad document. Leave out private project details, any account names, local paths, personal information, and anything else private; `cross-critic` sends the document to another provider. Wrap page text and answers written into the document in the per-run random-id tag (SKILL.md Safety rules). Run `/cross-critic <document>` (default mode) by reading `~/.claude/skills/cross-critic/SKILL.md` and its references, since the Skill tool refuses it, and ask for alternative explanations that look equally convincing and for objections. Follow its workflow to the end: every finding gets 採用 or 不採用 with a reason, and `cross-critic finish` must pass. Put the decision table into the notes' `## 反論` section.
 
 ## 8. Save and report
 

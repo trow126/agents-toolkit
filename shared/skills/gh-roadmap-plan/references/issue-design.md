@@ -1,6 +1,6 @@
 # Issue design for a roadmap
 
-`gh-roadmap-plan templates` prints the completeness rule (`~/.agents/rules/issue-completeness.md`) and the skeletons. Their exact headings are authoritative; this file adds what a roadmap needs on top of them. Write the bodies in the language of the source conversation or documents.
+`gh-roadmap-plan templates` prints the completeness rule (`~/.agents/rules/issue-completeness.md`) and the skeletons. Their exact headings are authoritative; this file adds what a roadmap needs on top of them. Write titles and bodies in the language of the source conversation or documents; keep the literal markers specified below (`親 Issue:`, `前提:`, `中止条件:`, `【判断ゲート】`, `担当: ユーザー`, and `ロードマップ:` unless the repository uses another title convention) as written.
 
 ## Parent (backlog/umbrella)
 
@@ -8,7 +8,7 @@ Title: `ロードマップ: <goal>` (or the repository's existing convention). S
 
 - **Purpose / 目的**: the goal and the success measure from the brief, and what a negative result means (the roadmap closes with that verdict recorded).
 - **Exact scope / 対象範囲**: repository, data, period, instruments or modules; the decisions made, each with date and who decided; related projects and what is reused from each.
-- **Child work items / 子Issue**: one line per child, in execution order, exactly `- [ ] {{#key}} <short title>` (this is the checklist `/gh-roadmap-run` reads and checks off). After the list, a dependency note (`{{#data}} は {{#scaffold}} の後`, parallel children), which children are 【判断ゲート】, and the abort line of each child that has one (below). Existing open Issues that the roadmap relies on are listed under the scope, not in this checklist.
+- **Child work items / 子Issue**: one line per child, in execution order, exactly `- [ ] {{#key}} <short title>` (this is the checklist `/gh-roadmap-run` reads and checks off). After the list, a dependency note (`{{#data}} は {{#scaffold}} の後`, parallel children), which children are 【判断ゲート】, and the abort line of each child that has one (below). Existing open Issues that the roadmap relies on are listed by number under the scope, not in this checklist.
 - **Non-goals / 非目標**: from the brief, including what neighbouring projects already cover.
 - **Close conditions / クローズ条件**: all children closed, plus the final verdict written to a named file (for example `docs/research/<topic>/summary.md`) and posted on the parent. Include the negative-result close.
 - **Tracking or verification notes / 追跡または検証メモ**: open items that are not decisions (license terms to confirm, data to wait for), and how progress is tracked (`/gh-roadmap-run {{#roadmap}} --status`).
@@ -19,7 +19,7 @@ Pick the skeleton per child: implementation for code and pipelines, investigatio
 
 Every child body:
 
-- references the parent in its first line: `親 Issue: {{#roadmap}}`.
+- references the parent in the first line of the body, above the skeleton's first heading: `親 Issue: {{#roadmap}}`.
 - states its dependencies with placeholders (`前提: {{#scaffold}} が完了していること`).
 - stands alone: an implementer decides completion from this body only. Restate the facts it needs from the brief (paths, symbols, periods, thresholds) instead of "see the discussion".
 - defines success by the final persisted or user-visible state: files written, rows stored with counts, a report at a named path, a verdict recorded. A command exiting 0 is not success.
@@ -28,7 +28,7 @@ Every child body:
 - with `--existing`, gives the commit at which its paths and symbols were checked, and says in one line: where this body and the current code disagree on a path or symbol, the code wins and the implementer notes the difference on the Issue.
 - data, cost, and baseline children may add one abort line: `中止条件: <observable result fixed before data is seen>` (for example, fewer than N usable rows, or a cost floor above the target edge). It names a result that makes the rest of the roadmap pointless. `/gh-roadmap-run` stops there and shows the result to the user; it never skips ahead on its own.
 
-Research-specific rules:
+Research-specific rules (for a roadmap whose goal is a question with a decision, workflow §1, and that evaluates hypotheses against data):
 
 - The preregistration child fixes hypotheses, sample periods (exploration vs. held-out), metrics, costs, and kill criteria before any evaluation child runs; evaluation children cite it and may not change it.
 - Evaluation children use the held-out period once and say so.
@@ -37,7 +37,7 @@ Research-specific rules:
 Judgment gates:
 
 - Title starts with 【判断ゲート】. The body lists the options, the evidence each needs (with the children that produce it), the decision criteria, and `担当: ユーザー`.
-- Nothing after a gate may assume its outcome; children that depend on a particular outcome say so in their 前提, using the option's name as the gate body writes it.
+- Nothing after a gate may assume its outcome unconditionally; children that depend on a particular outcome say so in their 前提, using the option's name as the gate body writes it.
 - Give every option a short, unique name. `/gh-roadmap-run` records the user's decision under `## 決定` at the end of the gate's own body (not in a comment) and checks dependent children's 前提 against it; do not write a `## 決定` section in the draft.
 
 ## Final check before `create`
@@ -46,5 +46,5 @@ Judgment gates:
 - Loophole probe: ask the same fresh reader a second question about the same body: the cheapest state that meets its success criterion and verification commands without achieving the child's purpose (for example a file written with zero rows, a report with no verdict). Revise the body when the reader names a concrete state that no sentence of the body rules out; a state that needs deliberate fabrication no criterion could exclude needs no change.
 - Pre-mortem (prospective hindsight, Klein, HBR 2007): imagine the roadmap's Issues later had to be closed and created again elsewhere or in another order, and write up to 3 concrete reasons why (wrong repository, a child that assumes a gate outcome, a missing data dependency). Check each against the brief; fix it, or show it to the user next to the plan table before `init` or `create`.
 - Does every cross-reference use `{{#key}}`, never a guessed number?
-- Are all decisions from the brief recorded in the parent? Every decision is one of: made by the user, an agent proposal the user accepted, a stated default of workflow §3, or a 【判断ゲート】 child. An agent proposal the user has not accepted, including one that arose while drafting, is an open decision: ask it before `create`.
+- Are all decisions from the brief recorded in the parent? Every decision is one of: made by the user, an agent proposal the user accepted, a stated default of workflow §3, or a 【判断ゲート】 child. An agent proposal the user has not accepted, including one that arose while drafting, is an open decision: ask it before `init` or `create`.
 - Does the parent say how a negative result closes the roadmap?

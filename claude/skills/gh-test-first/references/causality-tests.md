@@ -1,14 +1,14 @@
 # Causality (leak) tests
 
-Use these for every function whose output at row `t` must not depend on input after `t`: features, signals, labels with a declared horizon, rolling statistics, resampling, and anything a backtest consumes. They come from the leak-detection tests of the 2026-10 A/B experiments in agents-toolkit (`docs/eval/sandwich-ab/templates/hidden_test_example.py`), where reviewers reading the diff missed every leak these tests caught.
+Use these for every function the Issue adds or changes whose output at row `t` must not depend on input after `t` (after `t + horizon` for a label with a forward window of `horizon` rows): features, signals, labels with a declared horizon, rolling statistics, resampling, and anything a backtest consumes. They come from the leak-detection tests of the 2026-10 A/B experiments in agents-toolkit (`docs/eval/sandwich-ab/templates/hidden_test_example.py`), where reviewers reading the diff missed every leak these tests caught.
 
 ## The three tests
 
-1. **Prefix invariance**: `f(x[:k])` equals `f(x)[:k]` for several `k`. Output `t` does not depend on input after `t`.
-2. **Future perturbation**: replace the input after a cut with large values unrelated to the original. Output before the cut is unchanged. For a label with a forward window of `horizon` rows, compare only rows before `cut − horizon`.
-3. **Sensitivity**: change the input at one row before the cut. Output from that row on changes. Without this test, an implementation that returns all NaN passes tests 1 and 2.
+1. **Prefix invariance**: `f(x[:k])` equals `f(x)[:k]` for several `k`. Output `t` does not depend on input after `t`. For a label with `horizon > 0`, choose `k > horizon` and compare only rows before `k − horizon` (the helper below compares all `k` rows, so adapt it to compare rows up to `k − horizon` for such a label).
+2. **Future perturbation**: replace the input from row `cut` on, in every numeric value column the function reads (excluding timestamps and grouping keys), with large values unrelated to the original. Output before row `cut` is unchanged. For a label with a forward window of `horizon` rows, compare only rows before `cut − horizon`.
+3. **Sensitivity**: change the input at one row before the cut. At least one output value from that row on changes. Without this test, an implementation that returns all NaN passes tests 1 and 2.
 
-Compare exactly (`check_exact=True`): floating-point tolerance can hide a small leak. Use several cuts, including one near the start (warm-up) and one near the end. Use synthetic data with a fixed seed, so that the tests do not depend on files outside the repository.
+Compare exactly (`check_exact=True`): floating-point tolerance can hide a small leak. Use several cuts, including one near the start (inside the warm-up, before the first non-NaN output, when the function has one) and one at `len − 1`. Each cut leaves at least one row on each side (and exceeds `horizon` for a label with `horizon > 0`). For future perturbation, each perturbed column must have at least one finite nonzero value before `cut`. Use synthetic data with a fixed seed, so that the tests do not depend on files outside the repository.
 
 ## Helpers (pandas)
 
@@ -64,6 +64,8 @@ def assert_sensitive(fn, frame, row: int, cols: list[str]) -> None:
 For a function returning a Series, wrap it (`lambda f: fn(f).to_frame()`). For non-pandas code, apply the same three properties to arrays or records.
 
 ## What the tests do not cover
+
+These cases are outside the three causality tests above; add the corresponding test when the Issue's code uses fitted state, data joins/revised data, or train/test splits (any test added still follows the normal test-first gate).
 
 - Leaks through fitted state (a scaler or model fitted on the whole sample): test that fitting on rows before the cut and on all rows gives the same output before the cut.
 - Leaks through data joins (as-of joins, revised data): test with a fixture whose later revision differs from the first release.

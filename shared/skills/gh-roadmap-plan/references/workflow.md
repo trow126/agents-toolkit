@@ -12,15 +12,15 @@ Write the brief to the scratchpad before any Issue body. It is the single source
 - **Decisions made**: each with the date and who decided (user or agent proposal accepted). Quote the user's words when short.
 - **Constraints**: data sources, accounts, budget, runtime, machines, tax or legal conditions named in the source.
 - **Non-goals**: what the source excluded, and what a neighbouring project already covers.
-- **Open questions**: everything the source leaves undecided.
-- **Related projects**: from §2.
+- **Open questions**: everything the source leaves undecided. Each decision among them is handled in §3 (asked, turned into a 【判断ゲート】 child, or covered by a default); open items that are not decisions go to the parent's tracking notes (per issue-design.md) and the report.
+- **Related projects**: filled in after §2.
 
-When the source is the conversation, use only what was said or shown in it. Do not fill gaps with assumptions; list them as open questions.
+Whatever the source (conversation, documents, URLs, or a mix), draw only on what they state or show (alongside facts verified in §2 and answers from §3). Do not fill gaps with assumptions; list them as open questions.
 
 ## §2 Survey
 
 - Run `~/.claude/bin/grok-digest projects` to list the repositories under home with their README heads. Read the ones whose purpose overlaps the goal (same market, data source, or method).
-- For each overlapping project, record: what it already answered (results, verdicts), what can be reused (modules, data caches, tests), and whether the new work belongs there instead. A finished, preregistered study is not reopened. New work goes to a new project and links to it. In both modes, list every repository other than the target whose modules, data caches, held-out data, or joint evaluation any planned child needs. When that list is not empty, ask the placement in §3 (merge into that project or not) with the coupling named, before drafting.
+- For each overlapping project, record: what it already answered (results, verdicts), what can be reused (modules, data caches, tests), and whether the new work belongs there instead. A finished, preregistered study is not reopened. New work goes to a new project and links to it. In new-project mode and with `--existing` alike, list every repository other than the target whose modules, data caches, held-out data, or joint evaluation any planned child needs. When that list is not empty, ask the placement (place the work in that project, or keep the target) with the coupling named, before drafting, as part of the §3 batch.
 - Reused code is copied or ported in a scaffold sub-Issue with the source path and commit named; never depend on another project's working tree.
 - With `--existing`: read the README, docs, the structure of the modules the change touches, the tests, and the open Issues from `check --existing`. A planned child that duplicates an open Issue is not created and not put in the checklist (the manifest can only create new Issues): list that Issue by number under the parent's scope, say which part of the roadmap it covers, and note in the dependency note any child that waits for it.
 - With `--existing`, use the repository's `.github/ISSUE_TEMPLATE` when `templates --dir <repo>` shows one.
@@ -29,9 +29,9 @@ When the source is the conversation, use only what was said or shown in it. Do n
 
 Ask before drafting when the answer changes what the children say: target (market, symbol, pair, module), data source, venue or account, scope boundary, budget, or whether to merge into an existing project. Drafting first and rewriting every body afterwards (a data source and a target decided after 10 Issues existed) is the failure to avoid.
 
-- Ask all of them in one batch, each with at most 3 realistic options, the recommended one first with its reason.
+- Ask all of them in one batch, each with at most 3 realistic options, the recommended one first with its reason. If such a decision first arises while drafting, ask it in the same format (and update the brief and affected drafts) before `init` or `create`, or before finishing `--dry-run` (issue-design.md, Final check).
 - A decision that can only be made with evidence the roadmap itself produces (go/no-go after a backtest, choosing a venue after measuring costs) is not asked now. It becomes a child titled with 【判断ゲート】 (body per issue-design.md, Judgment gates). `/gh-roadmap-run` stops there.
-- Defaults that need no question: private repository, kebab-case name in the style of the user's existing projects, Python with uv when the related projects use it. State each default in the report.
+- Defaults that need no question (new project only): private repository, kebab-case name in the style of the user's existing projects, Python with uv when the related projects use it. State each default in the report.
 
 ## §4 Order and size of the children
 
