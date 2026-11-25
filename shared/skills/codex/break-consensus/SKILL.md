@@ -17,10 +17,10 @@ This skill definition is for Codex only; if loaded outside Codex, stop and repor
 For steps 1 and 4 follow [`../../break-consensus/references/probe-and-audit.md`](../../break-consensus/references/probe-and-audit.md). Read [`../../break-consensus/references/evidence.md`](../../break-consensus/references/evidence.md) only when the user asks why a step exists or when you update this skill.
 
 1. Freeze the consensus baseline from observed answers, not recall: probe fresh contexts for their first answers and for the next layer beyond them, then add standard practice and the current implementation. These are exploration exclusions, not candidates.
-2. Generate candidates through at least these three distinct mechanisms: assumption inversion, transfer from a structurally different field, and a changed generation principle or objective.
+2. Generate candidates through at least three distinct mechanisms: assumption inversion, transfer from a structurally different field, and a changed generation principle or objective.
 3. Make each candidate operationally distinct; reject synonyms, cosmetic variations, and combinations of baseline ideas.
-4. Check prior art with a blind auditor in a fresh context that sees each candidate only as purpose, mechanism, and implementation, with no claim of novelty. Exclude a candidate as `KNOWN` only when backed by a source and a match on all three facets (purpose, mechanism, implementation); record `NOT_FOUND` when nothing is found (never label a candidate as "novel" in any language), and handle every verdict, keeping the fixed English identifiers `KNOWN`, `PARTIAL`, and `NOT_FOUND` verbatim, as probe-and-audit.md defines.
+4. Check prior art with a blind auditor in a fresh context that sees each candidate only as purpose, mechanism, and implementation, with no claim of novelty. Accept "known" only with a source and a facet match, record "not found", never "novel", and handle each verdict as probe-and-audit.md defines.
 5. Stress-test surviving ideas for feasibility, safety, reversibility, cost, and a falsifiable advantage.
-6. Return only candidates that survive, each with its broken assumption, mechanism, predicted benefit, failure condition, and smallest reversible experiment. If none survive, report that none survived (with the prior-art audit record probe-and-audit.md requires) and stop; do not regenerate or relax the filters in steps 3–5.
+6. Return only candidates that survive, each with its broken assumption, mechanism, predicted benefit, failure condition, and smallest reversible experiment.
 
 This skill explores and proposes. It does not authorize implementation, external writes, destructive experiments, or bypassing normal quality and approval gates.
